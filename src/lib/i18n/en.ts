@@ -233,6 +233,8 @@ export const en = {
     hide: "hide",
     laps: "Laps",
     kmSplits: "Splits",
+    zones: "Zones",
+    easyHard: "{easy}% easy · {hard}% hard",
     bestEfforts: "Best efforts",
     prRank: "All-time rank",
     lap: "Lap",
