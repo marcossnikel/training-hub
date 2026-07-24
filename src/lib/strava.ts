@@ -270,6 +270,19 @@ export interface StravaSplit {
   elevation_difference?: number;
 }
 
+/**
+ * A fastest sub-segment Strava found inside a run ("5K", "1 mile", …), with the
+ * athlete's all-time rank for that distance when the effort made the top three.
+ */
+export interface StravaBestEffort {
+  name: string;
+  distance: number;
+  moving_time: number;
+  elapsed_time: number;
+  pr_rank: number | null;
+  start_date_local?: string;
+}
+
 export interface StravaActivityDetail {
   id?: number;
   description?: string | null;
@@ -278,6 +291,8 @@ export interface StravaActivityDetail {
   max_heartrate?: number;
   laps?: StravaLap[];
   splits_metric?: StravaSplit[];
+  /** Runs only; absent for rides and manual activities. */
+  best_efforts?: StravaBestEffort[];
 }
 
 export function parseActivityDetail(json: string | null): StravaActivityDetail | null {
