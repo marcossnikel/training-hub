@@ -531,6 +531,7 @@ export const en = {
     strain: "Strain",
     strainTooltip: "Last 7 days of load multiplied by monotony: the week's total grind.",
     load7d: "7d load",
+    sportOnlyNote: "{sport}-only load; combined form is on {all}",
     states: {
       transition: "Transition",
       fresh: "Fresh",

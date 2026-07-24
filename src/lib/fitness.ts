@@ -193,7 +193,8 @@ export interface WeeklySportLoad {
   load: Record<LoadSport, number>;
 }
 
-function loadSport(sport: string | null | undefined): LoadSport {
+/** Buckets a raw Strava sport_type into the load sport it stacks / filters under. */
+export function loadSport(sport: string | null | undefined): LoadSport {
   const category = sportCategory(sport);
   return category === "run" || category === "bike" ? category : "other";
 }

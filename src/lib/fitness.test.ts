@@ -6,6 +6,7 @@ import {
   dailyLoadSeries,
   formState,
   hrZones,
+  loadSport,
   paceZones,
   projectPmc,
   weeklyLoadTotal,
@@ -410,6 +411,24 @@ describe("weeklySportLoad", () => {
         to: "2026-01-11",
       })
     ).toEqual([{ date: "2026-01-05", load: { run: 0, bike: 0, other: 25 } }]);
+  });
+});
+
+describe("loadSport", () => {
+  it("keeps runs and rides and folds every other sport into other", () => {
+    expect(loadSport("Run")).toBe("run");
+    expect(loadSport("TrailRun")).toBe("run");
+    expect(loadSport("VirtualRide")).toBe("bike");
+    expect(loadSport("EBikeRide")).toBe("bike");
+    expect(loadSport("WeightTraining")).toBe("other");
+    expect(loadSport("Walk")).toBe("other");
+    expect(loadSport("Swim")).toBe("other");
+    expect(loadSport("Elliptical")).toBe("other");
+  });
+
+  it("treats a missing sport as other", () => {
+    expect(loadSport(null)).toBe("other");
+    expect(loadSport(undefined)).toBe("other");
   });
 });
 

@@ -19,14 +19,18 @@ import {
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
+import { fillStr } from "@/lib/i18n";
 import {
   computeAcwr,
   computePmc,
   dailyLoadSeries,
   formState,
+  LOAD_SPORTS,
+  loadSport,
   projectPmc,
   weeklyMonotony,
   weeklySportLoad,
+  type LoadSport,
 } from "@/lib/fitness";
 import { localDateInputValue, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
@@ -46,6 +50,15 @@ const DAY_MS = 86_400_000;
 
 function daysBetween(from: string, to: string): number {
   return Math.round((parseLocalDate(to).getTime() - parseLocalDate(from).getTime()) / DAY_MS);
+}
+
+/** Shareable /fitness URL carrying both filters; defaults are left implicit. */
+function fitnessHref(window: string, sport: LoadSport | "all"): string {
+  const query = new URLSearchParams();
+  if (window !== "6m") query.set("window", window);
+  if (sport !== "all") query.set("sport", sport);
+  const qs = query.toString();
+  return qs ? `/fitness?${qs}` : "/fitness";
 }
 
 function rampColor(ramp: number): string {
@@ -139,9 +152,21 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   const rawWindow = typeof params.window === "string" ? params.window : "6m";
   const win = WINDOWS.find((w) => w.key === rawWindow) ?? WINDOWS[1];
 
+  // Sport filter (T07): per-sport CTL/ATL/TSB, the whole page recomputed from
+  // the filtered rows. Only sports that actually carry load get a pill, so a
+  // filter can never leave the page with an empty curve.
+  const sportsWithLoad = new Set(loads.map((row) => loadSport(row.sport_type)));
+  const availableSports = LOAD_SPORTS.filter((s) => sportsWithLoad.has(s));
+  const rawSport = typeof params.sport === "string" ? params.sport : "all";
+  const sport: LoadSport | "all" = availableSports.some((s) => s === rawSport)
+    ? (rawSport as LoadSport)
+    : "all";
+  const sportLoads =
+    sport === "all" ? loads : loads.filter((r) => loadSport(r.sport_type) === sport);
+
   // PMC runs over the whole history (gap-filled to today) so CTL/ATL carry the
   // full accumulation; the window only slices what the chart shows.
-  const daily = dailyLoadSeries(loads);
+  const daily = dailyLoadSeries(sportLoads);
 
   if (daily.length === 0) {
     return (
@@ -226,7 +251,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   // conversion, so the stacks total exactly what the daily series does.
   const weekly =
     windowStart != null && windowEnd != null
-      ? weeklySportLoad(loads, { from: windowStart, to: windowEnd })
+      ? weeklySportLoad(sportLoads, { from: windowStart, to: windowEnd })
       : [];
 
   const digest = await getWeeklyDigest();
@@ -284,16 +309,40 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
         />
       </dl>
 
+      {sport !== "all" ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {fillStr(t.fitness.sportOnlyNote, { sport: t.sports[sport], all: t.log.all })}
+        </p>
+      ) : null}
+
       <nav aria-label="Time window" className="mt-6 flex flex-wrap items-center gap-1.5">
         {WINDOWS.map((w) => (
           <FilterPill
             key={w.key}
-            href={w.key === "6m" ? "/fitness" : `/fitness?window=${w.key}`}
+            href={fitnessHref(w.key, sport)}
             active={win.key === w.key}
             label={t.fitness.windows[w.key]}
           />
         ))}
       </nav>
+
+      {availableSports.length > 1 ? (
+        <nav aria-label="Filter by sport" className="mt-2 flex flex-wrap items-center gap-1.5">
+          <FilterPill
+            href={fitnessHref(win.key, "all")}
+            active={sport === "all"}
+            label={t.log.all}
+          />
+          {availableSports.map((s) => (
+            <FilterPill
+              key={s}
+              href={fitnessHref(win.key, s)}
+              active={sport === s}
+              label={t.sports[s]}
+            />
+          ))}
+        </nav>
+      ) : null}
 
       <Card className="mt-5">
         <CardContent>
