@@ -78,6 +78,20 @@ export async function listRaces(): Promise<ActivityWithSplits[]> {
   return attachSplits(rows.map(decodeActivity));
 }
 
+export interface RaceMarkerRow {
+  started_at: string;
+  name: string | null;
+}
+
+/** Confirmed race activities' start date + name, for PMC chart race markers. */
+export async function listRaceMarkers(): Promise<RaceMarkerRow[]> {
+  return many<RaceMarkerRow>(
+    `SELECT started_at, name FROM activities
+     WHERE status = 'confirmed' AND is_race = 1 AND started_at IS NOT NULL
+     ORDER BY started_at ASC`
+  );
+}
+
 /** Confirmed activities in [fromIso, toIso), oldest first, for block analysis. */
 export async function listBlockActivities(
   fromIso: string,

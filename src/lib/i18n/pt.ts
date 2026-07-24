@@ -528,6 +528,7 @@ export const pt: Dict = {
     atl: "ATL",
     tsb: "TSB",
     load: "Carga",
+    markerGoal: "Meta",
     weeklyLoad: "Carga semanal",
     window: "Período",
     windows: { "90d": "90 dias", "6m": "6 meses", "1y": "1 ano", all: "Tudo" },
