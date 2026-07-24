@@ -2,7 +2,7 @@
 // buckets, an estimated time-in-zone distribution and polarization, plus a
 // race-day execution breakdown read from the per-second streams. No DB or
 // network imports — the data layer feeds these functions, mirroring fitness.ts.
-import { hrZones, type AthleteThresholds, type Zone } from "./fitness";
+import { hrZones, zoneIndexOf, type AthleteThresholds } from "./fitness";
 import type { ActivityStreams } from "./streams";
 import { isRunSport } from "./validate";
 
@@ -42,18 +42,6 @@ export interface BlockSummary {
   hardSec: number; // Z3-5
   polarization: number | null; // easy / hard
   qualityRuns: number; // runs whose avg HR >= Z3 lower bound
-}
-
-/**
- * Index (0..4) of the HR zone an average HR falls in, or -1 when it fits none.
- * Bounds follow fitness.ts zones: min inclusive, max exclusive, null bound open.
- */
-function zoneIndexForHr(hr: number, zones: Zone[]): number {
-  for (let i = 0; i < zones.length; i++) {
-    const { min, max } = zones[i];
-    if ((min == null || hr >= min) && (max == null || hr < max)) return i;
-  }
-  return -1;
 }
 
 /**
@@ -111,7 +99,7 @@ export function buildBlock(
     }
 
     if (a.avg_hr != null) {
-      const zi = zoneIndexForHr(a.avg_hr, zones);
+      const zi = zoneIndexOf(a.avg_hr, zones);
       if (zi >= 0) zoneSec[zi] += secs;
       if (run && (z3Min == null || a.avg_hr >= z3Min)) qualityRuns += 1;
     }
@@ -271,7 +259,7 @@ export function analyzeRace(
       if (t0 == null || t1 == null || hr == null) continue;
       const dt = t1 - t0;
       if (dt <= 0) continue;
-      const zi = zoneIndexForHr(hr, zones);
+      const zi = zoneIndexOf(hr, zones);
       if (zi >= 0) {
         zoneSec[zi] += dt;
         any = true;

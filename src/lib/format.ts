@@ -127,6 +127,15 @@ export function fmtElev(m: number | null | undefined): string {
   return `${Math.round(m)} m`;
 }
 
+/**
+ * Running step rate in spm. Strava reports run cadence as one-leg revolutions
+ * per minute (the same field as bike rpm), so the step rate is double.
+ */
+export function fmtStepRate(rpm: number | null | undefined): string {
+  if (!rpm) return "–";
+  return `${Math.round(rpm * 2)} spm`;
+}
+
 // fmtDate/fmtDateLong/fmtTime/fmtDateWithYear format a STORED UTC instant
 // (Strava start_date, a Z-suffixed ISO). They read it with UTC getters so the
 // rendered day/weekday/time are stable across runtimes (server=UTC vs browser=
