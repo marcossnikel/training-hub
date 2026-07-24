@@ -2,8 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
+import { extent } from "@/components/activity-chart-series";
 import { fill } from "@/lib/i18n";
 import { fmtDayMonth, parseLocalDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import type { WellnessLane, WellnessMetric } from "@/lib/health";
 import {
   formState,
   LOAD_SPORTS,
@@ -111,6 +114,13 @@ export interface PmcProjection {
   raceDay?: { daysAway: number; restTsb: number; steadyTsb: number };
 }
 
+/** Lane color per wellness metric (T08), the next free chart slots. */
+const WELLNESS_COLOR: Record<WellnessMetric, string> = {
+  hrv_overnight: "var(--chart-2)",
+  resting_hr: "var(--chart-4)",
+  sleep_total: "var(--chart-5)",
+};
+
 // viewBox geometry (unitless; the SVG scales to its container width).
 const VBW = 760;
 const PAD_L = 40;
@@ -133,13 +143,21 @@ const RAMP_RANGE = RAMP_MAX - RAMP_MIN;
 // The ramp tile's existing "building fast" warning threshold (src/app/fitness/page.tsx
 // rampColor), echoed here as a dotted reference line.
 const RAMP_WARN = 8;
-const PMC_H = RAMP_TOP + RAMP_H + AXIS_H;
+// Bottom of the plot area with no wellness lane enabled (T08). Each enabled lane
+// pushes it further down; the x-axis and every full-height line follow it.
+const LANES_TOP = RAMP_TOP + RAMP_H;
+const LANE_H = 48;
 // Minimum form-zone band height (viewBox units) that can hold a 9px label
 // without overlapping its neighbors: font size plus a little breathing room.
 const BAND_LABEL_MIN_HEIGHT = 11;
 // Dash pattern for everything in the projected region (T05). Deliberately not
 // "2 3", which the goal markers own.
 const PROJECTED_DASH = "4 3";
+
+/** Wellness lane values read to one decimal: 62 ms, 47 bpm, 7.4 h. */
+function laneValue(value: number): string {
+  return String(Math.round(value * 10) / 10);
+}
 
 /** TSB reads as a signed number: +12, -8, 0. */
 function signedTsb(value: number): string {
@@ -175,17 +193,23 @@ export function PmcChart({
   weekly,
   markers = [],
   projection,
+  wellness = [],
 }: {
   points: PmcSeriesPoint[];
   weekly: WeeklySportLoad[];
   markers?: PmcMarker[];
   projection?: PmcProjection;
+  /** Wellness lanes available to overlay (T08); all start hidden. */
+  wellness?: WellnessLane[];
 }) {
   const { t, lang } = useI18n();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const weekSvgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [weekHover, setWeekHover] = useState<number | null>(null);
+  // Which wellness lanes are shown. Off by default, so the chart looks exactly
+  // as it did before until the athlete asks for a recovery signal.
+  const [shownWellness, setShownWellness] = useState<WellnessMetric[]>([]);
 
   const n = points.length;
   // Projected days extend the x domain past the historical points; hover and
@@ -238,6 +262,36 @@ export function PmcChart({
         .filter((b): b is { i: number; value: number } => b !== null),
     [points]
   );
+
+  // Wellness lanes (T08): one compact strip per enabled metric, stacked under
+  // the ramp lane. Each lane scales to its own extent — ms, bpm and hours share
+  // no axis — and its line breaks on days the wearable has no reading for.
+  const shownLanes = wellness.filter((lane) => shownWellness.includes(lane.metric));
+  const laneGeom = shownLanes.map((lane, k) => {
+    const top = LANES_TOP + GAP + k * (LANE_H + GAP);
+    const bottom = top + LANE_H;
+    const [lo, hi] = extent(lane.points.map((p) => p.value)) ?? [0, 1];
+    const yPx = (v: number) => bottom - ((v - lo) / (hi - lo)) * LANE_H;
+    const segments: string[] = [];
+    let current = "";
+    lane.points.forEach((p, i) => {
+      if (p.avg == null) {
+        if (current) segments.push(current);
+        current = "";
+        return;
+      }
+      current += `${current ? "L" : "M"}${xPx(i).toFixed(1)},${yPx(p.avg).toFixed(1)} `;
+    });
+    if (current) segments.push(current);
+    const dots = lane.points
+      .map((p, i) => (p.value == null ? null : { i, y: yPx(p.value) }))
+      .filter((d): d is { i: number; y: number } => d !== null);
+    return { lane, top, bottom, lo, hi, yPx, segments, dots };
+  });
+  // Enabled lanes extend the plot downward; the axis, crosshair and every
+  // full-height marker line follow this instead of a fixed bottom.
+  const plotBottom = laneGeom[laneGeom.length - 1]?.bottom ?? LANES_TOP;
+  const chartH = plotBottom + AXIS_H;
 
   // Form-zone bands clipped to the panel's current TSB extent: clamp each
   // band's bounds to [-tsbMax, tsbMax] and drop it when that leaves no height
@@ -446,10 +500,52 @@ export function PmcChart({
           ) : null}
         </div>
 
+        {/* wellness overlay toggles (T08): the chart owns which lanes are on */}
+        {wellness.length > 0 ? (
+          <div
+            role="group"
+            aria-label={t.fitness.wellness}
+            className="mb-3 flex flex-wrap items-center gap-1.5"
+          >
+            {wellness.map((lane) => {
+              const on = shownWellness.includes(lane.metric);
+              return (
+                <button
+                  key={lane.metric}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    setShownWellness((prev) =>
+                      prev.includes(lane.metric)
+                        ? prev.filter((m) => m !== lane.metric)
+                        : [...prev, lane.metric]
+                    )
+                  }
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                    on
+                      ? "border-ring text-foreground"
+                      : "border-border text-muted-foreground hover:border-ring hover:text-foreground"
+                  )}
+                >
+                  <span
+                    className="size-2 rounded-full"
+                    style={{
+                      backgroundColor: on ? WELLNESS_COLOR[lane.metric] : "var(--muted)",
+                    }}
+                    aria-hidden
+                  />
+                  {t.health.metrics[lane.metric]}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         <div className="relative w-full overflow-x-auto">
           <svg
             ref={svgRef}
-            viewBox={`0 0 ${VBW} ${PMC_H}`}
+            viewBox={`0 0 ${VBW} ${chartH}`}
             width="100%"
             style={{ height: "auto", touchAction: "none" }}
             role="img"
@@ -651,6 +747,88 @@ export function PmcChart({
               );
             })}
 
+            {/* wellness lanes (T08): 7-day trailing average as the line, faint
+                daily dots, broken over days the wearable has no reading for */}
+            {laneGeom.map(({ lane, top, bottom, lo, hi, yPx, segments, dots }) => {
+              const color = WELLNESS_COLOR[lane.metric];
+              const hoverAvg = hover != null ? (lane.points[hover]?.avg ?? null) : null;
+              return (
+                <g key={lane.metric}>
+                  <line
+                    x1={PAD_L}
+                    y1={bottom}
+                    x2={VBW - PAD_R}
+                    y2={bottom}
+                    stroke="var(--border)"
+                    strokeWidth={1}
+                    opacity={0.5}
+                  />
+                  <text
+                    x={PAD_L - 6}
+                    y={top + 4}
+                    textAnchor="end"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    className="font-mono"
+                  >
+                    {laneValue(hi)}
+                  </text>
+                  <text
+                    x={PAD_L - 6}
+                    y={bottom}
+                    textAnchor="end"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    className="font-mono"
+                  >
+                    {laneValue(lo)}
+                  </text>
+                  <text
+                    x={PAD_L + 3}
+                    y={top + 8}
+                    fontSize={9}
+                    fill={color}
+                    className="font-mono"
+                    opacity={0.8}
+                  >
+                    {t.health.metrics[lane.metric]}
+                    {lane.unit ? ` · ${lane.unit}` : ""}
+                  </text>
+                  {dots.map((dot) => (
+                    <circle
+                      key={`dot-${dot.i}`}
+                      cx={xPx(dot.i)}
+                      cy={dot.y}
+                      r={1.25}
+                      fill={color}
+                      opacity={0.35}
+                    />
+                  ))}
+                  {segments.map((d, si) => (
+                    <path
+                      key={`seg-${si}`}
+                      d={d}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={1.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                  ))}
+                  {hoverAvg != null && hoverX != null ? (
+                    <circle
+                      cx={hoverX}
+                      cy={yPx(hoverAvg)}
+                      r={3}
+                      fill={color}
+                      stroke="var(--card)"
+                      strokeWidth={1.5}
+                    />
+                  ) : null}
+                </g>
+              );
+            })}
+
             {/* projection (T05): today divider, then dashed CTL/TSB
                 continuations for the steady and full-rest scenarios */}
             {projLen > 0 && n > 0 ? (
@@ -659,7 +837,7 @@ export function PmcChart({
                   x1={xPx(n - 1)}
                   y1={TOP}
                   x2={xPx(n - 1)}
-                  y2={RAMP_TOP + RAMP_H}
+                  y2={plotBottom}
                   stroke="var(--foreground)"
                   strokeWidth={1}
                   strokeDasharray={PROJECTED_DASH}
@@ -697,14 +875,14 @@ export function PmcChart({
                   x1={xPx(tick.i)}
                   y1={TOP}
                   x2={xPx(tick.i)}
-                  y2={RAMP_TOP + RAMP_H}
+                  y2={plotBottom}
                   stroke="var(--border)"
                   strokeWidth={1}
                   opacity={0.2}
                 />
                 <text
                   x={xPx(tick.i)}
-                  y={RAMP_TOP + RAMP_H + 15}
+                  y={plotBottom + 15}
                   textAnchor="middle"
                   fontSize={9}
                   fill="var(--muted-foreground)"
@@ -722,7 +900,7 @@ export function PmcChart({
                   x1={xPx(m.index)}
                   y1={TOP}
                   x2={xPx(m.index)}
-                  y2={RAMP_TOP + RAMP_H}
+                  y2={plotBottom}
                   stroke="var(--muted-foreground)"
                   strokeWidth={1}
                   strokeDasharray="2 3"
@@ -761,7 +939,7 @@ export function PmcChart({
                   x1={hoverX}
                   y1={TOP}
                   x2={hoverX}
-                  y2={RAMP_TOP + RAMP_H}
+                  y2={plotBottom}
                   stroke="var(--foreground)"
                   strokeWidth={1}
                   opacity={0.35}
@@ -832,6 +1010,16 @@ export function PmcChart({
                         },
                       ]
                     : []),
+                  // One row per enabled wellness lane (T08); a day the wearable
+                  // has no reading for shows "–" rather than a stale value.
+                  ...laneGeom.map(({ lane }) => {
+                    const value = lane.points[hover]?.value ?? null;
+                    return {
+                      label: t.health.metrics[lane.metric],
+                      value: value == null ? "–" : `${laneValue(value)} ${lane.unit}`.trim(),
+                      color: WELLNESS_COLOR[lane.metric],
+                    };
+                  }),
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-1.5 text-muted-foreground">

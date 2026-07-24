@@ -4,6 +4,7 @@ import {
   METRIC_META,
   SUBJECTIVE_METRICS,
   SUBJECTIVE_SCALE,
+  buildWellnessLane,
   isHealthMetric,
   isHealthSource,
   resolveBySource,
@@ -195,5 +196,59 @@ describe("snapshotToMetrics", () => {
   it("rejects a non-object body", () => {
     expect(snapshotToMetrics("nope", AT)).toEqual({ error: "body must be a JSON object" });
     expect(snapshotToMetrics(null, AT)).toEqual({ error: "body must be a JSON object" });
+  });
+});
+
+describe("buildWellnessLane (T08)", () => {
+  const dates = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"];
+
+  it("aligns a series onto the date axis, leaving missing days null in value AND avg", () => {
+    const lane = buildWellnessLane("hrv_overnight", dates, [
+      { date: "2026-07-02", value: 60 },
+      { date: "2026-07-04", value: 70 },
+    ]);
+
+    expect(lane.metric).toBe("hrv_overnight");
+    expect(lane.unit).toBe("ms");
+    expect(lane.points.map((p) => p.date)).toEqual(dates);
+    // Day 1 and 3 have no reading: null value, and null avg so the line breaks
+    // there instead of interpolating across the gap.
+    expect(lane.points[0]).toEqual({ date: "2026-07-01", value: null, avg: null });
+    expect(lane.points[2]).toEqual({ date: "2026-07-03", value: null, avg: null });
+    expect(lane.points[1].value).toBe(60);
+    expect(lane.points[3].value).toBe(70);
+  });
+
+  it("averages only the readings inside the trailing 7-day window", () => {
+    const week = Array.from({ length: 9 }, (_, i) => ({
+      date: `2026-07-${String(i + 1).padStart(2, "0")}`,
+      value: i + 1, // 1..9
+    }));
+    const lane = buildWellnessLane(
+      "resting_hr",
+      week.map((p) => p.date),
+      week
+    );
+
+    // Third day: mean of 1,2,3.
+    expect(lane.points[2].avg).toBe(2);
+    // Ninth day: mean of 3..9, i.e. the trailing 7 only (1 and 2 have dropped out).
+    expect(lane.points[8].avg).toBe(6);
+  });
+
+  it("converts minute-stored sleep into hours, unit included", () => {
+    const lane = buildWellnessLane(
+      "sleep_total",
+      ["2026-07-01"],
+      [{ date: "2026-07-01", value: 450 }]
+    );
+    expect(lane.unit).toBe("h");
+    expect(lane.points[0].value).toBe(7.5);
+    expect(lane.points[0].avg).toBe(7.5);
+  });
+
+  it("returns an all-null lane for a metric with no readings in the window", () => {
+    const lane = buildWellnessLane("hrv_overnight", dates, []);
+    expect(lane.points.every((p) => p.value === null && p.avg === null)).toBe(true);
   });
 });

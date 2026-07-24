@@ -231,6 +231,65 @@ export function isHealthSource(value: unknown): value is HealthSource {
 }
 
 // ---------------------------------------------------------------------------
+// Wellness lanes — recovery signals aligned to a training date axis (T08)
+// ---------------------------------------------------------------------------
+
+/** The recovery signals the fitness page can overlay under the PMC, in lane order. */
+export const WELLNESS_METRICS = ["hrv_overnight", "resting_hr", "sleep_total"] as const;
+
+export type WellnessMetric = (typeof WELLNESS_METRICS)[number];
+
+/** Trailing window (days) the lane line averages over. */
+const WELLNESS_AVG_DAYS = 7;
+
+/** One day of a lane, index-aligned to the date axis it was built against. */
+export interface WellnessLanePoint {
+  date: string;
+  /** That day's reading in the lane's display unit, or null when there is none. */
+  value: number | null;
+  /**
+   * Trailing average of the readings in the last WELLNESS_AVG_DAYS days, or null
+   * on days without a reading — so missing days break the line instead of being
+   * interpolated across.
+   */
+  avg: number | null;
+}
+
+/** A wellness metric resolved onto a date axis, ready to draw as one lane. */
+export interface WellnessLane {
+  metric: WellnessMetric;
+  /** Display unit of `value`/`avg` (minute-stored sleep is converted to hours). */
+  unit: string;
+  points: WellnessLanePoint[];
+}
+
+/**
+ * Align a resolved daily health series onto `dates` (consecutive local days, as
+ * the PMC produces) and smooth it with a trailing average. Days missing from the
+ * series carry null value AND null avg, which is what makes a lane render as
+ * breaks over a period the wearable has no history for. Values are converted to
+ * their display unit here, so callers never repeat the minutes-to-hours step.
+ */
+export function buildWellnessLane(
+  metric: WellnessMetric,
+  dates: string[],
+  series: { date: string; value: number }[]
+): WellnessLane {
+  const isMinutes = METRIC_META[metric].unit === "min";
+  const byDate = new Map(series.map((p) => [p.date, isMinutes ? p.value / 60 : p.value] as const));
+  const values = dates.map((date) => byDate.get(date) ?? null);
+  const points = dates.map((date, i): WellnessLanePoint => {
+    const value = values[i];
+    if (value == null) return { date, value: null, avg: null };
+    const window = values
+      .slice(Math.max(0, i - (WELLNESS_AVG_DAYS - 1)), i + 1)
+      .filter((v): v is number => v != null);
+    return { date, value, avg: window.reduce((a, b) => a + b, 0) / window.length };
+  });
+  return { metric, unit: isMinutes ? "h" : (METRIC_META[metric].unit ?? ""), points };
+}
+
+// ---------------------------------------------------------------------------
 // Source resolver — the ONE place precedence between sources is decided.
 // ---------------------------------------------------------------------------
 

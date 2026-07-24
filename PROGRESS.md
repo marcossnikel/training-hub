@@ -95,3 +95,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T05 Projected fitness scenarios and race-day form readout: done 2026-07-24, PR #8
 - ICU-T06 Per-sport stacked weekly load bars with real tooltip: done 2026-07-24, PR #9
 - ICU-T07 Sport filter on /fitness: done 2026-07-24, PR #10
+- ICU-T08 Wellness overlay lanes under the PMC: done 2026-07-24, PR #11

@@ -548,6 +548,7 @@ export const en = {
     projSteady: "Projected (current load)",
     projRest: "Projected (rest)",
     raceDayForm: "Race in {n} d: projected form {rest} resting, {steady} at current load",
+    wellness: "Recovery overlay",
     weeklyLoad: "Weekly load",
     weeklyTotal: "Total",
     window: "Window",

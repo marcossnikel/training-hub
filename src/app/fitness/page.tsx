@@ -12,12 +12,14 @@ import {
 import { WeeklyDigest } from "@/components/weekly-digest";
 import {
   getAthleteThresholds,
+  getResolvedNumericSeries,
   getWeeklyDigest,
   listActivityLoadsForPmc,
   listGoals,
   listRaceMarkers,
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
+import { buildWellnessLane, WELLNESS_METRICS } from "@/lib/health";
 import { getDict } from "@/lib/lang";
 import { fillStr } from "@/lib/i18n";
 import {
@@ -253,6 +255,22 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
       ? weeklySportLoad(sportLoads, { from: windowStart, to: windowEnd })
       : [];
 
+  // Wellness overlay lanes (T08): all three recovery signals are always fetched
+  // for the shown dates and handed to the chart, which owns their visibility.
+  // Garmin history starts mid-2026, so earlier dates simply have no reading and
+  // the lanes render as breaks there. A metric with nothing in the window is
+  // dropped so the chart never offers a toggle for an empty lane.
+  const dates = windowPoints.map((p) => p.date);
+  const wellnessSeries = await Promise.all(
+    WELLNESS_METRICS.map(async (metric) => ({
+      metric,
+      points: await getResolvedNumericSeries(metric, dates[0], dates[dates.length - 1]),
+    }))
+  );
+  const wellness = wellnessSeries
+    .filter((s) => s.points.length > 0)
+    .map((s) => buildWellnessLane(s.metric, dates, s.points));
+
   const digest = await getWeeklyDigest();
   const coachConfigured = isCoachConfigured();
 
@@ -352,6 +370,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
             weekly={weekly}
             markers={markers}
             projection={projection}
+            wellness={wellness}
           />
         </CardContent>
       </Card>

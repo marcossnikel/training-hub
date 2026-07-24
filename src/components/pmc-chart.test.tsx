@@ -16,6 +16,7 @@ import {
   type PmcSeriesPoint,
 } from "@/components/pmc-chart";
 import type { WeeklySportLoad } from "@/lib/fitness";
+import type { WellnessLane } from "@/lib/health";
 
 afterEach(cleanup);
 
@@ -331,5 +332,91 @@ describe("PmcChart projections (T05)", () => {
     // Projected CTL values never become the hovered point.
     expect(screen.queryByText("34")).toBeNull();
     expect(screen.queryByText("35")).toBeNull();
+  });
+});
+
+describe("PmcChart wellness overlay lanes (T08)", () => {
+  // Third day has no reading, so the lane must break there rather than draw
+  // through it (the live Garmin history starts mid-window the same way).
+  const wellness: WellnessLane[] = [
+    {
+      metric: "hrv_overnight",
+      unit: "ms",
+      points: [
+        { date: "2026-01-01", value: 62, avg: 62 },
+        { date: "2026-01-02", value: 58, avg: 60 },
+        { date: "2026-01-03", value: null, avg: null },
+      ],
+    },
+    {
+      metric: "sleep_total",
+      unit: "h",
+      points: [
+        { date: "2026-01-01", value: 7.5, avg: 7.5 },
+        { date: "2026-01-02", value: 6.5, avg: 7 },
+        { date: "2026-01-03", value: null, avg: null },
+      ],
+    },
+  ];
+
+  const laneLines = (container: HTMLElement) =>
+    [...container.querySelectorAll("path")].filter(
+      (p) => p.getAttribute("stroke") === "var(--chart-2)"
+    );
+
+  it("renders a toggle per available lane, all off by default", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} wellness={wellness} />);
+
+    const toggles = screen.getAllByRole("button");
+    expect(toggles.map((b) => b.textContent)).toEqual(["HRV (overnight)", "Sleep"]);
+    expect(toggles.every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
+    // Nothing lane-related drawn, and the chart's height is untouched.
+    expect(laneLines(container).length).toBe(0);
+    expect(container.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 760 308");
+  });
+
+  it("adds a lane and grows the viewBox when a toggle is switched on, and removes it again", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} wellness={wellness} />);
+    const svg = () => container.querySelector("svg");
+    const hrvToggle = screen.getByRole("button", { name: "HRV (overnight)" });
+
+    fireEvent.click(hrvToggle);
+    expect(hrvToggle.getAttribute("aria-pressed")).toBe("true");
+    // One 48-unit lane plus its 16-unit gap extends the plot downward.
+    expect(svg()?.getAttribute("viewBox")).toBe("0 0 760 372");
+    // The average line is broken into one segment (the two dated days), not
+    // drawn through the missing third day.
+    expect(laneLines(container).length).toBe(1);
+    // Faint daily dots for the two days that have a reading.
+    const dots = [...container.querySelectorAll("circle")].filter(
+      (c) => c.getAttribute("r") === "1.25"
+    );
+    expect(dots.length).toBe(2);
+
+    fireEvent.click(hrvToggle);
+    expect(hrvToggle.getAttribute("aria-pressed")).toBe("false");
+    expect(svg()?.getAttribute("viewBox")).toBe("0 0 760 308");
+    expect(laneLines(container).length).toBe(0);
+  });
+
+  it("adds one tooltip row per enabled lane, with a dash on days without a reading", () => {
+    render(<PmcChart points={points} weekly={[]} wellness={wellness} />);
+    fireEvent.click(screen.getByRole("button", { name: "HRV (overnight)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sleep" }));
+
+    const svg = screen.getByRole("img", { name: /fitness/i });
+    fireEvent.keyDown(svg, { key: "Home" });
+    expect(screen.getByText("62 ms")).toBeTruthy();
+    expect(screen.getByText("7.5 h")).toBeTruthy();
+
+    // Last day has no reading for either metric: both rows read "–".
+    fireEvent.keyDown(svg, { key: "End" });
+    expect(screen.queryByText("62 ms")).toBeNull();
+    expect(screen.getAllByText("–").length).toBe(2);
+  });
+
+  it("renders no toggles at all when no wellness lane is available", () => {
+    render(<PmcChart points={points} weekly={[]} />);
+    expect(screen.queryAllByRole("button").length).toBe(0);
   });
 });
