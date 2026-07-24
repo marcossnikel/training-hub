@@ -14,6 +14,13 @@ const ZONE_COLORS = [
   "var(--chart-5)",
 ];
 
+// fmtDuration returns the missing-value placeholder for 0, which in this legend
+// would make a zone the athlete genuinely never entered look like absent data.
+// Every zone here has a known value, so a true zero is a real clock reading.
+function fmtZoneTime(s: number): string {
+  return s > 0 ? fmtDuration(s) : "0:00";
+}
+
 export function ZoneBar({
   zoneSec,
   labels,
@@ -56,7 +63,7 @@ export function ZoneBar({
               {labels[i]}
               <span className="font-mono tabular-nums">{pct}%</span>
               {showTime ? (
-                <span className="font-mono tabular-nums opacity-70">{fmtDuration(v)}</span>
+                <span className="font-mono tabular-nums opacity-70">{fmtZoneTime(v)}</span>
               ) : null}
             </span>
           );
