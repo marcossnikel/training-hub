@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
+import { fill } from "@/lib/i18n";
 import { fmtDayMonth, parseLocalDate } from "@/lib/format";
 import {
   formState,
@@ -91,6 +92,19 @@ export interface PmcMarker {
   label: string;
 }
 
+/**
+ * Closed-form continuations of the PMC past today (T05), both starting from the
+ * last historical point and running over the same dates.
+ */
+export interface PmcProjection {
+  /** Trailing-mean daily load carried forward. */
+  steady: PmcSeriesPoint[];
+  /** Zero load from tomorrow on. */
+  rest: PmcSeriesPoint[];
+  /** Race-day form per scenario, only when a goal falls inside the horizon. */
+  raceDay?: { daysAway: number; restTsb: number; steadyTsb: number };
+}
+
 // viewBox geometry (unitless; the SVG scales to its container width).
 const VBW = 760;
 const PAD_L = 40;
@@ -117,6 +131,14 @@ const PMC_H = RAMP_TOP + RAMP_H + AXIS_H;
 // Minimum form-zone band height (viewBox units) that can hold a 9px label
 // without overlapping its neighbors: font size plus a little breathing room.
 const BAND_LABEL_MIN_HEIGHT = 11;
+// Dash pattern for everything in the projected region (T05). Deliberately not
+// "2 3", which the goal markers own.
+const PROJECTED_DASH = "4 3";
+
+/** TSB reads as a signed number: +12, -8, 0. */
+function signedTsb(value: number): string {
+  return `${value > 0 ? "+" : ""}${value}`;
+}
 
 function niceMax(value: number): number {
   if (value <= 0) return 1;
@@ -130,25 +152,48 @@ export function PmcChart({
   points,
   weekly,
   markers = [],
+  projection,
 }: {
   points: PmcSeriesPoint[];
   weekly: WeeklyBar[];
   markers?: PmcMarker[];
+  projection?: PmcProjection;
 }) {
   const { t, lang } = useI18n();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<number | null>(null);
 
   const n = points.length;
-  const xPx = (i: number) => (n <= 1 ? PAD_L + PLOT_W / 2 : PAD_L + (i / (n - 1)) * PLOT_W);
+  // Projected days extend the x domain past the historical points; hover and
+  // every historical path keep using `n`, only the scale sees `total`.
+  const projected = projection ? [projection.steady, projection.rest] : [];
+  const projLen = Math.max(0, ...projected.map((series) => series.length));
+  const total = n + projLen;
+  const xPx = (i: number) => (total <= 1 ? PAD_L + PLOT_W / 2 : PAD_L + (i / (total - 1)) * PLOT_W);
 
   const loadMax = useMemo(
-    () => niceMax(Math.max(1, ...points.map((p) => Math.max(p.ctl, p.atl)))),
-    [points]
+    () =>
+      niceMax(
+        Math.max(
+          1,
+          ...points.map((p) => Math.max(p.ctl, p.atl)),
+          ...(projection?.steady ?? []).map((p) => p.ctl),
+          ...(projection?.rest ?? []).map((p) => p.ctl)
+        )
+      ),
+    [points, projection]
   );
   const tsbMax = useMemo(
-    () => niceMax(Math.max(1, ...points.map((p) => Math.abs(p.tsb)))),
-    [points]
+    () =>
+      niceMax(
+        Math.max(
+          1,
+          ...points.map((p) => Math.abs(p.tsb)),
+          ...(projection?.steady ?? []).map((p) => Math.abs(p.tsb)),
+          ...(projection?.rest ?? []).map((p) => Math.abs(p.tsb))
+        )
+      ),
+    [points, projection]
   );
 
   const yLoad = (v: number) => MAIN_BOTTOM - (v / loadMax) * MAIN_H;
@@ -161,7 +206,7 @@ export function PmcChart({
   };
   const rampZeroY = yRamp(0);
   const rampWarnY = yRamp(RAMP_WARN);
-  const rampBarW = n > 1 ? PLOT_W / (n - 1) : PLOT_W;
+  const rampBarW = total > 1 ? PLOT_W / (total - 1) : PLOT_W;
   const rampBars = useMemo(
     () =>
       points
@@ -202,6 +247,42 @@ export function PmcChart({
         ` L${xPx(n - 1).toFixed(1)},${TSB_MID} Z`
       : "";
 
+  // Projected continuations (T05): each path starts at the last historical
+  // point so the dashed line visually grows out of the solid series.
+  const projPath = (
+    series: PmcSeriesPoint[],
+    value: (p: PmcSeriesPoint) => number,
+    y: (v: number) => number
+  ) =>
+    n === 0 || series.length === 0
+      ? ""
+      : `M${xPx(n - 1).toFixed(1)},${y(value(points[n - 1])).toFixed(1)} ` +
+        series.map((p, i) => `L${xPx(n + i).toFixed(1)},${y(value(p)).toFixed(1)}`).join(" ");
+  const projectedPaths = projection
+    ? [
+        {
+          key: "steady-ctl",
+          d: projPath(projection.steady, (p) => p.ctl, yLoad),
+          color: "var(--primary)",
+        },
+        {
+          key: "steady-tsb",
+          d: projPath(projection.steady, (p) => p.tsb, yTsb),
+          color: "var(--chart-4)",
+        },
+        {
+          key: "rest-ctl",
+          d: projPath(projection.rest, (p) => p.ctl, yLoad),
+          color: "var(--muted-foreground)",
+        },
+        {
+          key: "rest-tsb",
+          d: projPath(projection.rest, (p) => p.tsb, yTsb),
+          color: "var(--muted-foreground)",
+        },
+      ].filter((path) => path.d !== "")
+    : [];
+
   // Markers (races, goals) matched to a point by date. A marker whose date
   // falls outside the currently shown points (e.g. a goal beyond today, or a
   // race outside the selected window) simply has no match and is dropped —
@@ -219,15 +300,17 @@ export function PmcChart({
   const raceMarkers = resolvedMarkers.filter((m) => m.kind === "race");
   const goalMarkers = resolvedMarkers.filter((m) => m.kind === "goal");
 
-  // Evenly spaced date ticks along the shared bottom axis.
+  // Evenly spaced date ticks along the shared bottom axis, covering the
+  // projected region too so the extended x domain stays readable.
   const ticks = useMemo(() => {
-    if (n === 0) return [];
-    const count = Math.min(5, n);
+    const dates = [...points.map((p) => p.date), ...(projection?.steady ?? []).map((p) => p.date)];
+    if (dates.length === 0) return [];
+    const count = Math.min(5, dates.length);
     return Array.from({ length: count }, (_, k) => {
-      const i = count === 1 ? 0 : Math.round((k / (count - 1)) * (n - 1));
-      return { i, label: fmtDayMonth(parseLocalDate(points[i].date), lang) };
+      const i = count === 1 ? 0 : Math.round((k / (count - 1)) * (dates.length - 1));
+      return { i, label: fmtDayMonth(parseLocalDate(dates[i]), lang) };
     });
-  }, [n, points, lang]);
+  }, [points, projection, lang]);
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
@@ -235,7 +318,8 @@ export function PmcChart({
     const rect = svg.getBoundingClientRect();
     const vbX = ((e.clientX - rect.left) / rect.width) * VBW;
     const frac = (vbX - PAD_L) / PLOT_W;
-    const idx = Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1))));
+    // Clamped to the last historical point: the projected region has no hover.
+    const idx = Math.max(0, Math.min(n - 1, Math.round(frac * (total - 1))));
     setHover(idx);
   };
 
@@ -309,6 +393,32 @@ export function PmcChart({
             />
             {t.fitness.tsb}
           </span>
+          {projLen > 0 ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span
+                  className="h-0.5 w-3.5"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to right, var(--primary) 0 4px, transparent 4px 7px)",
+                  }}
+                  aria-hidden
+                />
+                {t.fitness.projSteady}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span
+                  className="h-0.5 w-3.5"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to right, var(--muted-foreground) 0 4px, transparent 4px 7px)",
+                  }}
+                  aria-hidden
+                />
+                {t.fitness.projRest}
+              </span>
+            </>
+          ) : null}
         </div>
 
         <div className="relative w-full overflow-x-auto">
@@ -516,6 +626,45 @@ export function PmcChart({
               );
             })}
 
+            {/* projection (T05): today divider, then dashed CTL/TSB
+                continuations for the steady and full-rest scenarios */}
+            {projLen > 0 && n > 0 ? (
+              <>
+                <line
+                  x1={xPx(n - 1)}
+                  y1={TOP}
+                  x2={xPx(n - 1)}
+                  y2={RAMP_TOP + RAMP_H}
+                  stroke="var(--foreground)"
+                  strokeWidth={1}
+                  strokeDasharray={PROJECTED_DASH}
+                  opacity={0.3}
+                />
+                <text
+                  x={xPx(n - 1) + 3}
+                  y={TOP + 8}
+                  fontSize={9}
+                  fill="var(--muted-foreground)"
+                  className="font-mono"
+                >
+                  {t.fitness.today}
+                </text>
+              </>
+            ) : null}
+            {projectedPaths.map((path) => (
+              <path
+                key={path.key}
+                d={path.d}
+                fill="none"
+                stroke={path.color}
+                strokeWidth={1.5}
+                strokeDasharray={PROJECTED_DASH}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                opacity={0.75}
+              />
+            ))}
+
             {/* x-axis ticks */}
             {ticks.map((tick) => (
               <g key={tick.i}>
@@ -692,6 +841,31 @@ export function PmcChart({
             </div>
           ) : null}
         </div>
+
+        {/* race-day form readout (T05), only when a goal sits inside the horizon */}
+        {projection?.raceDay ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {fill(t.fitness.raceDayForm, {
+              n: projection.raceDay.daysAway,
+              rest: (
+                <span
+                  className="font-mono font-medium"
+                  style={{ color: STATE_COLOR[formState(projection.raceDay.restTsb).key] }}
+                >
+                  {signedTsb(projection.raceDay.restTsb)}
+                </span>
+              ),
+              steady: (
+                <span
+                  className="font-mono font-medium"
+                  style={{ color: STATE_COLOR[formState(projection.raceDay.steadyTsb).key] }}
+                >
+                  {signedTsb(projection.raceDay.steadyTsb)}
+                </span>
+              ),
+            })}
+          </p>
+        ) : null}
       </div>
 
       {weekly.length > 0 ? (

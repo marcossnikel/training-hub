@@ -2,7 +2,7 @@
 // Management Chart (CTL/ATL/TSB) and Friel training zones. No DB imports — the
 // data layer feeds these functions and persists their output.
 import { isRideSport, rideMetrics } from "./cycling";
-import { eachDay, localDateInputValue } from "./format";
+import { eachDay, localDateInputValue, parseLocalDate } from "./format";
 import { isRunSport } from "./validate";
 
 export interface AthleteThresholds {
@@ -205,6 +205,41 @@ export function computePmc(dailyLoads: { date: string; load: number }[]): PmcPoi
       atl: round1(atl),
       tsb: round1(tsb),
       rampRate,
+    });
+  }
+  return out;
+}
+
+/**
+ * Extend a PMC past its last historical day under a constant daily load, using
+ * the exact same EWMA recurrence as computePmc. Two closed-form scenarios answer
+ * the taper question without any planned-workout system: dailyLoad = 0 (full
+ * rest) and dailyLoad = the trailing daily mean (steady training).
+ *
+ * Returns `days` points starting the day AFTER `last.date`, so the first one's
+ * TSB continues the historical series (last.ctl - last.atl). The 7-day ramp
+ * lookback only exists once it falls inside the projection itself, so the first
+ * seven projected points carry a null rampRate.
+ */
+export function projectPmc(last: PmcPoint, days: number, dailyLoad: number): PmcPoint[] {
+  const out: PmcPoint[] = [];
+  let ctl = last.ctl;
+  let atl = last.atl;
+  const cursor = parseLocalDate(last.date);
+  for (let i = 0; i < days; i++) {
+    cursor.setDate(cursor.getDate() + 1);
+    const prevCtl = ctl;
+    const prevAtl = atl;
+    ctl = prevCtl + CTL_ALPHA * (dailyLoad - prevCtl);
+    atl = prevAtl + ATL_ALPHA * (dailyLoad - prevAtl);
+    const roundedCtl = round1(ctl);
+    out.push({
+      date: localDateInputValue(cursor),
+      load: dailyLoad,
+      ctl: roundedCtl,
+      atl: round1(atl),
+      tsb: round1(prevCtl - prevAtl),
+      rampRate: i < 7 ? null : round1(roundedCtl - out[i - 7].ctl),
     });
   }
   return out;

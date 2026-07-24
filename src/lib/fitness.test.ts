@@ -6,6 +6,7 @@ import {
   formState,
   hrZones,
   paceZones,
+  projectPmc,
   weeklyMonotony,
   type AthleteThresholds,
   type LoadActivity,
@@ -205,6 +206,69 @@ describe("computePmc rampRate", () => {
     const last = pmc[pmc.length - 1];
     expect(last.rampRate).not.toBeNull();
     expect(last.rampRate as number).toBeGreaterThan(0);
+  });
+});
+
+describe("projectPmc", () => {
+  const last = {
+    date: "2026-01-10",
+    load: 0,
+    ctl: 42,
+    atl: 60,
+    tsb: -5,
+    rampRate: null,
+  };
+
+  it("projects the day AFTER the last point and keeps the dates sequential", () => {
+    const projected = projectPmc(last, 3, 0);
+    expect(projected.map((p) => p.date)).toEqual(["2026-01-11", "2026-01-12", "2026-01-13"]);
+    expect(projectPmc(last, 0, 50)).toEqual([]);
+  });
+
+  it("decay-only (rest) projection matches the hand-computed EWMA", () => {
+    const projected = projectPmc(last, 2, 0);
+
+    // Day 1: CTL 42 - 42/42 = 41, ATL 60 - 60/7 = 51.43, TSB = last CTL - last ATL.
+    expect(projected[0].ctl).toBe(41);
+    expect(projected[0].atl).toBe(51.4);
+    expect(projected[0].tsb).toBe(-18);
+
+    // Day 2: CTL 41 - 41/42 = 40.02, ATL 51.43 * 6/7 = 44.08, TSB 41 - 51.43.
+    expect(projected[1].ctl).toBe(40);
+    expect(projected[1].atl).toBe(44.1);
+    expect(projected[1].tsb).toBe(-10.4);
+
+    // Load is carried on every projected point so the scenario is self-describing.
+    expect(projected.map((p) => p.load)).toEqual([0, 0]);
+  });
+
+  it("rests toward zero fitness and positive form under zero load", () => {
+    const projected = projectPmc(last, 120, 0);
+    const end = projected[projected.length - 1];
+    expect(end.ctl).toBeLessThan(last.ctl);
+    expect(end.atl).toBeCloseTo(0, 1);
+    // Fatigue decays ~6x faster than fitness, so form ends up positive.
+    expect(end.tsb).toBeGreaterThan(0);
+  });
+
+  it("steady-load projection converges toward the dailyLoad-implied CTL/ATL", () => {
+    const dailyLoad = 50;
+    const projected = projectPmc(last, 500, dailyLoad);
+    const end = projected[projected.length - 1];
+    expect(end.ctl).toBeCloseTo(dailyLoad, 1);
+    expect(end.atl).toBeCloseTo(dailyLoad, 1);
+    // At steady state fitness equals fatigue, so form settles at zero.
+    expect(end.tsb).toBeCloseTo(0, 1);
+  });
+
+  it("has a null rampRate until the 7-day lookback falls inside the projection", () => {
+    const projected = projectPmc(last, 10, 50);
+    for (let i = 0; i < 7; i++) {
+      expect(projected[i].rampRate).toBeNull();
+    }
+    for (let i = 7; i < projected.length; i++) {
+      expect(projected[i].rampRate).toBe(round1(projected[i].ctl - projected[i - 7].ctl));
+    }
   });
 });
 
