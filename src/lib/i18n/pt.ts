@@ -528,6 +528,7 @@ export const pt: Dict = {
     strain: "Sobrecarga",
     strainTooltip: "Carga dos últimos 7 dias multiplicada pela monotonia: o desgaste da semana.",
     load7d: "Carga 7d",
+    sportOnlyNote: "Carga só de {sport}; a forma combinada está em {all}",
     states: {
       transition: "Transição",
       fresh: "Descansado",

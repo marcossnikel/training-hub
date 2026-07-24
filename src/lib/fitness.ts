@@ -193,9 +193,26 @@ export interface WeeklySportLoad {
   load: Record<LoadSport, number>;
 }
 
-function loadSport(sport: string | null | undefined): LoadSport {
+/** Buckets a raw Strava sport_type into the load sport it stacks / filters under. */
+export function loadSport(sport: string | null | undefined): LoadSport {
   const category = sportCategory(sport);
   return category === "run" || category === "bike" ? category : "other";
+}
+
+/**
+ * The load sports (in LOAD_SPORTS order) that a set of load rows actually
+ * carries positive load for. Rows whose tss is zero are ignored, so a sport
+ * present in the data but contributing nothing is not offered as a filter and
+ * can never produce an all-zero view.
+ */
+export function availableLoadSports(
+  loads: { tss: number; sport_type?: string | null }[]
+): LoadSport[] {
+  const withLoad = new Set<LoadSport>();
+  for (const load of loads) {
+    if (load.tss > 0) withLoad.add(loadSport(load.sport_type));
+  }
+  return LOAD_SPORTS.filter((sport) => withLoad.has(sport));
 }
 
 /** A week's total load, i.e. the height of its stacked bar. */
