@@ -82,6 +82,13 @@ export interface WeeklyBar {
   load: number;
 }
 
+/** A race or goal event to annotate on the timeline, one per date. */
+export interface PmcMarker {
+  date: string; // YYYY-MM-DD local, matched against PmcSeriesPoint.date
+  kind: "race" | "goal";
+  label: string;
+}
+
 // viewBox geometry (unitless; the SVG scales to its container width).
 const VBW = 760;
 const PAD_L = 40;
@@ -108,7 +115,15 @@ function niceMax(value: number): number {
   return step * pow;
 }
 
-export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly: WeeklyBar[] }) {
+export function PmcChart({
+  points,
+  weekly,
+  markers = [],
+}: {
+  points: PmcSeriesPoint[];
+  weekly: WeeklyBar[];
+  markers?: PmcMarker[];
+}) {
   const { t, lang } = useI18n();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -160,6 +175,23 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
         ` L${xPx(n - 1).toFixed(1)},${TSB_MID} Z`
       : "";
 
+  // Markers (races, goals) matched to a point by date. A marker whose date
+  // falls outside the currently shown points (e.g. a goal beyond today, or a
+  // race outside the selected window) simply has no match and is dropped —
+  // the page is expected to pre-filter to the window, this is just the safety
+  // net so an out-of-range marker never throws.
+  const resolvedMarkers = useMemo(() => {
+    const dateIndex = new Map(points.map((p, i) => [p.date, i] as const));
+    return markers
+      .map((m) => {
+        const index = dateIndex.get(m.date);
+        return index == null ? null : { ...m, index };
+      })
+      .filter((m): m is PmcMarker & { index: number } => m !== null);
+  }, [markers, points]);
+  const raceMarkers = resolvedMarkers.filter((m) => m.kind === "race");
+  const goalMarkers = resolvedMarkers.filter((m) => m.kind === "goal");
+
   // Evenly spaced date ticks along the shared bottom axis.
   const ticks = useMemo(() => {
     if (n === 0) return [];
@@ -204,6 +236,7 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
 
   const hoverX = hover != null ? xPx(hover) : null;
   const hoverPoint = hover != null ? points[hover] : null;
+  const hoverMarkers = hover != null ? resolvedMarkers.filter((m) => m.index === hover) : [];
 
   // Weekly bars in their own compact SVG.
   const WEEK_H = 120;
@@ -422,7 +455,46 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
               </g>
             ))}
 
-            {/* crosshair + markers */}
+            {/* goal markers: dashed vertical line + top label (T02) */}
+            {goalMarkers.map((m) => (
+              <g key={`goal-${m.index}-${m.label}`}>
+                <line
+                  x1={xPx(m.index)}
+                  y1={TOP}
+                  x2={xPx(m.index)}
+                  y2={TSB_TOP + TSB_H}
+                  stroke="var(--muted-foreground)"
+                  strokeWidth={1}
+                  strokeDasharray="2 3"
+                  opacity={0.5}
+                />
+                <text
+                  x={xPx(m.index)}
+                  y={TOP - 2}
+                  textAnchor="middle"
+                  fontSize={9}
+                  fill="var(--muted-foreground)"
+                  className="font-mono"
+                >
+                  {m.label}
+                </text>
+              </g>
+            ))}
+
+            {/* race markers: small circles on the CTL line (T02) */}
+            {raceMarkers.map((m) => (
+              <circle
+                key={`race-${m.index}-${m.label}`}
+                cx={xPx(m.index)}
+                cy={yLoad(points[m.index].ctl)}
+                r={4}
+                fill="var(--wear-critical)"
+                stroke="var(--card)"
+                strokeWidth={2}
+              />
+            ))}
+
+            {/* crosshair + hover dots */}
             {hoverX != null && hoverPoint != null ? (
               <>
                 <line
@@ -507,6 +579,21 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
                   </div>
                 ))}
               </div>
+              {hoverMarkers.length > 0 ? (
+                <div className="mt-1 space-y-0.5 border-t pt-1">
+                  {hoverMarkers.map((m) => (
+                    <div
+                      key={`${m.kind}-${m.label}`}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="text-muted-foreground">
+                        {m.kind === "race" ? t.detail.race : t.fitness.markerGoal}
+                      </span>
+                      <span className="font-medium text-foreground">{m.label}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

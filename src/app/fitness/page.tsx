@@ -2,9 +2,21 @@ import { GaugeIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { FilterPill } from "@/components/filter-pill";
-import { PmcChart, STATE_COLOR, type PmcSeriesPoint, type WeeklyBar } from "@/components/pmc-chart";
+import {
+  PmcChart,
+  STATE_COLOR,
+  type PmcMarker,
+  type PmcSeriesPoint,
+  type WeeklyBar,
+} from "@/components/pmc-chart";
 import { WeeklyDigest } from "@/components/weekly-digest";
-import { getAthleteThresholds, getWeeklyDigest, listActivityLoadsForPmc } from "@/lib/db";
+import {
+  getAthleteThresholds,
+  getWeeklyDigest,
+  listActivityLoadsForPmc,
+  listGoals,
+  listRaceMarkers,
+} from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
 import { computePmc, dailyLoadSeries, formState } from "@/lib/fitness";
@@ -85,6 +97,29 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
     ? pmc.slice(Math.max(0, pmc.length - win.days))
     : pmc;
 
+  // Race and goal markers (T02): confirmed is_race activities and athlete
+  // goals, restricted to the dates actually shown so a narrower window shows
+  // fewer markers. Race dates use the same started_at -> local-day conversion
+  // dailyLoadSeries uses, so they land on the same point as their load.
+  const [races, goals] = await Promise.all([listRaceMarkers(), listGoals()]);
+  const windowStart = windowPoints[0]?.date;
+  const windowEnd = windowPoints[windowPoints.length - 1]?.date;
+  const inWindow = (date: string) =>
+    windowStart != null && windowEnd != null && date >= windowStart && date <= windowEnd;
+  const markers: PmcMarker[] = [
+    ...races
+      .map((r): PmcMarker => ({
+        date: localDateInputValue(new Date(r.started_at)),
+        kind: "race",
+        label: r.name ?? t.detail.race,
+      }))
+      .filter((m) => inWindow(m.date)),
+    ...goals
+      .filter((g) => g.race_date != null)
+      .map((g): PmcMarker => ({ date: g.race_date as string, kind: "goal", label: g.name }))
+      .filter((m) => inWindow(m.date)),
+  ];
+
   // Weekly TSS totals over the shown window, bucketed by ISO week (Monday).
   const weeklyMap = new Map<string, number>();
   for (const point of windowPoints) {
@@ -141,7 +176,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
 
       <Card className="mt-5">
         <CardContent>
-          <PmcChart points={windowPoints} weekly={weekly} />
+          <PmcChart points={windowPoints} weekly={weekly} markers={markers} />
         </CardContent>
       </Card>
 

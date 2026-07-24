@@ -8,7 +8,7 @@
 // tooltip), not pointer-only.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { PmcChart, STATE_COLOR, type PmcSeriesPoint } from "@/components/pmc-chart";
+import { PmcChart, STATE_COLOR, type PmcMarker, type PmcSeriesPoint } from "@/components/pmc-chart";
 
 afterEach(cleanup);
 
@@ -83,5 +83,60 @@ describe("PmcChart TSB form-zone bands (T01)", () => {
     expect(screen.queryByText("Fresh")).toBeNull();
     expect(screen.queryByText("Neutral")).toBeNull();
     expect(container.querySelectorAll("rect").length).toBe(5);
+  });
+});
+
+describe("PmcChart race and goal markers (T02)", () => {
+  // athlete_goals is empty in live data today, so the goal-marker path (a
+  // fixture, not real data) is this suite's only coverage until a goal exists.
+  const markers: PmcMarker[] = [
+    { date: "2026-01-02", kind: "race", label: "Hoka 30k" },
+    { date: "2026-01-03", kind: "goal", label: "Valencia Marathon" },
+  ];
+
+  it("renders a circle for an in-window race marker and a dashed line + label for a goal marker", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} markers={markers} />);
+
+    // Race marker: a small circle distinct from the (unhovered) load axis dots —
+    // with no hover active, any circle present must be the race marker.
+    expect(container.querySelectorAll("circle").length).toBe(1);
+
+    // Goal marker: dashed vertical line + its label rendered as SVG text.
+    const dashedLines = [...container.querySelectorAll("line")].filter(
+      (l) => l.getAttribute("stroke-dasharray") === "2 3"
+    );
+    expect(dashedLines.length).toBe(1);
+    expect(screen.getByText("Valencia Marathon")).toBeTruthy();
+  });
+
+  it("appends a Race/Goal row to the tooltip when the hovered day lands on a marker date", () => {
+    render(<PmcChart points={points} weekly={[]} markers={markers} />);
+    const svg = screen.getByRole("img", { name: /fitness/i });
+
+    // First point (2026-01-01) has no marker: no marker row in the tooltip.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(screen.queryByText("Hoka 30k")).toBeNull();
+
+    // Second point (2026-01-02) matches the race marker.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(screen.getByText("Race")).toBeTruthy();
+    expect(screen.getByText("Hoka 30k")).toBeTruthy();
+
+    // Third point (2026-01-03) matches the goal marker. Its label is present
+    // twice at this point (the chart's own always-on label plus the tooltip
+    // row), so assert on the count rather than a single unique match.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(screen.getByText("Goal")).toBeTruthy();
+    expect(screen.getAllByText("Valencia Marathon").length).toBe(2);
+  });
+
+  it("renders nothing marker-related when markers is omitted (the live athlete_goals-empty case)", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} />);
+    expect(container.querySelectorAll("circle").length).toBe(0);
+    expect(
+      [...container.querySelectorAll("line")].filter(
+        (l) => l.getAttribute("stroke-dasharray") === "2 3"
+      ).length
+    ).toBe(0);
   });
 });

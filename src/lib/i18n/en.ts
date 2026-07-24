@@ -531,6 +531,7 @@ export const en = {
     atl: "ATL",
     tsb: "TSB",
     load: "Load",
+    markerGoal: "Goal",
     weeklyLoad: "Weekly load",
     window: "Window",
     windows: { "90d": "90 days", "6m": "6 months", "1y": "1 year", all: "All" } satisfies Record<
