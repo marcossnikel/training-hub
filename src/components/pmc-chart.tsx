@@ -6,11 +6,15 @@ import { fill } from "@/lib/i18n";
 import { fmtDayMonth, parseLocalDate } from "@/lib/format";
 import {
   formState,
+  LOAD_SPORTS,
   TSB_FRESH_ABOVE,
   TSB_NEUTRAL_FLOOR,
   TSB_PRODUCTIVE_FLOOR,
   TSB_TRANSITION_ABOVE,
+  weeklyLoadTotal,
   type FormStateKey,
+  type LoadSport,
+  type WeeklySportLoad,
 } from "@/lib/fitness";
 
 /** Text color for a form state, the source of truth for STATE-colored copy
@@ -80,10 +84,12 @@ export interface PmcSeriesPoint {
   rampRate?: number | null;
 }
 
-export interface WeeklyBar {
-  date: string; // Monday, YYYY-MM-DD local
-  load: number;
-}
+/** Segment color per sport in the stacked weekly load bars. */
+const SPORT_COLOR: Record<LoadSport, string> = {
+  run: "var(--primary)",
+  bike: "var(--chart-3)",
+  other: "var(--chart-5)",
+};
 
 /** A race or goal event to annotate on the timeline, one per date. */
 export interface PmcMarker {
@@ -140,6 +146,22 @@ function signedTsb(value: number): string {
   return `${value > 0 ? "+" : ""}${value}`;
 }
 
+/**
+ * Keyboard index stepping shared by both hover-able SVGs (the PMC panels and
+ * the weekly bars), mirroring activity-chart: arrows step the active index
+ * (from no selection, ArrowRight/Left land on the ends), Home/End jump to the
+ * first/last. Returns null for keys this chart does not handle.
+ */
+function keyIndex(key: string, current: number | null, count: number): number | null {
+  if (count === 0) return null;
+  if (key === "ArrowRight") return Math.min(count - 1, (current == null ? -1 : current) + 1);
+  // From no selection, step back from the count so we land on the LAST index.
+  if (key === "ArrowLeft") return Math.max(0, (current == null ? count : current) - 1);
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}
+
 function niceMax(value: number): number {
   if (value <= 0) return 1;
   const pow = Math.pow(10, Math.floor(Math.log10(value)));
@@ -155,13 +177,15 @@ export function PmcChart({
   projection,
 }: {
   points: PmcSeriesPoint[];
-  weekly: WeeklyBar[];
+  weekly: WeeklySportLoad[];
   markers?: PmcMarker[];
   projection?: PmcProjection;
 }) {
   const { t, lang } = useI18n();
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const weekSvgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [weekHover, setWeekHover] = useState<number | null>(null);
 
   const n = points.length;
   // Projected days extend the x domain past the historical points; hover and
@@ -323,39 +347,40 @@ export function PmcChart({
     setHover(idx);
   };
 
-  // Keyboard navigation across the data points, mirroring activity-chart: arrows
-  // step the active point (from no selection, ArrowRight/Left land on the ends),
-  // Home/End jump to the first/last.
   const onKey = (e: React.KeyboardEvent<SVGSVGElement>) => {
-    if (n === 0) return;
-    if (e.key === "ArrowRight") {
-      setHover(Math.min(n - 1, (hover == null ? -1 : hover) + 1));
-      e.preventDefault();
-    } else if (e.key === "ArrowLeft") {
-      // From no selection, step back from the count so we land on the LAST
-      // point (n - 1); otherwise step back one from the current point.
-      setHover(Math.max(0, (hover == null ? n : hover) - 1));
-      e.preventDefault();
-    } else if (e.key === "Home") {
-      setHover(0);
-      e.preventDefault();
-    } else if (e.key === "End") {
-      setHover(n - 1);
-      e.preventDefault();
-    }
+    const next = keyIndex(e.key, hover, n);
+    if (next == null) return;
+    setHover(next);
+    e.preventDefault();
   };
 
   const hoverX = hover != null ? xPx(hover) : null;
   const hoverPoint = hover != null ? points[hover] : null;
   const hoverMarkers = hover != null ? resolvedMarkers.filter((m) => m.index === hover) : [];
 
-  // Weekly bars in their own compact SVG.
+  // Weekly bars in their own compact SVG, with their own hover index.
   const WEEK_H = 120;
   const WEEK_AXIS = 20;
-  const weekMax = niceMax(Math.max(1, ...weekly.map((w) => w.load)));
+  const weekTotals = weekly.map(weeklyLoadTotal);
+  const weekMax = niceMax(Math.max(1, ...weekTotals));
   const barGap = 3;
   const barW =
     weekly.length > 0 ? Math.max(2, (PLOT_W - barGap * (weekly.length - 1)) / weekly.length) : 0;
+  const weekX = (i: number) => PAD_L + i * (barW + barGap);
+  const onWeekMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const svg = weekSvgRef.current;
+    if (!svg || weekly.length === 0) return;
+    const rect = svg.getBoundingClientRect();
+    const vbX = ((e.clientX - rect.left) / rect.width) * VBW;
+    const idx = Math.floor((vbX - PAD_L) / (barW + barGap));
+    setWeekHover(Math.max(0, Math.min(weekly.length - 1, idx)));
+  };
+  const onWeekKey = (e: React.KeyboardEvent<SVGSVGElement>) => {
+    const next = keyIndex(e.key, weekHover, weekly.length);
+    if (next == null) return;
+    setWeekHover(next);
+    e.preventDefault();
+  };
   const weekTicks = useMemo(() => {
     if (weekly.length === 0) return [];
     const count = Math.min(4, weekly.length);
@@ -870,16 +895,38 @@ export function PmcChart({
 
       {weekly.length > 0 ? (
         <div>
-          <h3 className="mb-3 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-            {t.fitness.weeklyLoad}
-          </h3>
-          <div className="w-full overflow-x-auto">
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <h3 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {t.fitness.weeklyLoad}
+            </h3>
+            {LOAD_SPORTS.map((sport) => (
+              <span
+                key={sport}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+              >
+                <span
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: SPORT_COLOR[sport] }}
+                  aria-hidden
+                />
+                {t.sports[sport]}
+              </span>
+            ))}
+          </div>
+          <div className="relative w-full overflow-x-auto">
             <svg
+              ref={weekSvgRef}
               viewBox={`0 0 ${VBW} ${WEEK_H + WEEK_AXIS}`}
               width="100%"
-              style={{ height: "auto" }}
+              style={{ height: "auto", touchAction: "none" }}
               role="img"
+              tabIndex={0}
               aria-label={t.fitness.weeklyLoad}
+              onPointerMove={onWeekMove}
+              onPointerDown={onWeekMove}
+              onPointerLeave={() => setWeekHover(null)}
+              onKeyDown={onWeekKey}
+              className="outline-none"
             >
               <line
                 x1={PAD_L}
@@ -900,25 +947,33 @@ export function PmcChart({
                 {weekMax}
               </text>
               {weekly.map((w, i) => {
-                const h = (w.load / weekMax) * (WEEK_H - 4);
-                const x = PAD_L + i * (barW + barGap);
+                // Stack from the baseline up in LOAD_SPORTS order; each segment's
+                // height comes straight from its own load so the stack always
+                // sums to the week's total.
+                let baseline = WEEK_H;
                 return (
-                  <rect
-                    key={w.date}
-                    x={x}
-                    y={WEEK_H - h}
-                    width={barW}
-                    height={h}
-                    rx={1.5}
-                    fill="var(--primary)"
-                    opacity={0.8}
-                  >
-                    <title>{`${fmtDayMonth(parseLocalDate(w.date), lang)} · ${Math.round(w.load)} ${t.fitness.tssUnit}`}</title>
-                  </rect>
+                  <g key={w.date}>
+                    {LOAD_SPORTS.map((sport) => {
+                      const h = (w.load[sport] / weekMax) * (WEEK_H - 4);
+                      if (h <= 0) return null;
+                      baseline -= h;
+                      return (
+                        <rect
+                          key={sport}
+                          x={weekX(i)}
+                          y={baseline}
+                          width={barW}
+                          height={h}
+                          fill={SPORT_COLOR[sport]}
+                          opacity={weekHover === i ? 1 : 0.8}
+                        />
+                      );
+                    })}
+                  </g>
                 );
               })}
               {weekTicks.map((tick) => {
-                const x = PAD_L + tick.i * (barW + barGap) + barW / 2;
+                const x = weekX(tick.i) + barW / 2;
                 return (
                   <text
                     key={tick.i}
@@ -934,6 +989,46 @@ export function PmcChart({
                 );
               })}
             </svg>
+
+            {weekHover != null && weekly[weekHover] != null ? (
+              <div
+                className="pointer-events-none absolute top-1 z-10 rounded-lg border bg-card/95 px-2.5 py-2 text-xs shadow-md backdrop-blur"
+                style={{
+                  left: `${((weekX(weekHover) + barW / 2) / VBW) * 100}%`,
+                  transform: `translateX(${weekX(weekHover) > VBW / 2 ? "-100%" : "0"}) translateX(${weekX(weekHover) > VBW / 2 ? "-8px" : "8px"})`,
+                }}
+              >
+                <div className="mb-1 font-mono font-medium text-foreground">
+                  {fmtDayMonth(parseLocalDate(weekly[weekHover].date), lang)}
+                </div>
+                <div className="space-y-0.5">
+                  {LOAD_SPORTS.filter((sport) => weekly[weekHover].load[sport] > 0).map((sport) => (
+                    <div key={sport} className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: SPORT_COLOR[sport] }}
+                          aria-hidden
+                        />
+                        {t.sports[sport]}
+                      </span>
+                      <span
+                        className="font-mono tabular-nums"
+                        style={{ color: SPORT_COLOR[sport] }}
+                      >
+                        {Math.round(weekly[weekHover].load[sport])}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
+                  <span className="text-muted-foreground">{t.fitness.weeklyTotal}</span>
+                  <span className="font-mono font-medium tabular-nums text-foreground">
+                    {Math.round(weekTotals[weekHover])} {t.fitness.tssUnit}
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

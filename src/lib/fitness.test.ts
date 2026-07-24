@@ -3,11 +3,14 @@ import {
   computeAcwr,
   computeLoad,
   computePmc,
+  dailyLoadSeries,
   formState,
   hrZones,
   paceZones,
   projectPmc,
+  weeklyLoadTotal,
   weeklyMonotony,
+  weeklySportLoad,
   type AthleteThresholds,
   type LoadActivity,
 } from "@/lib/fitness";
@@ -360,6 +363,53 @@ describe("weeklyMonotony", () => {
     const result = weeklyMonotony(days([20, 30, 40, 50, 60]));
     expect(result.load7d).toBe(200);
     expect(result.monotony as number).toBeCloseTo(2.8284, 3);
+  });
+});
+
+describe("weeklySportLoad", () => {
+  // Local (no Z) timestamps so the local-day conversion is timezone-stable.
+  // 2026-01-05 and 2026-01-12 are Mondays.
+  const loads = [
+    { started_at: "2026-01-05T07:00:00", tss: 60, sport_type: "Run" },
+    { started_at: "2026-01-07T18:00:00", tss: 40, sport_type: "TrailRun" },
+    { started_at: "2026-01-08T18:00:00", tss: 30, sport_type: "VirtualRide" },
+    { started_at: "2026-01-09T18:00:00", tss: 10, sport_type: "WeightTraining" },
+    { started_at: "2026-01-11T09:00:00", tss: 20, sport_type: "Walk" },
+    { started_at: "2026-01-14T06:00:00", tss: 55, sport_type: "Run" },
+  ];
+
+  it("buckets load by Monday and sport, folding everything but runs and rides into other", () => {
+    expect(weeklySportLoad(loads, { from: "2026-01-05", to: "2026-01-18" })).toEqual([
+      { date: "2026-01-05", load: { run: 100, bike: 30, other: 30 } },
+      { date: "2026-01-12", load: { run: 55, bike: 0, other: 0 } },
+    ]);
+  });
+
+  it("keeps each stack's total identical to the daily series' total for that week", () => {
+    const weeks = weeklySportLoad(loads, { from: "2026-01-05", to: "2026-01-11" });
+    const daily = dailyLoadSeries(loads).filter(
+      (d) => d.date >= "2026-01-05" && d.date <= "2026-01-11"
+    );
+    expect(weeks.map(weeklyLoadTotal)).toEqual([daily.reduce((sum, d) => sum + d.load, 0)]);
+  });
+
+  it("excludes rows outside the range and keeps rest weeks as zero stacks", () => {
+    // Range starts mid-week (Wednesday), so the first bar is still keyed to its
+    // Monday but only counts the in-range days; 2026-01-19 has no activity.
+    expect(weeklySportLoad(loads, { from: "2026-01-07", to: "2026-01-25" })).toEqual([
+      { date: "2026-01-05", load: { run: 40, bike: 30, other: 30 } },
+      { date: "2026-01-12", load: { run: 55, bike: 0, other: 0 } },
+      { date: "2026-01-19", load: { run: 0, bike: 0, other: 0 } },
+    ]);
+  });
+
+  it("treats a missing sport_type as other", () => {
+    expect(
+      weeklySportLoad([{ started_at: "2026-01-05T07:00:00", tss: 25, sport_type: null }], {
+        from: "2026-01-05",
+        to: "2026-01-11",
+      })
+    ).toEqual([{ date: "2026-01-05", load: { run: 0, bike: 0, other: 25 } }]);
   });
 });
 

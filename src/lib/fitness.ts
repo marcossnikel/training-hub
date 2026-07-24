@@ -2,7 +2,8 @@
 // Management Chart (CTL/ATL/TSB) and Friel training zones. No DB imports — the
 // data layer feeds these functions and persists their output.
 import { isRideSport, rideMetrics } from "./cycling";
-import { eachDay, localDateInputValue, parseLocalDate } from "./format";
+import { eachDay, localDateInputValue, mondayOf, parseLocalDate } from "./format";
+import { sportCategory } from "./sports";
 import { isRunSport } from "./validate";
 
 export interface AthleteThresholds {
@@ -174,6 +175,59 @@ export function dailyLoadSeries(
   const today = localDateInputValue(new Date());
   const lastDay = dayKeys[dayKeys.length - 1] > today ? dayKeys[dayKeys.length - 1] : today;
   return eachDay(dayKeys[0], lastDay).map((date) => ({ date, load: byDay.get(date) ?? 0 }));
+}
+
+/**
+ * Sport buckets the weekly load bars stack. Runs and rides are the two that
+ * carry meaningful load volume for this athlete; strength, walks, elliptical
+ * and swims fold into "other".
+ */
+export type LoadSport = "run" | "bike" | "other";
+
+/** Stacking / legend order, bottom segment first. */
+export const LOAD_SPORTS: readonly LoadSport[] = ["run", "bike", "other"];
+
+export interface WeeklySportLoad {
+  /** Monday of the week, YYYY-MM-DD local. */
+  date: string;
+  load: Record<LoadSport, number>;
+}
+
+function loadSport(sport: string | null | undefined): LoadSport {
+  const category = sportCategory(sport);
+  return category === "run" || category === "bike" ? category : "other";
+}
+
+/** A week's total load, i.e. the height of its stacked bar. */
+export function weeklyLoadTotal(week: WeeklySportLoad): number {
+  return LOAD_SPORTS.reduce((sum, sport) => sum + week.load[sport], 0);
+}
+
+/**
+ * Weekly (Monday-keyed) training load split by sport, over an inclusive
+ * local-date range. Weeks with no activities are kept as zero stacks so the
+ * bars stay evenly spaced in time. Uses the same started_at -> local-day
+ * conversion as dailyLoadSeries, so each stack sums to exactly the total that
+ * series produces for the same week.
+ */
+export function weeklySportLoad(
+  loads: { started_at: string; tss: number; sport_type?: string | null }[],
+  range: { from: string; to: string }
+): WeeklySportLoad[] {
+  const weeks = new Map<string, Record<LoadSport, number>>();
+  const cursor = mondayOf(parseLocalDate(range.from));
+  while (localDateInputValue(cursor) <= range.to) {
+    weeks.set(localDateInputValue(cursor), { run: 0, bike: 0, other: 0 });
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  for (const load of loads) {
+    const day = localDateInputValue(new Date(load.started_at));
+    if (day < range.from || day > range.to) continue;
+    const week = weeks.get(localDateInputValue(mondayOf(parseLocalDate(day))));
+    if (week) week[loadSport(load.sport_type)] += load.tss;
+  }
+  // Map insertion order is the ascending week cursor above.
+  return [...weeks.entries()].map(([date, load]) => ({ date, load }));
 }
 
 // Exponentially-weighted decay constants: fitness over ~42 days, fatigue ~7.

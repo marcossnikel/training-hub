@@ -164,9 +164,17 @@ export async function upsertActivityLoads(
   }
 }
 
-export async function listActivityLoadsForPmc(): Promise<{ started_at: string; tss: number }[]> {
-  return many<{ started_at: string; tss: number }>(
-    `SELECT a.started_at AS started_at, l.tss AS tss
+/** One persisted load per confirmed activity, ascending — the PMC's raw input. */
+export interface PmcLoadRow {
+  started_at: string;
+  tss: number;
+  /** Raw Strava sport_type, bucketed by sportCategory() where sport matters. */
+  sport_type: string | null;
+}
+
+export async function listActivityLoadsForPmc(): Promise<PmcLoadRow[]> {
+  return many<PmcLoadRow>(
+    `SELECT a.started_at AS started_at, l.tss AS tss, a.sport_type AS sport_type
      FROM activities a
      JOIN activity_load l ON l.activity_id = a.id
      WHERE a.status = 'confirmed' AND l.tss IS NOT NULL AND a.started_at IS NOT NULL

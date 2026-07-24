@@ -545,6 +545,7 @@ export const pt: Dict = {
     projRest: "Projeção (descanso)",
     raceDayForm: "Prova em {n} d: forma projetada {rest} descansando, {steady} com a carga atual",
     weeklyLoad: "Carga semanal",
+    weeklyTotal: "Total",
     window: "Período",
     windows: { "90d": "90 dias", "6m": "6 meses", "1y": "1 ano", all: "Tudo" },
     empty: "Ainda sem carga de treino",

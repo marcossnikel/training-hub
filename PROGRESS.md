@@ -93,3 +93,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T03 Ramp-rate lane and ACWR tile: done 2026-07-24, PR #6
 - ICU-T04 Monotony and strain tiles: done 2026-07-24, PR #7
 - ICU-T05 Projected fitness scenarios and race-day form readout: done 2026-07-24, PR #8
+- ICU-T06 Per-sport stacked weekly load bars with real tooltip: done 2026-07-24, PR #9
