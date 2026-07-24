@@ -77,7 +77,7 @@ import {
   type LapSummary,
   type RecentSessionSummary,
 } from "./coach";
-import { computeLoad, THRESHOLD_PACE_RANGE } from "./fitness";
+import { computeLoad, THRESHOLD_PACE_RANGE, weeklyMonotony } from "./fitness";
 import {
   ensureActivityStreams,
   ensureActivityDetail,
@@ -880,6 +880,9 @@ export async function generateWeeklyDigestAction(): Promise<WeeklyDigestResult> 
       thresholds,
       now: pmcPoint(pmc[pmc.length - 1]),
       weekAgo: pmcPoint(pmc.length >= 8 ? pmc[pmc.length - 8] : pmc[0]),
+      // PMC points are gap-filled to today, so their trailing 7 entries are the
+      // trailing 7 calendar days the monotony/strain pair expects.
+      week: weeklyMonotony(pmc),
     });
     const text = await runWeeklyDigest(context);
     const saved = await setWeeklyDigest(text);

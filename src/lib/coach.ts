@@ -4,7 +4,7 @@
 // is created lazily and every caller guards with isCoachConfigured().
 import Anthropic from "@anthropic-ai/sdk";
 import type { DigestActivity, FieldSignals } from "./db";
-import type { AthleteThresholds } from "./fitness";
+import type { AthleteThresholds, WeeklyMonotony } from "./fitness";
 import type { ActivityStreams } from "./streams";
 import type { ActivityWithSplits, Goal } from "./types";
 import type { DerivedZones } from "./zones";
@@ -280,8 +280,9 @@ export function buildDigestContext(input: {
   thresholds: AthleteThresholds;
   now: CoachPmc | null;
   weekAgo: CoachPmc | null;
+  week: WeeklyMonotony;
 }): string {
-  const { activities, thresholds, now, weekAgo } = input;
+  const { activities, thresholds, now, weekAgo, week } = input;
   const lines: string[] = [];
 
   lines.push("LAST 7 DAYS OF TRAINING");
@@ -311,6 +312,17 @@ export function buildDigestContext(input: {
     lines.push("");
     lines.push("FITNESS TODAY");
     lines.push(`- CTL ${now.ctl.toFixed(0)}, ATL ${now.atl.toFixed(0)}, TSB ${now.tsb.toFixed(0)}`);
+  }
+
+  if (week.monotony != null && week.strain != null) {
+    lines.push("");
+    lines.push("WEEKLY LOAD SHAPE (last 7 days)");
+    lines.push(
+      `- Monotony: ${week.monotony.toFixed(1)} (mean/stddev of daily load; above 2.0 is grindy, above 2.5 a warning)`
+    );
+    lines.push(
+      `- Strain: ${Math.round(week.strain)} (7-day load ${Math.round(week.load7d)} x monotony)`
+    );
   }
 
   lines.push("");

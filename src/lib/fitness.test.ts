@@ -6,6 +6,7 @@ import {
   formState,
   hrZones,
   paceZones,
+  weeklyMonotony,
   type AthleteThresholds,
   type LoadActivity,
 } from "@/lib/fitness";
@@ -241,6 +242,60 @@ describe("computeAcwr", () => {
     ];
     // acute = mean(last 7) = 60; chronic = mean(last 28) = (21*20 + 7*60)/28 = 30.
     expect(computeAcwr(daily)).toBeCloseTo(2, 6);
+  });
+});
+
+describe("weeklyMonotony", () => {
+  const days = (loads: number[]) => loads.map((load, i) => ({ date: `d${i}`, load }));
+
+  it("computes Foster monotony and strain from a hand-computed week", () => {
+    // loads 70, 50, 60, 40, 80, 0, 100 -> total 400, mean 400/7 = 57.142857,
+    // population variance 6142.857/7 = 877.551, stddev 29.62349.
+    // monotony = 57.142857 / 29.62349 = 1.928971; strain = 400 * that = 771.59.
+    const result = weeklyMonotony(days([70, 50, 60, 40, 80, 0, 100]));
+    expect(result.load7d).toBe(400);
+    expect(result.monotony as number).toBeCloseTo(1.92897, 4);
+    expect(result.strain as number).toBeCloseTo(771.59, 1);
+  });
+
+  it("scores a grindy same-load week high", () => {
+    // loads 55, 45, 50, 50, 50, 50, 50 -> mean 50, variance 50/7 = 7.142857,
+    // stddev 2.672612, monotony 50 / 2.672612 = 18.7083.
+    const result = weeklyMonotony(days([55, 45, 50, 50, 50, 50, 50]));
+    expect(result.monotony as number).toBeCloseTo(18.7083, 3);
+    expect(result.strain as number).toBeCloseTo(350 * 18.7083, 1);
+  });
+
+  it("uses only the trailing 7 days of a longer series", () => {
+    const long = days([...Array.from({ length: 30 }, () => 200), 70, 50, 60, 40, 80, 0, 100]);
+    expect(weeklyMonotony(long)).toEqual(weeklyMonotony(days([70, 50, 60, 40, 80, 0, 100])));
+  });
+
+  it("is null for a flat week (stddev under 1 TSS would explode the ratio)", () => {
+    expect(weeklyMonotony(days([50, 50, 50, 50, 50, 50, 50]))).toEqual({
+      monotony: null,
+      strain: null,
+      load7d: 350,
+    });
+  });
+
+  it("is null with fewer than 4 days carrying load", () => {
+    const result = weeklyMonotony(days([0, 0, 0, 0, 60, 40, 80]));
+    expect(result.monotony).toBeNull();
+    expect(result.strain).toBeNull();
+    expect(result.load7d).toBe(180);
+  });
+
+  it("is null with no history at all", () => {
+    expect(weeklyMonotony([])).toEqual({ monotony: null, strain: null, load7d: 0 });
+  });
+
+  it("works on a short history using the days available", () => {
+    // 5 days only: mean 40, variance 1000/5 = 200, stddev 14.142136,
+    // monotony 40 / 14.142136 = 2.828427.
+    const result = weeklyMonotony(days([20, 30, 40, 50, 60]));
+    expect(result.load7d).toBe(200);
+    expect(result.monotony as number).toBeCloseTo(2.8284, 3);
   });
 });
 

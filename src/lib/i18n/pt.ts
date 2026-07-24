@@ -522,6 +522,12 @@ export const pt: Dict = {
     acwr: "ACWR",
     acwrTooltip:
       "Razão de carga aguda:crônica (média de 7 dias vs 28 dias). Abaixo de 0,8 subtreino, 0,8-1,3 zona ideal, 1,3-1,5 atenção, acima de 1,5 risco elevado de lesão.",
+    monotony: "Monotonia",
+    monotonyTooltip:
+      "Quão parecidos foram os últimos 7 dias de carga (média / desvio padrão). Acima de 2,0 indica uma semana sem contraste entre leve e forte, acima de 2,5 é alerta.",
+    strain: "Sobrecarga",
+    strainTooltip: "Carga dos últimos 7 dias multiplicada pela monotonia: o desgaste da semana.",
+    load7d: "Carga 7d",
     states: {
       transition: "Transição",
       fresh: "Descansado",
