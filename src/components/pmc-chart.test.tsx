@@ -8,7 +8,7 @@
 // tooltip), not pointer-only.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { PmcChart, type PmcSeriesPoint } from "@/components/pmc-chart";
+import { PmcChart, STATE_COLOR, type PmcSeriesPoint } from "@/components/pmc-chart";
 
 afterEach(cleanup);
 
@@ -59,5 +59,29 @@ describe("PmcChart keyboard navigation (G8.4)", () => {
     fireEvent.keyDown(svg, { key: "ArrowLeft" });
     expect(screen.getByText("33")).toBeTruthy();
     expect(screen.queryByText("11")).toBeNull();
+  });
+});
+
+describe("PmcChart TSB form-zone bands (T01)", () => {
+  it("colors the tooltip TSB value via STATE_COLOR for the hovered day's form state", () => {
+    render(<PmcChart points={points} weekly={[]} />);
+    const svg = screen.getByRole("img", { name: /fitness/i });
+
+    // Last point has tsb = 24, which is above the +20 transition boundary.
+    fireEvent.keyDown(svg, { key: "End" });
+    const tsbValue = screen.getByText("24");
+    expect(tsbValue.style.color).toBe(STATE_COLOR.transition);
+  });
+
+  it("renders a right-edge label only for bands tall enough to hold one, but always draws the band rect", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} />);
+    // tsb values (6, 15, 24) round tsbMax up to 50, at which the transition
+    // band (20..50, the widest) clears the label-height threshold while the
+    // fixed-width fresh (5..20) and neutral (-10..5) bands are too thin for a
+    // label at this scale. weekly={[]} means these are the only <rect>s.
+    expect(screen.getByText("Transition")).toBeTruthy();
+    expect(screen.queryByText("Fresh")).toBeNull();
+    expect(screen.queryByText("Neutral")).toBeNull();
+    expect(container.querySelectorAll("rect").length).toBe(5);
   });
 });

@@ -3,6 +3,71 @@
 import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { fmtDayMonth, parseLocalDate } from "@/lib/format";
+import {
+  formState,
+  TSB_FRESH_ABOVE,
+  TSB_NEUTRAL_FLOOR,
+  TSB_PRODUCTIVE_FLOOR,
+  TSB_TRANSITION_ABOVE,
+  type FormStateKey,
+} from "@/lib/fitness";
+
+/** Text color for a form state, the source of truth for STATE-colored copy
+ * (stat tiles on /fitness, this chart's TSB tooltip row). */
+export const STATE_COLOR: Record<FormStateKey, string> = {
+  transition: "var(--wear-worn)",
+  fresh: "var(--positive)",
+  neutral: "var(--muted-foreground)",
+  productive: "var(--primary)",
+  fatigued: "var(--wear-critical)",
+};
+
+// Decorative background bands for the TSB panel, one per form-state boundary
+// in fitness.ts. Colors/opacities here are a separate decorative palette from
+// STATE_COLOR (which stays the source of truth for text).
+const FORM_BANDS: {
+  key: FormStateKey;
+  lo: number;
+  hi: number;
+  color: string;
+  opacity: number;
+}[] = [
+  {
+    key: "transition",
+    lo: TSB_TRANSITION_ABOVE,
+    hi: Infinity,
+    color: "var(--positive)",
+    opacity: 0.05,
+  },
+  {
+    key: "fresh",
+    lo: TSB_FRESH_ABOVE,
+    hi: TSB_TRANSITION_ABOVE,
+    color: "var(--positive)",
+    opacity: 0.08,
+  },
+  {
+    key: "neutral",
+    lo: TSB_NEUTRAL_FLOOR,
+    hi: TSB_FRESH_ABOVE,
+    color: "var(--muted-foreground)",
+    opacity: 0.05,
+  },
+  {
+    key: "productive",
+    lo: TSB_PRODUCTIVE_FLOOR,
+    hi: TSB_NEUTRAL_FLOOR,
+    color: "var(--primary)",
+    opacity: 0.07,
+  },
+  {
+    key: "fatigued",
+    lo: -Infinity,
+    hi: TSB_PRODUCTIVE_FLOOR,
+    color: "var(--wear-critical)",
+    opacity: 0.07,
+  },
+];
 
 export interface PmcSeriesPoint {
   date: string; // YYYY-MM-DD local
@@ -31,6 +96,9 @@ const MAIN_BOTTOM = TOP + MAIN_H;
 const TSB_TOP = MAIN_BOTTOM + GAP;
 const TSB_MID = TSB_TOP + TSB_H / 2;
 const PMC_H = TSB_TOP + TSB_H + AXIS_H;
+// Minimum form-zone band height (viewBox units) that can hold a 9px label
+// without overlapping its neighbors: font size plus a little breathing room.
+const BAND_LABEL_MIN_HEIGHT = 11;
 
 function niceMax(value: number): number {
   if (value <= 0) return 1;
@@ -59,6 +127,16 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
 
   const yLoad = (v: number) => MAIN_BOTTOM - (v / loadMax) * MAIN_H;
   const yTsb = (v: number) => TSB_MID - (v / tsbMax) * (TSB_H / 2);
+
+  // Form-zone bands clipped to the panel's current TSB extent: clamp each
+  // band's bounds to [-tsbMax, tsbMax] and drop it when that leaves no height
+  // (fully outside the visible range). Cheap (fixed 5 bands), no memoization.
+  const visibleBands = FORM_BANDS.map((band) => {
+    const lo = Math.max(band.lo, -tsbMax);
+    const hi = Math.min(band.hi, tsbMax);
+    if (lo >= hi) return null;
+    return { ...band, yTop: yTsb(hi), yBottom: yTsb(lo) };
+  }).filter((b): b is NonNullable<typeof b> => b !== null);
 
   const ctlLine = points
     .map((p, i) => `${i ? "L" : "M"}${xPx(i).toFixed(1)},${yLoad(p.ctl).toFixed(1)}`)
@@ -249,6 +327,33 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
               />
             ) : null}
 
+            {/* TSB panel: form-zone background bands + right-edge labels */}
+            {visibleBands.map((band) => (
+              <g key={band.key}>
+                <rect
+                  x={PAD_L}
+                  y={band.yTop}
+                  width={PLOT_W}
+                  height={band.yBottom - band.yTop}
+                  fill={band.color}
+                  opacity={band.opacity}
+                />
+                {band.yBottom - band.yTop >= BAND_LABEL_MIN_HEIGHT ? (
+                  <text
+                    x={VBW - PAD_R - 3}
+                    y={(band.yTop + band.yBottom) / 2 + 3}
+                    textAnchor="end"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    className="font-mono"
+                    opacity={0.7}
+                  >
+                    {t.fitness.states[band.key]}
+                  </text>
+                ) : null}
+              </g>
+            ))}
+
             {/* TSB band: zero baseline + line + subtle area */}
             <line
               x1={PAD_L}
@@ -384,7 +489,7 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
                   {
                     label: t.fitness.tsb,
                     value: Math.round(hoverPoint.tsb),
-                    color: "var(--chart-4)",
+                    color: STATE_COLOR[formState(hoverPoint.tsb).key],
                   },
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between gap-3">

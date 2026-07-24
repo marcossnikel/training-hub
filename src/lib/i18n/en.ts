@@ -521,6 +521,7 @@ export const en = {
     fatigue: "Fatigue",
     ramp7d: "7-day ramp",
     states: {
+      transition: "Transition",
       fresh: "Fresh",
       neutral: "Neutral",
       productive: "Productive",

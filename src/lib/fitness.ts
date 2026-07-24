@@ -199,20 +199,24 @@ export function computePmc(dailyLoads: { date: string; load: number }[]): PmcPoi
   return out;
 }
 
-export type FormStateKey = "fresh" | "neutral" | "productive" | "fatigued";
+export type FormStateKey = "transition" | "fresh" | "neutral" | "productive" | "fatigued";
 
-// Form (TSB) band edges: above +5 is fresh/tapered, down to -10 is neutral,
-// down to -30 is the productive training zone, and below that is deep fatigue.
-const TSB_FRESH_ABOVE = 5;
-const TSB_NEUTRAL_FLOOR = -10;
-const TSB_PRODUCTIVE_FLOOR = -30;
+// Form (TSB) band edges: above +20 is transition (tapered too long / detraining
+// risk), above +5 is fresh/tapered, down to -10 is neutral, down to -30 is the
+// productive training zone, and below that is deep fatigue.
+export const TSB_TRANSITION_ABOVE = 20;
+export const TSB_FRESH_ABOVE = 5;
+export const TSB_NEUTRAL_FLOOR = -10;
+export const TSB_PRODUCTIVE_FLOOR = -30;
 
 /**
- * Buckets a TSB value into a form state. Above +5 is fresh (tapered), the
- * -10..+5 band is neutral, -30..-10 is the productive training zone, and
- * anything below -30 is deep fatigue.
+ * Buckets a TSB value into a form state. Above +20 is transition (form has
+ * drifted past useful freshness), above +5 is fresh (tapered), the -10..+5
+ * band is neutral, -30..-10 is the productive training zone, and anything
+ * below -30 is deep fatigue.
  */
 export function formState(tsb: number): { key: FormStateKey } {
+  if (tsb > TSB_TRANSITION_ABOVE) return { key: "transition" };
   if (tsb > TSB_FRESH_ABOVE) return { key: "fresh" };
   if (tsb >= TSB_NEUTRAL_FLOOR) return { key: "neutral" };
   if (tsb >= TSB_PRODUCTIVE_FLOOR) return { key: "productive" };
