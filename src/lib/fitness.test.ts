@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  availableLoadSports,
   computeAcwr,
   computeLoad,
   computePmc,
@@ -429,6 +430,42 @@ describe("loadSport", () => {
   it("treats a missing sport as other", () => {
     expect(loadSport(null)).toBe("other");
     expect(loadSport(undefined)).toBe("other");
+  });
+});
+
+describe("availableLoadSports", () => {
+  it("returns sports carrying positive load in stacking order", () => {
+    expect(
+      availableLoadSports([
+        { tss: 10, sport_type: "WeightTraining" },
+        { tss: 30, sport_type: "VirtualRide" },
+        { tss: 60, sport_type: "Run" },
+      ])
+    ).toEqual(["run", "bike", "other"]);
+  });
+
+  it("omits sports whose rows all carry zero load", () => {
+    expect(
+      availableLoadSports([
+        { tss: 60, sport_type: "Run" },
+        { tss: 0, sport_type: "VirtualRide" },
+        { tss: 0, sport_type: "Walk" },
+      ])
+    ).toEqual(["run"]);
+  });
+
+  it("keeps a sport that has any positive row", () => {
+    expect(
+      availableLoadSports([
+        { tss: 0, sport_type: "Ride" },
+        { tss: 5, sport_type: "Ride" },
+      ])
+    ).toEqual(["bike"]);
+  });
+
+  it("is empty when nothing carries load", () => {
+    expect(availableLoadSports([])).toEqual([]);
+    expect(availableLoadSports([{ tss: 0, sport_type: "Run" }])).toEqual([]);
   });
 });
 

@@ -21,11 +21,11 @@ import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
 import { fillStr } from "@/lib/i18n";
 import {
+  availableLoadSports,
   computeAcwr,
   computePmc,
   dailyLoadSeries,
   formState,
-  LOAD_SPORTS,
   loadSport,
   projectPmc,
   weeklyMonotony,
@@ -153,10 +153,9 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   const win = WINDOWS.find((w) => w.key === rawWindow) ?? WINDOWS[1];
 
   // Sport filter (T07): per-sport CTL/ATL/TSB, the whole page recomputed from
-  // the filtered rows. Only sports that actually carry load get a pill, so a
-  // filter can never leave the page with an empty curve.
-  const sportsWithLoad = new Set(loads.map((row) => loadSport(row.sport_type)));
-  const availableSports = LOAD_SPORTS.filter((s) => sportsWithLoad.has(s));
+  // the filtered rows. Only sports that actually carry positive load get a pill,
+  // so a filter can never leave the page with an empty or all-zero curve.
+  const availableSports = availableLoadSports(loads);
   const rawSport = typeof params.sport === "string" ? params.sport : "all";
   const sport: LoadSport | "all" = availableSports.some((s) => s === rawSport)
     ? (rawSport as LoadSport)
@@ -326,7 +325,9 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
         ))}
       </nav>
 
-      {availableSports.length > 1 ? (
+      {/* Rendered whenever any sport carries load so the All reset is always
+          reachable from a sport-filtered URL. */}
+      {availableSports.length > 0 ? (
         <nav aria-label="Filter by sport" className="mt-2 flex flex-wrap items-center gap-1.5">
           <FilterPill
             href={fitnessHref(win.key, "all")}
