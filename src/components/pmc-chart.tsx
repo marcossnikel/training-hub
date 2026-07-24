@@ -75,6 +75,8 @@ export interface PmcSeriesPoint {
   ctl: number;
   atl: number;
   tsb: number;
+  /** ctl - ctl 7 days prior; null/absent when there isn't a week of history yet. */
+  rampRate?: number | null;
 }
 
 export interface WeeklyBar {
@@ -102,7 +104,16 @@ const AXIS_H = 22;
 const MAIN_BOTTOM = TOP + MAIN_H;
 const TSB_TOP = MAIN_BOTTOM + GAP;
 const TSB_MID = TSB_TOP + TSB_H / 2;
-const PMC_H = TSB_TOP + TSB_H + AXIS_H;
+// Ramp-rate lane (T03): a slim step-area strip directly under the TSB panel.
+const RAMP_H = 40;
+const RAMP_TOP = TSB_TOP + TSB_H + GAP;
+const RAMP_MIN = -10;
+const RAMP_MAX = 12;
+const RAMP_RANGE = RAMP_MAX - RAMP_MIN;
+// The ramp tile's existing "building fast" warning threshold (src/app/fitness/page.tsx
+// rampColor), echoed here as a dotted reference line.
+const RAMP_WARN = 8;
+const PMC_H = RAMP_TOP + RAMP_H + AXIS_H;
 // Minimum form-zone band height (viewBox units) that can hold a 9px label
 // without overlapping its neighbors: font size plus a little breathing room.
 const BAND_LABEL_MIN_HEIGHT = 11;
@@ -142,6 +153,22 @@ export function PmcChart({
 
   const yLoad = (v: number) => MAIN_BOTTOM - (v / loadMax) * MAIN_H;
   const yTsb = (v: number) => TSB_MID - (v / tsbMax) * (TSB_H / 2);
+  // Ramp lane: fixed [-10, +12] domain (clamped display per T03), independent
+  // of the data's actual range so the lane's scale stays a stable reference.
+  const yRamp = (v: number) => {
+    const clamped = Math.min(RAMP_MAX, Math.max(RAMP_MIN, v));
+    return RAMP_TOP + RAMP_H - ((clamped - RAMP_MIN) / RAMP_RANGE) * RAMP_H;
+  };
+  const rampZeroY = yRamp(0);
+  const rampWarnY = yRamp(RAMP_WARN);
+  const rampBarW = n > 1 ? PLOT_W / (n - 1) : PLOT_W;
+  const rampBars = useMemo(
+    () =>
+      points
+        .map((p, i) => (p.rampRate == null ? null : { i, value: p.rampRate }))
+        .filter((b): b is { i: number; value: number } => b !== null),
+    [points]
+  );
 
   // Form-zone bands clipped to the panel's current TSB extent: clamp each
   // band's bounds to [-tsbMax, tsbMax] and drop it when that leaves no height
@@ -430,6 +457,65 @@ export function PmcChart({
               />
             ) : null}
 
+            {/* ramp-rate lane: step area of rampRate around a dashed zero line
+                (T03), clamped to [-10, +12] with a dotted +8 warning reference. */}
+            <line
+              x1={PAD_L}
+              y1={rampZeroY}
+              x2={VBW - PAD_R}
+              y2={rampZeroY}
+              stroke="var(--border)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+              opacity={0.7}
+            />
+            <line
+              x1={PAD_L}
+              y1={rampWarnY}
+              x2={VBW - PAD_R}
+              y2={rampWarnY}
+              stroke="var(--wear-worn)"
+              strokeWidth={1}
+              strokeDasharray="1 3"
+              opacity={0.5}
+            />
+            <text
+              x={PAD_L - 6}
+              y={RAMP_TOP + 4}
+              textAnchor="end"
+              fontSize={9}
+              fill="var(--muted-foreground)"
+              className="font-mono"
+            >
+              +{RAMP_MAX}
+            </text>
+            <text
+              x={PAD_L - 6}
+              y={RAMP_TOP + RAMP_H}
+              textAnchor="end"
+              fontSize={9}
+              fill="var(--muted-foreground)"
+              className="font-mono"
+            >
+              {RAMP_MIN}
+            </text>
+            {rampBars.map(({ i, value }) => {
+              const yValue = yRamp(value);
+              const top = Math.min(rampZeroY, yValue);
+              const height = Math.abs(rampZeroY - yValue);
+              return (
+                <rect
+                  key={`ramp-${i}`}
+                  x={xPx(i) - rampBarW / 2}
+                  y={top}
+                  width={rampBarW}
+                  height={height}
+                  fill={value >= 0 ? "var(--positive)" : "var(--chart-2)"}
+                  opacity={0.15}
+                />
+              );
+            })}
+
             {/* x-axis ticks */}
             {ticks.map((tick) => (
               <g key={tick.i}>
@@ -437,14 +523,14 @@ export function PmcChart({
                   x1={xPx(tick.i)}
                   y1={TOP}
                   x2={xPx(tick.i)}
-                  y2={TSB_TOP + TSB_H}
+                  y2={RAMP_TOP + RAMP_H}
                   stroke="var(--border)"
                   strokeWidth={1}
                   opacity={0.2}
                 />
                 <text
                   x={xPx(tick.i)}
-                  y={TSB_TOP + TSB_H + 15}
+                  y={RAMP_TOP + RAMP_H + 15}
                   textAnchor="middle"
                   fontSize={9}
                   fill="var(--muted-foreground)"
@@ -462,7 +548,7 @@ export function PmcChart({
                   x1={xPx(m.index)}
                   y1={TOP}
                   x2={xPx(m.index)}
-                  y2={TSB_TOP + TSB_H}
+                  y2={RAMP_TOP + RAMP_H}
                   stroke="var(--muted-foreground)"
                   strokeWidth={1}
                   strokeDasharray="2 3"
@@ -501,7 +587,7 @@ export function PmcChart({
                   x1={hoverX}
                   y1={TOP}
                   x2={hoverX}
-                  y2={TSB_TOP + TSB_H}
+                  y2={RAMP_TOP + RAMP_H}
                   stroke="var(--foreground)"
                   strokeWidth={1}
                   opacity={0.35}
@@ -563,6 +649,15 @@ export function PmcChart({
                     value: Math.round(hoverPoint.tsb),
                     color: STATE_COLOR[formState(hoverPoint.tsb).key],
                   },
+                  ...(hoverPoint.rampRate != null
+                    ? [
+                        {
+                          label: t.fitness.ramp,
+                          value: `${hoverPoint.rampRate >= 0 ? "+" : ""}${hoverPoint.rampRate.toFixed(1)} ${t.fitness.perWeek}`,
+                          color: hoverPoint.rampRate >= 0 ? "var(--positive)" : "var(--chart-2)",
+                        },
+                      ]
+                    : []),
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-1.5 text-muted-foreground">

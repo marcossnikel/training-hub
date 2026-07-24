@@ -517,6 +517,11 @@ export const pt: Dict = {
     fitness: "Condicionamento",
     fatigue: "Fadiga",
     ramp7d: "Rampa de 7 dias",
+    ramp: "Rampa",
+    perWeek: "/sem",
+    acwr: "ACWR",
+    acwrTooltip:
+      "Razão de carga aguda:crônica (média de 7 dias vs 28 dias). Abaixo de 0,8 subtreino, 0,8-1,3 zona ideal, 1,3-1,5 atenção, acima de 1,5 risco elevado de lesão.",
     states: {
       transition: "Transição",
       fresh: "Descansado",

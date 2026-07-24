@@ -140,3 +140,54 @@ describe("PmcChart race and goal markers (T02)", () => {
     ).toBe(0);
   });
 });
+
+describe("PmcChart ramp-rate lane (T03)", () => {
+  // rampRate omitted from the base `points` fixture (T01/T02 tests above)
+  // renders zero ramp rects, keeping those tests' rect counts unaffected.
+  const rampPoints: PmcSeriesPoint[] = [
+    { date: "2026-01-01", load: 40, ctl: 11, atl: 5, tsb: 6, rampRate: null },
+    { date: "2026-01-02", load: 50, ctl: 22, atl: 7, tsb: 15, rampRate: 4.2 },
+    { date: "2026-01-03", load: 60, ctl: 33, atl: 9, tsb: 24, rampRate: -3.7 },
+  ];
+
+  it("draws one rect per non-null rampRate point, disambiguated from form bands by opacity 0.15", () => {
+    const { container } = render(<PmcChart points={rampPoints} weekly={[]} />);
+    const rampRects = [...container.querySelectorAll("rect")].filter(
+      (r) => r.getAttribute("opacity") === "0.15"
+    );
+    // Two points have a non-null rampRate (the first is null).
+    expect(rampRects.length).toBe(2);
+    // Positive ramp uses --positive, negative uses --chart-2.
+    expect(rampRects.some((r) => r.getAttribute("fill") === "var(--positive)")).toBe(true);
+    expect(rampRects.some((r) => r.getAttribute("fill") === "var(--chart-2)")).toBe(true);
+  });
+
+  it("renders no ramp rects when every point's rampRate is null/absent", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} />);
+    const rampRects = [...container.querySelectorAll("rect")].filter(
+      (r) => r.getAttribute("opacity") === "0.15"
+    );
+    expect(rampRects.length).toBe(0);
+  });
+
+  it("appends a formatted Ramp row to the tooltip for the hovered day", () => {
+    render(<PmcChart points={rampPoints} weekly={[]} />);
+    const svg = screen.getByRole("img", { name: /fitness/i });
+
+    // Second point: rampRate 4.2 -> "+4.2 /wk".
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(screen.getByText("+4.2 /wk")).toBeTruthy();
+
+    // Third point: rampRate -3.7 -> "-3.7 /wk" (no leading "+").
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(screen.getByText("-3.7 /wk")).toBeTruthy();
+  });
+
+  it("shows no Ramp row when the hovered day's rampRate is null", () => {
+    render(<PmcChart points={rampPoints} weekly={[]} />);
+    const svg = screen.getByRole("img", { name: /fitness/i });
+    fireEvent.keyDown(svg, { key: "Home" });
+    expect(screen.queryByText(/\/wk/)).toBeNull();
+  });
+});

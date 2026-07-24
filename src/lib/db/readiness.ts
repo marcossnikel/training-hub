@@ -1,7 +1,7 @@
 import { many } from "./helpers";
 import { getLatestHealthDate, getResolvedNumericSeries } from "./health";
 import { getAthleteThresholds, listActivityLoadsForPmc } from "./load";
-import { computePmc, dailyLoadSeries, type LoadMethod } from "../fitness";
+import { computeAcwr, computePmc, dailyLoadSeries, type LoadMethod } from "../fitness";
 import { localDateInputValue, parseLocalDate } from "../format";
 import {
   computeReadiness,
@@ -92,12 +92,10 @@ async function loadState(): Promise<LoadState | null> {
   if (daily.length === 0) return null;
   const pmc = computePmc(daily);
   const latest = pmc[pmc.length - 1];
-  const acute = mean(daily.slice(-7).map((d) => d.load)) ?? 0;
-  const chronic = mean(daily.slice(-28).map((d) => d.load)) ?? 0;
   return {
     ctl: latest.ctl,
     tsb: latest.tsb,
-    acwr: chronic > 0 ? acute / chronic : null,
+    acwr: computeAcwr(daily),
   };
 }
 
