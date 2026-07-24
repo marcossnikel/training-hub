@@ -169,7 +169,13 @@ describe("computePmc EWMA", () => {
 });
 
 describe("formState bands", () => {
-  it("is fresh above +5", () => {
+  it("is transition above +20", () => {
+    expect(formState(25).key).toBe("transition");
+    expect(formState(20.1).key).toBe("transition");
+  });
+
+  it("is fresh in (+5, +20]", () => {
+    expect(formState(20).key).toBe("fresh");
     expect(formState(6).key).toBe("fresh");
     expect(formState(5.1).key).toBe("fresh");
   });

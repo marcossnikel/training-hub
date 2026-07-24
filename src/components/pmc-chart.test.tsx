@@ -8,7 +8,7 @@
 // tooltip), not pointer-only.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { PmcChart, type PmcSeriesPoint } from "@/components/pmc-chart";
+import { PmcChart, STATE_COLOR, type PmcSeriesPoint } from "@/components/pmc-chart";
 
 afterEach(cleanup);
 
@@ -59,5 +59,26 @@ describe("PmcChart keyboard navigation (G8.4)", () => {
     fireEvent.keyDown(svg, { key: "ArrowLeft" });
     expect(screen.getByText("33")).toBeTruthy();
     expect(screen.queryByText("11")).toBeNull();
+  });
+});
+
+describe("PmcChart TSB form-zone bands (T01)", () => {
+  it("colors the tooltip TSB value via STATE_COLOR for the hovered day's form state", () => {
+    render(<PmcChart points={points} weekly={[]} />);
+    const svg = screen.getByRole("img", { name: /fitness/i });
+
+    // Last point has tsb = 24, which is above the +20 transition boundary.
+    fireEvent.keyDown(svg, { key: "End" });
+    const tsbValue = screen.getByText("24");
+    expect(tsbValue.style.color).toBe(STATE_COLOR.transition);
+  });
+
+  it("renders a right-edge label for each visible form-zone band", () => {
+    render(<PmcChart points={points} weekly={[]} />);
+    // tsb values (6, 15, 24) span transition/fresh/neutral; all band labels
+    // should be visible within the resulting TSB extent.
+    expect(screen.getByText("Transition")).toBeTruthy();
+    expect(screen.getByText("Fresh")).toBeTruthy();
+    expect(screen.getByText("Neutral")).toBeTruthy();
   });
 });

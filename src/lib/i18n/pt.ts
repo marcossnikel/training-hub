@@ -518,6 +518,7 @@ export const pt: Dict = {
     fatigue: "Fadiga",
     ramp7d: "Rampa de 7 dias",
     states: {
+      transition: "Transição",
       fresh: "Descansado",
       neutral: "Neutro",
       productive: "Produtivo",

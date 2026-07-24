@@ -2,25 +2,18 @@ import { GaugeIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { FilterPill } from "@/components/filter-pill";
-import { PmcChart, type PmcSeriesPoint, type WeeklyBar } from "@/components/pmc-chart";
+import { PmcChart, STATE_COLOR, type PmcSeriesPoint, type WeeklyBar } from "@/components/pmc-chart";
 import { WeeklyDigest } from "@/components/weekly-digest";
 import { getAthleteThresholds, getWeeklyDigest, listActivityLoadsForPmc } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
-import { computePmc, dailyLoadSeries, formState, type FormStateKey } from "@/lib/fitness";
+import { computePmc, dailyLoadSeries, formState } from "@/lib/fitness";
 import { localDateInputValue, mondayOf, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
 
 export const metadata = { title: "Fitness" };
 
 const WINDOWS = timeWindows(["90d", "6m", "1y", "all"]);
-
-const STATE_COLOR: Record<FormStateKey, string> = {
-  fresh: "var(--positive)",
-  neutral: "var(--muted-foreground)",
-  productive: "var(--primary)",
-  fatigued: "var(--wear-critical)",
-};
 
 function rampColor(ramp: number): string {
   if (ramp > 8) return "var(--wear-worn)"; // building fast — worth watching
