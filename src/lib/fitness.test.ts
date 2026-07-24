@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeAcwr,
   computeLoad,
   computePmc,
   formState,
@@ -165,6 +166,81 @@ describe("computePmc EWMA", () => {
     expect(pmc[2].ctl).toBe(5.2);
     expect(pmc[2].atl).toBe(27.3);
     expect(pmc[2].tsb).toBe(-15.9);
+
+    // Fewer than 7 days of history: rampRate is null throughout.
+    expect(pmc.map((p) => p.rampRate)).toEqual([null, null, null]);
+  });
+});
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+describe("computePmc rampRate", () => {
+  it("is null for the first 7 days, then ctl[i] - ctl[i-7] beyond that", () => {
+    const daily = Array.from({ length: 10 }, (_, i) => ({
+      date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+      load: 50,
+    }));
+    const pmc = computePmc(daily);
+
+    for (let i = 0; i < 7; i++) {
+      expect(pmc[i].rampRate).toBeNull();
+    }
+    for (let i = 7; i < pmc.length; i++) {
+      expect(pmc[i].rampRate).toBe(round1(pmc[i].ctl - pmc[i - 7].ctl));
+    }
+    // Constant positive load steadily builds CTL, so the ramp is positive
+    // once it becomes defined.
+    expect(pmc[7].rampRate).toBeGreaterThan(0);
+  });
+
+  it("tracks a sharp load increase (ramp rises when recent CTL outpaces CTL a week ago)", () => {
+    const daily = [
+      ...Array.from({ length: 20 }, (_, i) => ({ date: `d${i}`, load: 20 })),
+      ...Array.from({ length: 10 }, (_, i) => ({ date: `d${20 + i}`, load: 100 })),
+    ];
+    const pmc = computePmc(daily);
+    const last = pmc[pmc.length - 1];
+    expect(last.rampRate).not.toBeNull();
+    expect(last.rampRate as number).toBeGreaterThan(0);
+  });
+});
+
+describe("computeAcwr", () => {
+  it("is null with no history (mirrors the pre-refactor db/readiness.ts loadState behavior)", () => {
+    expect(computeAcwr([])).toBeNull();
+  });
+
+  it("is null when the chronic mean is exactly 0, even with plenty of history", () => {
+    const daily = Array.from({ length: 30 }, (_, i) => ({ date: `d${i}`, load: 0 }));
+    expect(computeAcwr(daily)).toBeNull();
+  });
+
+  it("does NOT return null merely for under 28 days of history (short-history case)", () => {
+    // Only 3 days total: both the acute and chronic windows fall back to all
+    // available days, so acute === chronic and the ratio is 1, not null.
+    const daily = [
+      { date: "2026-01-01", load: 40 },
+      { date: "2026-01-02", load: 60 },
+      { date: "2026-01-03", load: 50 },
+    ];
+    expect(computeAcwr(daily)).toBeCloseTo(1, 6);
+  });
+
+  it("is 1 at exactly 7 days of history (acute and chronic windows are identical)", () => {
+    const daily = [10, 20, 30, 40, 50, 60, 70].map((load, i) => ({ date: `d${i}`, load }));
+    expect(computeAcwr(daily)).toBeCloseTo(1, 6);
+  });
+
+  it("computes acute:chronic from the last 7 vs last 28 available days beyond a month", () => {
+    // 21 easy days at load 20, then 7 harder days at load 60.
+    const daily = [
+      ...Array.from({ length: 21 }, (_, i) => ({ date: `a${i}`, load: 20 })),
+      ...Array.from({ length: 7 }, (_, i) => ({ date: `b${i}`, load: 60 })),
+    ];
+    // acute = mean(last 7) = 60; chronic = mean(last 28) = (21*20 + 7*60)/28 = 30.
+    expect(computeAcwr(daily)).toBeCloseTo(2, 6);
   });
 });
 

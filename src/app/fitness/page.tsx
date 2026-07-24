@@ -19,7 +19,7 @@ import {
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
-import { computePmc, dailyLoadSeries, formState } from "@/lib/fitness";
+import { computeAcwr, computePmc, dailyLoadSeries, formState } from "@/lib/fitness";
 import { localDateInputValue, mondayOf, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
 
@@ -33,19 +33,30 @@ function rampColor(ramp: number): string {
   return "var(--muted-foreground)";
 }
 
+// ACWR bands (T03): below 0.8 undertraining, 0.8-1.3 sweet spot (default text
+// color), 1.3-1.5 caution, above 1.5 elevated injury risk.
+function acwrColor(acwr: number): string | undefined {
+  if (acwr < 0.8) return "var(--muted-foreground)";
+  if (acwr <= 1.3) return undefined;
+  if (acwr <= 1.5) return "var(--wear-worn)";
+  return "var(--wear-critical)";
+}
+
 function StatTile({
   label,
   value,
   sub,
   color,
+  title,
 }: {
   label: string;
   value: string;
   sub?: string;
   color?: string;
+  title?: string;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" title={title}>
       <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
         {label}
       </div>
@@ -92,6 +103,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   const latest = pmc[pmc.length - 1];
   const state = formState(latest.tsb);
   const ramp = latest.ctl - (pmc[pmc.length - 8]?.ctl ?? 0);
+  const acwr = computeAcwr(daily);
 
   const windowPoints: PmcSeriesPoint[] = Number.isFinite(win.days)
     ? pmc.slice(Math.max(0, pmc.length - win.days))
@@ -138,7 +150,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
       <h1 className="font-display text-4xl font-bold uppercase">{t.fitness.title}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{t.fitness.subtitle}</p>
 
-      <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 rounded-xl border bg-card p-5 sm:grid-cols-4">
+      <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 rounded-xl border bg-card p-5 sm:grid-cols-5">
         <StatTile
           label={t.fitness.form}
           value={String(Math.round(latest.tsb))}
@@ -160,6 +172,12 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
           label={t.fitness.ramp7d}
           value={`${ramp > 0 ? "+" : ""}${Math.round(ramp)}`}
           color={rampColor(ramp)}
+        />
+        <StatTile
+          label={t.fitness.acwr}
+          value={acwr != null ? acwr.toFixed(2) : "–"}
+          color={acwr != null ? acwrColor(acwr) : "var(--muted-foreground)"}
+          title={t.fitness.acwrTooltip}
         />
       </dl>
 

@@ -520,6 +520,11 @@ export const en = {
     fitness: "Fitness",
     fatigue: "Fatigue",
     ramp7d: "7-day ramp",
+    ramp: "Ramp",
+    perWeek: "/wk",
+    acwr: "ACWR",
+    acwrTooltip:
+      "Acute:chronic workload ratio (7-day vs 28-day average load). Below 0.8 undertraining, 0.8-1.3 sweet spot, 1.3-1.5 caution, above 1.5 elevated injury risk.",
     states: {
       transition: "Transition",
       fresh: "Fresh",

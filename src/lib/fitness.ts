@@ -152,6 +152,8 @@ export interface PmcPoint {
   ctl: number;
   atl: number;
   tsb: number;
+  /** ctl[i] - ctl[i-7], the 7-day fitness ramp; null for the first 7 days. */
+  rampRate: number | null;
 }
 
 /**
@@ -194,9 +196,38 @@ export function computePmc(dailyLoads: { date: string; load: number }[]): PmcPoi
     ctl = prevCtl + CTL_ALPHA * (load - prevCtl);
     atl = prevAtl + ATL_ALPHA * (load - prevAtl);
     const tsb = i === 0 ? 0 : prevCtl - prevAtl;
-    out.push({ date, load, ctl: round1(ctl), atl: round1(atl), tsb: round1(tsb) });
+    const roundedCtl = round1(ctl);
+    const rampRate = i < 7 ? null : round1(roundedCtl - out[i - 7].ctl);
+    out.push({
+      date,
+      load,
+      ctl: roundedCtl,
+      atl: round1(atl),
+      tsb: round1(tsb),
+      rampRate,
+    });
   }
   return out;
+}
+
+/** Arithmetic mean, or null for an empty list. */
+function mean(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/**
+ * Acute:chronic workload ratio from gap-filled daily loads: acute = mean of
+ * the last up-to-7 available days, chronic = mean of the last up-to-28
+ * available days. Replicates the exact prior semantics of the private math in
+ * src/lib/db/readiness.ts loadState() — null ONLY when the chronic mean is 0
+ * (not merely for under 28 days of history, which would change behavior for
+ * every athlete with a short training history).
+ */
+export function computeAcwr(daily: { date: string; load: number }[]): number | null {
+  const acute = mean(daily.slice(-7).map((d) => d.load)) ?? 0;
+  const chronic = mean(daily.slice(-28).map((d) => d.load)) ?? 0;
+  return chronic > 0 ? acute / chronic : null;
 }
 
 export type FormStateKey = "transition" | "fresh" | "neutral" | "productive" | "fatigued";

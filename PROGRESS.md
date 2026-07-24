@@ -90,3 +90,4 @@ Engine modelling choices (reversible; documented so you can veto):
 ## Intervals.icu upgrade
 - ICU-T01 Form zone bands and labels in the TSB panel: done 2026-07-24, PR #4
 - ICU-T02 Race and goal markers on the PMC chart: done 2026-07-24, PR #5
+- ICU-T03 Ramp-rate lane and ACWR tile: done 2026-07-24, PR #6
