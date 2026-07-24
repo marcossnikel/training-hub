@@ -19,7 +19,7 @@ import {
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
-import { computeAcwr, computePmc, dailyLoadSeries, formState } from "@/lib/fitness";
+import { computeAcwr, computePmc, dailyLoadSeries, formState, weeklyMonotony } from "@/lib/fitness";
 import { localDateInputValue, mondayOf, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
 
@@ -40,6 +40,14 @@ function acwrColor(acwr: number): string | undefined {
   if (acwr <= 1.3) return undefined;
   if (acwr <= 1.5) return "var(--wear-worn)";
   return "var(--wear-critical)";
+}
+
+// Foster monotony (T04): above 2.0 the week had too little easy-hard contrast,
+// above 2.5 it is a warning.
+function monotonyColor(monotony: number): string | undefined {
+  if (monotony > 2.5) return "var(--wear-critical)";
+  if (monotony > 2) return "var(--wear-worn)";
+  return undefined;
 }
 
 function StatTile({
@@ -67,6 +75,33 @@ function StatTile({
             {sub}
           </span>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Quieter, smaller sibling of StatTile for secondary context numbers. */
+function QuietTile({
+  label,
+  value,
+  sub,
+  color,
+  title,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+  title?: string;
+}) {
+  return (
+    <div className="min-w-0" title={title}>
+      <div className="font-mono text-xl font-semibold" style={color ? { color } : undefined}>
+        {value}
+      </div>
+      <div className="text-[11px] text-muted-foreground">
+        {label}
+        {sub ? ` · ${sub}` : ""}
       </div>
     </div>
   );
@@ -104,6 +139,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   const state = formState(latest.tsb);
   const ramp = latest.ctl - (pmc[pmc.length - 8]?.ctl ?? 0);
   const acwr = computeAcwr(daily);
+  const week = weeklyMonotony(daily);
 
   const windowPoints: PmcSeriesPoint[] = Number.isFinite(win.days)
     ? pmc.slice(Math.max(0, pmc.length - win.days))
@@ -178,6 +214,22 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
           value={acwr != null ? acwr.toFixed(2) : "–"}
           color={acwr != null ? acwrColor(acwr) : "var(--muted-foreground)"}
           title={t.fitness.acwrTooltip}
+        />
+      </dl>
+
+      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border bg-card px-5 py-3">
+        <QuietTile
+          label={t.fitness.monotony}
+          value={week.monotony != null ? week.monotony.toFixed(1) : "–"}
+          color={week.monotony != null ? monotonyColor(week.monotony) : "var(--muted-foreground)"}
+          title={t.fitness.monotonyTooltip}
+        />
+        <QuietTile
+          label={t.fitness.strain}
+          value={week.strain != null ? String(Math.round(week.strain)) : "–"}
+          sub={`${t.fitness.load7d} ${Math.round(week.load7d)}`}
+          color={week.strain != null ? undefined : "var(--muted-foreground)"}
+          title={t.fitness.strainTooltip}
         />
       </dl>
 

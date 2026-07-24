@@ -230,6 +230,44 @@ export function computeAcwr(daily: { date: string; load: number }[]): number | n
   return chronic > 0 ? acute / chronic : null;
 }
 
+/** Foster monotony and strain over the trailing training week. */
+export interface WeeklyMonotony {
+  /** 7-day mean load / population stddev; null when the week is too flat or too sparse to mean anything. */
+  monotony: number | null;
+  /** 7-day total load scaled by monotony; null whenever monotony is. */
+  strain: number | null;
+  /** Total load over the trailing 7 days. Always available. */
+  load7d: number;
+}
+
+// Below this spread (in TSS) the stddev divisor is small enough that monotony
+// explodes into a meaningless number, and a week needs some rest/hard contrast
+// at all before its evenness says anything.
+const MONOTONY_MIN_STDDEV = 1;
+const MONOTONY_MIN_ACTIVE_DAYS = 4;
+
+/**
+ * Foster monotony and strain from gap-filled daily loads: monotony is the
+ * trailing week's mean load divided by its population standard deviation (a
+ * week of identical days scores high), strain is that week's total load scaled
+ * by monotony. Caution above 2.0, warning above 2.5.
+ *
+ * Uses the last up-to-7 available days, matching computeAcwr. Values are raw;
+ * rounding is the caller's business.
+ */
+export function weeklyMonotony(daily: { date: string; load: number }[]): WeeklyMonotony {
+  const week = daily.slice(-7).map((d) => d.load);
+  const load7d = week.reduce((a, b) => a + b, 0);
+  const avg = mean(week);
+  const activeDays = week.filter((load) => load > 0).length;
+  const flat = { monotony: null, strain: null, load7d };
+  if (avg == null || activeDays < MONOTONY_MIN_ACTIVE_DAYS) return flat;
+  const stddev = Math.sqrt(mean(week.map((load) => (load - avg) ** 2)) ?? 0);
+  if (stddev < MONOTONY_MIN_STDDEV) return flat;
+  const monotony = avg / stddev;
+  return { monotony, strain: load7d * monotony, load7d };
+}
+
 export type FormStateKey = "transition" | "fresh" | "neutral" | "productive" | "fatigued";
 
 // Form (TSB) band edges: above +20 is transition (tapered too long / detraining

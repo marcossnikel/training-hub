@@ -525,6 +525,12 @@ export const en = {
     acwr: "ACWR",
     acwrTooltip:
       "Acute:chronic workload ratio (7-day vs 28-day average load). Below 0.8 undertraining, 0.8-1.3 sweet spot, 1.3-1.5 caution, above 1.5 elevated injury risk.",
+    monotony: "Monotony",
+    monotonyTooltip:
+      "How similar the last 7 days of load were (mean / standard deviation). Above 2.0 is a grindy week with too little easy-hard contrast, above 2.5 is a warning.",
+    strain: "Strain",
+    strainTooltip: "Last 7 days of load multiplied by monotony: the week's total grind.",
+    load7d: "7d load",
     states: {
       transition: "Transition",
       fresh: "Fresh",
