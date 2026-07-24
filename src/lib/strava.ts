@@ -253,6 +253,11 @@ export interface StravaLap {
   average_heartrate?: number;
   max_heartrate?: number;
   total_elevation_gain?: number;
+  average_watts?: number;
+  /** One-leg rpm for runs, crank rpm for rides. */
+  average_cadence?: number;
+  /** UTC ISO instant the lap started, used to place laps on a stream's clock. */
+  start_date?: string;
 }
 
 export interface StravaSplit {

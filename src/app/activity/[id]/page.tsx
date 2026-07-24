@@ -20,7 +20,7 @@ import {
   listShoes,
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
-import { computeLoad } from "@/lib/fitness";
+import { computeLoad, paceZones, powerZones, zoneIndexOf, type Zone } from "@/lib/fitness";
 import { getDict } from "@/lib/lang";
 import {
   ensureActivityDetail,
@@ -36,6 +36,7 @@ import {
   fmtHr,
   fmtKm,
   fmtPace,
+  fmtStepRate,
   fmtTime,
   localStartedAt,
 } from "@/lib/format";
@@ -75,7 +76,60 @@ const TH =
   "px-2 py-1.5 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase";
 const TD = "px-2 py-1.5 font-mono text-sm tabular-nums whitespace-nowrap";
 
-function LapsTable({ laps, t, ride }: { laps: StravaLap[]; t: Dict; ride: boolean }) {
+// The app's only five-colour chart palette, reused for the five training zones.
+const ZONE_COLORS = [
+  "var(--primary)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
+
+/**
+ * How a lap gets tinted: runs by lap pace against the pace zones, rides with a
+ * real power meter by average watts against the %FTP zones. Absent when the
+ * sport or the recording gives nothing to classify.
+ */
+interface LapZoning {
+  by: "pace" | "power";
+  zones: Zone[];
+}
+
+/**
+ * The sport classification the laps table renders against: rides get speed and a
+ * power column, runs get pace and cadence doubled into steps per minute, and
+ * everything else (walks, hikes, rows, …) gets pace and raw cadence — a walk's
+ * `average_cadence` must not be doubled as if it were a run.
+ */
+type LapSport = "ride" | "run" | "other";
+
+/** Metres per second of a lap, the sport-neutral basis for the relative bar. */
+function lapSpeed(lap: StravaLap): number | null {
+  if (lap.average_speed) return lap.average_speed;
+  if (!lap.distance || !lap.moving_time) return null;
+  return lap.distance / lap.moving_time;
+}
+
+function LapsTable({
+  laps,
+  t,
+  sport,
+  zoning,
+}: {
+  laps: StravaLap[];
+  t: Dict;
+  sport: LapSport;
+  zoning: LapZoning | null;
+}) {
+  const ride = sport === "ride";
+  const run = sport === "run";
+  // Columns only appear when the recording carries the data. Run power is
+  // watch-estimated, so the power column is a ride-only affair.
+  const showPower = ride && laps.some((lap) => lap.average_watts != null);
+  const showCadence = laps.some((lap) => (lap.average_cadence ?? 0) > 0);
+  const showElev = laps.some((lap) => (lap.total_elevation_gain ?? 0) > 0);
+  const fastest = Math.max(0, ...laps.map((lap) => lapSpeed(lap) ?? 0));
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -85,24 +139,64 @@ function LapsTable({ laps, t, ride }: { laps: StravaLap[]; t: Dict; ride: boolea
             <th className={TH}>{t.review.distance}</th>
             <th className={TH}>{t.review.time}</th>
             <th className={TH}>{ride ? t.detail.speed : t.review.pace}</th>
+            {showPower ? <th className={TH}>{t.detail.power}</th> : null}
+            {showCadence ? <th className={TH}>{t.detail.cadence}</th> : null}
+            {showElev ? <th className={TH}>{t.detail.elev}</th> : null}
             <th className={TH}>{t.detail.hr}</th>
             <th className={TH}>{t.detail.maxShort}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/50">
           {laps.map((lap, index) => {
-            const speedKmh = lap.average_speed ? lap.average_speed * 3.6 : null;
-            const pace = lap.average_speed
-              ? 1000 / lap.average_speed
-              : paceOf(lap.distance, lap.moving_time);
+            const speed = lapSpeed(lap);
+            const speedKmh = speed != null ? speed * 3.6 : null;
+            const pace = speed != null ? 1000 / speed : paceOf(lap.distance, lap.moving_time);
+            const zoneValue = zoning?.by === "power" ? lap.average_watts : pace;
+            const zi = zoning && zoneValue != null ? zoneIndexOf(zoneValue, zoning.zones) : -1;
+            // Z1/Z2 laps are recovery or easy volume: mute the whole row so the
+            // work intervals stand out without a legend.
+            const easy = zi === 0 || zi === 1;
+            const width =
+              speed != null && fastest > 0 ? Math.max(8, Math.round((speed / fastest) * 100)) : 0;
             return (
-              <tr key={index}>
-                <td className={`${TD} text-muted-foreground`}>{lap.lap_index ?? index + 1}</td>
+              <tr key={index} className={easy ? "text-muted-foreground" : undefined}>
+                <td className={`${TD} text-muted-foreground`}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {zi >= 0 ? (
+                      <span
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: ZONE_COLORS[zi] }}
+                        role="img"
+                        aria-label={`Z${zi + 1}`}
+                      />
+                    ) : null}
+                    {lap.lap_index ?? index + 1}
+                  </span>
+                </td>
                 <td className={TD}>{fmtLapDist(lap.distance)}</td>
                 <td className={TD}>{fmtDuration(lap.moving_time)}</td>
-                <td className={`${TD} font-medium`}>
+                <td className={`${TD} min-w-24 font-medium`}>
                   {ride ? fmtSpeed(speedKmh) : pace ? fmtPace(pace) : "–"}
+                  <span className="mt-1 block h-1 rounded-full bg-muted">
+                    <span
+                      className="block h-full rounded-full bg-primary/80"
+                      style={{ width: `${width}%` }}
+                    />
+                  </span>
                 </td>
+                {showPower ? <td className={TD}>{fmtPower(lap.average_watts)}</td> : null}
+                {showCadence ? (
+                  <td className={`${TD} text-muted-foreground`}>
+                    {/* Only a run's cadence is one leg's revolutions: doubling a
+                        walk's or a row's would invent a number. */}
+                    {run ? fmtStepRate(lap.average_cadence) : fmtCadence(lap.average_cadence)}
+                  </td>
+                ) : null}
+                {showElev ? (
+                  <td className={`${TD} text-muted-foreground`}>
+                    {fmtElev(lap.total_elevation_gain)}
+                  </td>
+                ) : null}
                 <td className={`${TD} text-muted-foreground`}>
                   {lap.average_heartrate ? Math.round(lap.average_heartrate) : "–"}
                 </td>
@@ -194,10 +288,12 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const bikes = ride ? (await listBikes()).map(toGearOption) : [];
   const metrics = ride ? rideMetrics(activity) : null;
 
+  const thresholds = await getAthleteThresholds();
+
   // Training load: the persisted value from backfill, else computed on the fly
   // for display from the current thresholds.
   const storedLoad = await getActivityLoad(activity.id);
-  const computedLoad = storedLoad ? null : computeLoad(activity, await getAthleteThresholds());
+  const computedLoad = storedLoad ? null : computeLoad(activity, thresholds);
   const loadTss = storedLoad?.tss ?? computedLoad?.tss ?? null;
   const loadMethod = storedLoad?.method ?? computedLoad?.method ?? null;
   const loadSource: "auto" | "manual" | "computed" = storedLoad
@@ -215,6 +311,15 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // Devices auto-lap every km; only show laps when they carry real structure.
   const structuredLaps =
     laps.length > 1 && laps.some((lap) => Math.abs((lap.distance ?? 0) - 1000) > 150);
+  // Lap tint: runs by pace, rides by watts (real power meters only — Strava's
+  // estimated wattage would tint by guesswork).
+  const lapZoning: LapZoning | null = ride
+    ? metrics?.hasRealPower && thresholds.ftpW > 0
+      ? { by: "power", zones: powerZones(thresholds) }
+      : null
+    : run
+      ? { by: "pace", zones: paceZones(thresholds) }
+      : null;
   const description = detail?.description?.trim();
 
   const coachConfigured = isCoachConfigured();
@@ -374,7 +479,12 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             <CardTitle>{t.detail.laps}</CardTitle>
           </CardHeader>
           <CardContent>
-            <LapsTable laps={laps} t={t} ride={ride} />
+            <LapsTable
+              laps={laps}
+              t={t}
+              sport={ride ? "ride" : run ? "run" : "other"}
+              zoning={lapZoning}
+            />
           </CardContent>
         </Card>
       ) : null}

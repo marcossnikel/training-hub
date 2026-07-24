@@ -445,3 +445,37 @@ export function paceZones(thresholds: AthleteThresholds): Zone[] {
     { zone: 5, min: null, max: p4 },
   ];
 }
+
+// Power cut points as fractions of FTP, collapsed to the same five-zone shape
+// as the HR and pace zones: recovery, endurance, tempo, threshold, above.
+const POWER_ZONE_FRACTIONS = [0.55, 0.75, 0.9, 1.05] as const;
+
+/**
+ * Cycling power zones as a percentage of FTP: Z1 <55%, Z2 55–74%, Z3 75–89%,
+ * Z4 90–104%, Z5 ≥105%. Bounds are watts. Only meaningful for rides recorded
+ * with a real power meter.
+ */
+export function powerZones(thresholds: AthleteThresholds): Zone[] {
+  const [b1, b2, b3, b4] = POWER_ZONE_FRACTIONS.map((f) => Math.round(f * thresholds.ftpW));
+  return [
+    { zone: 1, min: null, max: b1 },
+    { zone: 2, min: b1, max: b2 },
+    { zone: 3, min: b2, max: b3 },
+    { zone: 4, min: b3, max: b4 },
+    { zone: 5, min: b4, max: null },
+  ];
+}
+
+/**
+ * Index (0–4) of the zone a value falls in, or -1 when it fits none. Bounds
+ * follow `Zone`: min inclusive, max exclusive, a null bound open-ended. Works
+ * for HR and power (min below max) as well as pace, where min is the fastest
+ * bound of the zone.
+ */
+export function zoneIndexOf(value: number, zones: Zone[]): number {
+  for (let i = 0; i < zones.length; i++) {
+    const { min, max } = zones[i];
+    if ((min == null || value >= min) && (max == null || value < max)) return i;
+  }
+  return -1;
+}

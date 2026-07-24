@@ -9,10 +9,12 @@ import {
   hrZones,
   loadSport,
   paceZones,
+  powerZones,
   projectPmc,
   weeklyLoadTotal,
   weeklyMonotony,
   weeklySportLoad,
+  zoneIndexOf,
   type AthleteThresholds,
   type LoadActivity,
 } from "@/lib/fitness";
@@ -521,5 +523,52 @@ describe("paceZones", () => {
       [269, 286],
       [null, 269],
     ]);
+  });
+});
+
+describe("powerZones", () => {
+  it("computes %FTP watt cut points for FTP 250", () => {
+    const zones = powerZones(thresholds);
+    expect(zones.map((z) => [z.min, z.max])).toEqual([
+      [null, 138],
+      [138, 188],
+      [188, 225],
+      [225, 263],
+      [263, null],
+    ]);
+  });
+});
+
+describe("zoneIndexOf", () => {
+  it("classifies heart rates with min inclusive and max exclusive", () => {
+    const zones = hrZones(thresholds);
+    expect(zoneIndexOf(120, zones)).toBe(0);
+    expect(zoneIndexOf(143, zones)).toBe(1);
+    expect(zoneIndexOf(157, zones)).toBe(1);
+    expect(zoneIndexOf(158, zones)).toBe(2);
+    expect(zoneIndexOf(176, zones)).toBe(4);
+    expect(zoneIndexOf(210, zones)).toBe(4);
+  });
+
+  it("classifies paces, where a smaller value is faster", () => {
+    const zones = paceZones(thresholds);
+    expect(zoneIndexOf(400, zones)).toBe(0); // slow jog
+    expect(zoneIndexOf(332, zones)).toBe(0);
+    expect(zoneIndexOf(331, zones)).toBe(1);
+    expect(zoneIndexOf(290, zones)).toBe(2);
+    expect(zoneIndexOf(269, zones)).toBe(3); // threshold pace itself
+    expect(zoneIndexOf(240, zones)).toBe(4);
+  });
+
+  it("classifies power against the %FTP bands", () => {
+    const zones = powerZones(thresholds);
+    expect(zoneIndexOf(100, zones)).toBe(0);
+    expect(zoneIndexOf(200, zones)).toBe(2);
+    expect(zoneIndexOf(250, zones)).toBe(3);
+    expect(zoneIndexOf(300, zones)).toBe(4);
+  });
+
+  it("returns -1 when no zone matches", () => {
+    expect(zoneIndexOf(150, [{ zone: 1, min: 200, max: 220 }])).toBe(-1);
   });
 });

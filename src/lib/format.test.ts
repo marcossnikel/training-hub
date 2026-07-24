@@ -8,6 +8,7 @@ import {
   fmtHoursMin,
   fmtPace,
   fmtPaceShort,
+  fmtStepRate,
   fmtTime,
   localStartedAt,
   parsePace,
@@ -53,6 +54,19 @@ describe("duration formatting", () => {
   it("rolls fractional seconds over the minute boundary", () => {
     expect(fmtDuration(2099.6)).toBe("35:00"); // 34:59.6 -> 35:00, not 34:60
     expect(fmtDuration(3599.6)).toBe("1:00:00"); // rolls the hour over too
+  });
+});
+
+describe("fmtStepRate", () => {
+  // Strava reports run cadence as one-leg rpm, so spm is double.
+  it("doubles one-leg rpm into steps per minute", () => {
+    expect(fmtStepRate(85.6)).toBe("171 spm");
+    expect(fmtStepRate(90)).toBe("180 spm");
+  });
+
+  it("returns a placeholder without cadence", () => {
+    expect(fmtStepRate(null)).toBe("–");
+    expect(fmtStepRate(0)).toBe("–");
   });
 });
 
