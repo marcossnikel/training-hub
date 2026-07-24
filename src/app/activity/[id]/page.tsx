@@ -95,6 +95,14 @@ interface LapZoning {
   zones: Zone[];
 }
 
+/**
+ * The sport classification the laps table renders against: rides get speed and a
+ * power column, runs get pace and cadence doubled into steps per minute, and
+ * everything else (walks, hikes, rows, …) gets pace and raw cadence — a walk's
+ * `average_cadence` must not be doubled as if it were a run.
+ */
+type LapSport = "ride" | "run" | "other";
+
 /** Metres per second of a lap, the sport-neutral basis for the relative bar. */
 function lapSpeed(lap: StravaLap): number | null {
   if (lap.average_speed) return lap.average_speed;
@@ -105,14 +113,16 @@ function lapSpeed(lap: StravaLap): number | null {
 function LapsTable({
   laps,
   t,
-  ride,
+  sport,
   zoning,
 }: {
   laps: StravaLap[];
   t: Dict;
-  ride: boolean;
+  sport: LapSport;
   zoning: LapZoning | null;
 }) {
+  const ride = sport === "ride";
+  const run = sport === "run";
   // Columns only appear when the recording carries the data. Run power is
   // watch-estimated, so the power column is a ride-only affair.
   const showPower = ride && laps.some((lap) => lap.average_watts != null);
@@ -177,7 +187,9 @@ function LapsTable({
                 {showPower ? <td className={TD}>{fmtPower(lap.average_watts)}</td> : null}
                 {showCadence ? (
                   <td className={`${TD} text-muted-foreground`}>
-                    {ride ? fmtCadence(lap.average_cadence) : fmtStepRate(lap.average_cadence)}
+                    {/* Only a run's cadence is one leg's revolutions: doubling a
+                        walk's or a row's would invent a number. */}
+                    {run ? fmtStepRate(lap.average_cadence) : fmtCadence(lap.average_cadence)}
                   </td>
                 ) : null}
                 {showElev ? (
@@ -467,7 +479,12 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             <CardTitle>{t.detail.laps}</CardTitle>
           </CardHeader>
           <CardContent>
-            <LapsTable laps={laps} t={t} ride={ride} zoning={lapZoning} />
+            <LapsTable
+              laps={laps}
+              t={t}
+              sport={ride ? "ride" : run ? "run" : "other"}
+              zoning={lapZoning}
+            />
           </CardContent>
         </Card>
       ) : null}
