@@ -6,6 +6,7 @@ import {
   PmcChart,
   STATE_COLOR,
   type PmcMarker,
+  type PmcProjection,
   type PmcSeriesPoint,
   type WeeklyBar,
 } from "@/components/pmc-chart";
@@ -19,13 +20,33 @@ import {
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
-import { computeAcwr, computePmc, dailyLoadSeries, formState, weeklyMonotony } from "@/lib/fitness";
+import {
+  computeAcwr,
+  computePmc,
+  dailyLoadSeries,
+  formState,
+  projectPmc,
+  weeklyMonotony,
+} from "@/lib/fitness";
 import { localDateInputValue, mondayOf, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
 
 export const metadata = { title: "Fitness" };
 
 const WINDOWS = timeWindows(["90d", "6m", "1y", "all"]);
+
+// Projection horizon (T05): 28 days by default, stretched to reach the next
+// goal race when it lands within 56 days (further out and the closed-form
+// scenarios say little worth reading).
+const PROJECTION_DAYS = 28;
+const GOAL_HORIZON_DAYS = 56;
+// Trailing window whose mean daily load defines the "steady" scenario.
+const STEADY_LOAD_DAYS = 28;
+const DAY_MS = 86_400_000;
+
+function daysBetween(from: string, to: string): number {
+  return Math.round((parseLocalDate(to).getTime() - parseLocalDate(from).getTime()) / DAY_MS);
+}
 
 function rampColor(ramp: number): string {
   if (ramp > 8) return "var(--wear-worn)"; // building fast — worth watching
@@ -168,6 +189,37 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
       .filter((m) => inWindow(m.date)),
   ];
 
+  // Projected scenarios (T05): both continue the EWMA from today's point, one
+  // at the trailing mean daily load, one at zero. The horizon reaches the next
+  // goal race when that falls inside GOAL_HORIZON_DAYS.
+  const trailing = daily.slice(-STEADY_LOAD_DAYS);
+  const steadyLoad = trailing.reduce((sum, day) => sum + day.load, 0) / trailing.length;
+  const nextGoalDate = goals
+    .map((g) => g.race_date)
+    .filter((date): date is string => date != null && date > latest.date)
+    .sort()[0];
+  const goalDaysAway = nextGoalDate != null ? daysBetween(latest.date, nextGoalDate) : null;
+  const horizonDays =
+    goalDaysAway != null && goalDaysAway > PROJECTION_DAYS && goalDaysAway <= GOAL_HORIZON_DAYS
+      ? goalDaysAway
+      : PROJECTION_DAYS;
+  const steady = projectPmc(latest, horizonDays, steadyLoad);
+  const rest = projectPmc(latest, horizonDays, 0);
+  const restRaceDay = rest.find((p) => p.date === nextGoalDate);
+  const steadyRaceDay = steady.find((p) => p.date === nextGoalDate);
+  const projection: PmcProjection = {
+    steady,
+    rest,
+    raceDay:
+      goalDaysAway != null && restRaceDay != null && steadyRaceDay != null
+        ? {
+            daysAway: goalDaysAway,
+            restTsb: Math.round(restRaceDay.tsb),
+            steadyTsb: Math.round(steadyRaceDay.tsb),
+          }
+        : undefined,
+  };
+
   // Weekly TSS totals over the shown window, bucketed by ISO week (Monday).
   const weeklyMap = new Map<string, number>();
   for (const point of windowPoints) {
@@ -246,7 +298,12 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
 
       <Card className="mt-5">
         <CardContent>
-          <PmcChart points={windowPoints} weekly={weekly} markers={markers} />
+          <PmcChart
+            points={windowPoints}
+            weekly={weekly}
+            markers={markers}
+            projection={projection}
+          />
         </CardContent>
       </Card>
 

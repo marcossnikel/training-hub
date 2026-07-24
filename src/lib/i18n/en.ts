@@ -543,6 +543,10 @@ export const en = {
     tsb: "TSB",
     load: "Load",
     markerGoal: "Goal",
+    today: "Today",
+    projSteady: "Projected (current load)",
+    projRest: "Projected (rest)",
+    raceDayForm: "Race in {n} d: projected form {rest} resting, {steady} at current load",
     weeklyLoad: "Weekly load",
     window: "Window",
     windows: { "90d": "90 days", "6m": "6 months", "1y": "1 year", all: "All" } satisfies Record<

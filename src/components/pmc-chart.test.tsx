@@ -8,7 +8,13 @@
 // tooltip), not pointer-only.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { PmcChart, STATE_COLOR, type PmcMarker, type PmcSeriesPoint } from "@/components/pmc-chart";
+import {
+  PmcChart,
+  STATE_COLOR,
+  type PmcMarker,
+  type PmcProjection,
+  type PmcSeriesPoint,
+} from "@/components/pmc-chart";
 
 afterEach(cleanup);
 
@@ -189,5 +195,72 @@ describe("PmcChart ramp-rate lane (T03)", () => {
     const svg = screen.getByRole("img", { name: /fitness/i });
     fireEvent.keyDown(svg, { key: "Home" });
     expect(screen.queryByText(/\/wk/)).toBeNull();
+  });
+});
+
+describe("PmcChart projections (T05)", () => {
+  const projection: PmcProjection = {
+    steady: [
+      { date: "2026-01-04", load: 50, ctl: 34, atl: 12, tsb: 21 },
+      { date: "2026-01-05", load: 50, ctl: 35, atl: 14, tsb: 22 },
+    ],
+    rest: [
+      { date: "2026-01-04", load: 0, ctl: 32, atl: 8, tsb: 21 },
+      { date: "2026-01-05", load: 0, ctl: 31, atl: 7, tsb: 24 },
+    ],
+    raceDay: { daysAway: 12, restTsb: 18, steadyTsb: -4 },
+  };
+
+  const dashed = (container: HTMLElement, selector: string) =>
+    [...container.querySelectorAll(selector)].filter(
+      (el) => el.getAttribute("stroke-dasharray") === "4 3"
+    );
+
+  it("draws a today divider plus one dashed continuation per scenario series", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} projection={projection} />);
+
+    // CTL + TSB for each of the two scenarios.
+    expect(dashed(container, "path").length).toBe(4);
+    // The today divider is the only dashed line sharing the projected pattern.
+    expect(dashed(container, "line").length).toBe(1);
+    expect(screen.getByText("Today")).toBeTruthy();
+  });
+
+  it("renders nothing projected when the prop is omitted", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} />);
+    expect(dashed(container, "path").length).toBe(0);
+    expect(dashed(container, "line").length).toBe(0);
+    expect(screen.queryByText("Today")).toBeNull();
+  });
+
+  it("shows the race-day readout with each scenario's form colored by its band", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} projection={projection} />);
+
+    expect(container.textContent).toContain(
+      "Race in 12 d: projected form +18 resting, -4 at current load"
+    );
+    // +18 sits in the fresh band, -4 in the neutral one.
+    expect(screen.getByText("+18").style.color).toBe(STATE_COLOR.fresh);
+    expect(screen.getByText("-4").style.color).toBe(STATE_COLOR.neutral);
+  });
+
+  it("omits the readout when no goal falls inside the horizon", () => {
+    const { steady, rest } = projection;
+    const { container } = render(
+      <PmcChart points={points} weekly={[]} projection={{ steady, rest }} />
+    );
+    expect(container.textContent).not.toContain("projected form");
+  });
+
+  it("clamps hover to the last historical point instead of entering the projection", () => {
+    render(<PmcChart points={points} weekly={[]} projection={projection} />);
+    const svg = screen.getByRole("img", { name: /fitness/i });
+
+    // Walk past the end of the historical series: hover stops on today's point.
+    for (let i = 0; i < 6; i++) fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(screen.getByText("33")).toBeTruthy();
+    // Projected CTL values never become the hovered point.
+    expect(screen.queryByText("34")).toBeNull();
+    expect(screen.queryByText("35")).toBeNull();
   });
 });
