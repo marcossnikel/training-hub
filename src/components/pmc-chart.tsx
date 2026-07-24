@@ -96,6 +96,9 @@ const MAIN_BOTTOM = TOP + MAIN_H;
 const TSB_TOP = MAIN_BOTTOM + GAP;
 const TSB_MID = TSB_TOP + TSB_H / 2;
 const PMC_H = TSB_TOP + TSB_H + AXIS_H;
+// Minimum form-zone band height (viewBox units) that can hold a 9px label
+// without overlapping its neighbors: font size plus a little breathing room.
+const BAND_LABEL_MIN_HEIGHT = 11;
 
 function niceMax(value: number): number {
   if (value <= 0) return 1;
@@ -335,17 +338,19 @@ export function PmcChart({ points, weekly }: { points: PmcSeriesPoint[]; weekly:
                   fill={band.color}
                   opacity={band.opacity}
                 />
-                <text
-                  x={VBW - PAD_R - 3}
-                  y={(band.yTop + band.yBottom) / 2 + 3}
-                  textAnchor="end"
-                  fontSize={9}
-                  fill="var(--muted-foreground)"
-                  className="font-mono"
-                  opacity={0.7}
-                >
-                  {t.fitness.states[band.key]}
-                </text>
+                {band.yBottom - band.yTop >= BAND_LABEL_MIN_HEIGHT ? (
+                  <text
+                    x={VBW - PAD_R - 3}
+                    y={(band.yTop + band.yBottom) / 2 + 3}
+                    textAnchor="end"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    className="font-mono"
+                    opacity={0.7}
+                  >
+                    {t.fitness.states[band.key]}
+                  </text>
+                ) : null}
               </g>
             ))}
 

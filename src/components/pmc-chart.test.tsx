@@ -73,12 +73,15 @@ describe("PmcChart TSB form-zone bands (T01)", () => {
     expect(tsbValue.style.color).toBe(STATE_COLOR.transition);
   });
 
-  it("renders a right-edge label for each visible form-zone band", () => {
-    render(<PmcChart points={points} weekly={[]} />);
-    // tsb values (6, 15, 24) span transition/fresh/neutral; all band labels
-    // should be visible within the resulting TSB extent.
+  it("renders a right-edge label only for bands tall enough to hold one, but always draws the band rect", () => {
+    const { container } = render(<PmcChart points={points} weekly={[]} />);
+    // tsb values (6, 15, 24) round tsbMax up to 50, at which the transition
+    // band (20..50, the widest) clears the label-height threshold while the
+    // fixed-width fresh (5..20) and neutral (-10..5) bands are too thin for a
+    // label at this scale. weekly={[]} means these are the only <rect>s.
     expect(screen.getByText("Transition")).toBeTruthy();
-    expect(screen.getByText("Fresh")).toBeTruthy();
-    expect(screen.getByText("Neutral")).toBeTruthy();
+    expect(screen.queryByText("Fresh")).toBeNull();
+    expect(screen.queryByText("Neutral")).toBeNull();
+    expect(container.querySelectorAll("rect").length).toBe(5);
   });
 });
