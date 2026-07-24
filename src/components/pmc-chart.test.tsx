@@ -15,6 +15,7 @@ import {
   type PmcProjection,
   type PmcSeriesPoint,
 } from "@/components/pmc-chart";
+import type { WeeklySportLoad } from "@/lib/fitness";
 
 afterEach(cleanup);
 
@@ -195,6 +196,74 @@ describe("PmcChart ramp-rate lane (T03)", () => {
     const svg = screen.getByRole("img", { name: /fitness/i });
     fireEvent.keyDown(svg, { key: "Home" });
     expect(screen.queryByText(/\/wk/)).toBeNull();
+  });
+});
+
+describe("PmcChart stacked weekly load bars (T06)", () => {
+  const weekly: WeeklySportLoad[] = [
+    { date: "2026-01-05", load: { run: 100, bike: 30, other: 20 } },
+    { date: "2026-01-12", load: { run: 55, bike: 0, other: 0 } },
+  ];
+
+  const weekSvg = () => screen.getByRole("img", { name: /weekly load/i });
+  // Bar segments are the only rects at opacity 0.8 (form bands sit at 0.05-0.08
+  // and ramp rects at 0.15), in document order run/bike/other per week.
+  const segments = (container: HTMLElement) =>
+    [...container.querySelectorAll("rect")].filter((r) => r.getAttribute("opacity") === "0.8");
+
+  it("draws one segment per sport carrying load, heights proportional to the split", () => {
+    const { container } = render(<PmcChart points={points} weekly={weekly} />);
+    // 3 segments for the mixed week, 1 for the run-only week (zero-load sports
+    // are skipped entirely).
+    const rects = segments(container);
+    expect(rects.length).toBe(4);
+    expect(rects.map((r) => r.getAttribute("fill"))).toEqual([
+      "var(--primary)",
+      "var(--chart-3)",
+      "var(--chart-5)",
+      "var(--primary)",
+    ]);
+
+    const height = (r: Element) => Number(r.getAttribute("height"));
+    const [run, bike, other] = rects;
+    // run 100 : bike 30 : other 20 within the same week.
+    expect(height(bike) / height(run)).toBeCloseTo(0.3, 5);
+    expect(height(other) / height(run)).toBeCloseTo(0.2, 5);
+  });
+
+  it("shows a per-sport legend and drops the native <title> tooltips", () => {
+    const { container } = render(<PmcChart points={points} weekly={weekly} />);
+    expect(screen.getByText("Run")).toBeTruthy();
+    expect(screen.getByText("Bike")).toBeTruthy();
+    expect(screen.getByText("Other")).toBeTruthy();
+    expect(container.querySelectorAll("title").length).toBe(0);
+  });
+
+  it("is keyboard navigable and its tooltip lists per-sport values plus the total", () => {
+    render(<PmcChart points={points} weekly={weekly} />);
+    const svg = weekSvg();
+    expect(svg.getAttribute("tabindex")).toBe("0");
+
+    // Nothing hovered yet: no total row.
+    expect(screen.queryByText("150 TSS")).toBeNull();
+
+    // First week: 100 + 30 + 20 = 150.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(screen.getByText("100")).toBeTruthy();
+    expect(screen.getByText("30")).toBeTruthy();
+    expect(screen.getByText("20")).toBeTruthy();
+    expect(screen.getByText("150 TSS")).toBeTruthy();
+
+    // Second week is run-only: only the run row, and the total matches it.
+    fireEvent.keyDown(svg, { key: "End" });
+    expect(screen.getByText("55")).toBeTruthy();
+    expect(screen.getByText("55 TSS")).toBeTruthy();
+    expect(screen.queryByText("150 TSS")).toBeNull();
+  });
+
+  it("renders no weekly section at all when there are no weeks", () => {
+    render(<PmcChart points={points} weekly={[]} />);
+    expect(screen.queryByRole("img", { name: /weekly load/i })).toBeNull();
   });
 });
 

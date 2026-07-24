@@ -8,7 +8,6 @@ import {
   type PmcMarker,
   type PmcProjection,
   type PmcSeriesPoint,
-  type WeeklyBar,
 } from "@/components/pmc-chart";
 import { WeeklyDigest } from "@/components/weekly-digest";
 import {
@@ -27,8 +26,9 @@ import {
   formState,
   projectPmc,
   weeklyMonotony,
+  weeklySportLoad,
 } from "@/lib/fitness";
-import { localDateInputValue, mondayOf, parseLocalDate } from "@/lib/format";
+import { localDateInputValue, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
 
 export const metadata = { title: "Fitness" };
@@ -220,15 +220,14 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
         : undefined,
   };
 
-  // Weekly TSS totals over the shown window, bucketed by ISO week (Monday).
-  const weeklyMap = new Map<string, number>();
-  for (const point of windowPoints) {
-    const monday = localDateInputValue(mondayOf(parseLocalDate(point.date)));
-    weeklyMap.set(monday, (weeklyMap.get(monday) ?? 0) + point.load);
-  }
-  const weekly: WeeklyBar[] = [...weeklyMap.entries()]
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([date, load]) => ({ date, load }));
+  // Weekly TSS over the shown window, bucketed by ISO week (Monday) and split
+  // per sport (T06). Built from the load rows rather than the daily PMC points
+  // because only the rows carry sport_type; both use the same local-day
+  // conversion, so the stacks total exactly what the daily series does.
+  const weekly =
+    windowStart != null && windowEnd != null
+      ? weeklySportLoad(loads, { from: windowStart, to: windowEnd })
+      : [];
 
   const digest = await getWeeklyDigest();
   const coachConfigured = isCoachConfigured();
