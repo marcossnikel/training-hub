@@ -25,6 +25,7 @@ import { getDict } from "@/lib/lang";
 import {
   ensureActivityDetail,
   ensureActivityStreams,
+  type StravaBestEffort,
   type StravaLap,
   type StravaSplit,
 } from "@/lib/strava";
@@ -212,6 +213,45 @@ function LapsTable({
   );
 }
 
+/**
+ * Accent strength per PR rank. There is no medal palette in this app, so the
+ * podium is expressed as one existing colour at three opacities: the top-three
+ * chips read as a run of decreasing emphasis instead of three invented hues.
+ */
+const PR_OPACITY: Record<number, number> = { 1: 1, 2: 0.7, 3: 0.45 };
+
+/** Strava reports both times identically for best efforts; prefer moving time. */
+function effortTime(effort: StravaBestEffort): number {
+  return effort.moving_time || effort.elapsed_time;
+}
+
+function BestEffortChips({ efforts, t }: { efforts: StravaBestEffort[]; t: Dict }) {
+  return (
+    <ul className="flex flex-wrap gap-1.5">
+      {efforts.map((effort, index) => {
+        const opacity = effort.pr_rank ? PR_OPACITY[effort.pr_rank] : undefined;
+        return (
+          <li
+            key={`${effort.name}-${index}`}
+            className={`inline-flex items-baseline gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs tabular-nums ${
+              opacity == null ? "text-muted-foreground" : ""
+            }`}
+            style={
+              opacity == null
+                ? undefined
+                : { borderColor: "var(--wear-worn)", color: "var(--wear-worn)", opacity }
+            }
+            title={effort.pr_rank ? `${t.detail.prRank}: ${effort.pr_rank}` : undefined}
+          >
+            <span>{effort.name}</span>
+            <span className="font-medium">{fmtDuration(effortTime(effort))}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
   const paces = splits
     .map((s) => (s.average_speed ? 1000 / s.average_speed : paceOf(s.distance, s.moving_time)))
@@ -308,6 +348,11 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
     (lap) => (lap.distance ?? 0) > 0 || (lap.moving_time ?? 0) > 0
   );
   const kmSplits = (detail?.splits_metric ?? []).filter((s) => (s.distance ?? 0) > 0);
+  // Strava only computes best efforts for runs; guard on the sport anyway so a
+  // stray payload never puts a run-shaped chip row on a ride.
+  const bestEfforts = run
+    ? (detail?.best_efforts ?? []).filter((effort) => effort?.name && effortTime(effort) > 0)
+    : [];
   // Devices auto-lap every km; only show laps when they carry real structure.
   const structuredLaps =
     laps.length > 1 && laps.some((lap) => Math.abs((lap.distance ?? 0) - 1000) > 150);
@@ -452,6 +497,17 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
           ) : null}
         </dl>
       )}
+
+      {bestEfforts.length > 0 ? (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>{t.detail.bestEfforts}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BestEffortChips efforts={bestEfforts} t={t} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {loadTss != null ? (
         <ActivityLoadControl

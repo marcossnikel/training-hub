@@ -228,6 +228,8 @@ export const pt: Dict = {
     hide: "esconder",
     laps: "Voltas",
     kmSplits: "Parciais",
+    bestEfforts: "Melhores esforços",
+    prRank: "Posição geral",
     lap: "Volta",
     hr: "FC",
     maxShort: "Máx",
