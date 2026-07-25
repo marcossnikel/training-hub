@@ -17,6 +17,8 @@ const STEP = CELL + GAP;
 const MONTH_BAND = 14;
 const RADIUS = 2;
 const MONTH_FONT = 9;
+/** Width a 3-glyph month label needs at MONTH_FONT, in viewBox units. */
+const MONTH_LABEL = 16;
 
 /**
  * The four load steps, as opacity over --primary (level 0 is the empty-day fill
@@ -38,7 +40,13 @@ function cellTitle(cell: HeatmapCell, lang: Lang, t: Dict): string {
     cell.sessions === 1
       ? t.fitness.heatmap.session
       : fillStr(t.fitness.heatmap.sessions, { n: cell.sessions });
-  return `${day} · ${Math.round(cell.load)} ${t.fitness.tssUnit} · ${sessions}`;
+  // A session with no computable load (a strength or soccer session) leaves the
+  // cell on --muted, because the grid paints load and the streak counts load. The
+  // tooltip therefore says "no load" rather than claiming "0 TSS", so the square
+  // and its own label tell the same story.
+  const load =
+    cell.load <= 0 ? t.fitness.heatmap.noLoad : `${Math.round(cell.load)} ${t.fitness.tssUnit}`;
+  return `${day} · ${load} · ${sessions}`;
 }
 
 export function ConsistencyHeatmapCard({
@@ -52,6 +60,13 @@ export function ConsistencyHeatmapCard({
 }) {
   const width = heatmap.columns * STEP - GAP;
   const height = MONTH_BAND + heatmap.rows * STEP - GAP;
+  // A month whose 1st lands in one of the last columns starts too far right for
+  // its label to fit inside the viewBox, and the SVG clips it to a stub ("Au").
+  // Such a label is dropped rather than nudged left: a nudged label would sit
+  // above the wrong week, and the grid already leaves the partial month it opens
+  // with unlabeled, so this is the same choice at the other end. The cells' own
+  // titles still name the month.
+  const months = heatmap.months.filter((month) => month.column * STEP + MONTH_LABEL <= width);
   const streak =
     heatmap.streak === 0
       ? t.fitness.heatmap.streakNone
@@ -83,7 +98,7 @@ export function ConsistencyHeatmapCard({
           role="img"
           aria-label={t.fitness.heatmap.title}
         >
-          {heatmap.months.map((month) => (
+          {months.map((month) => (
             <text
               key={`${month.month}-${month.column}`}
               x={month.column * STEP}

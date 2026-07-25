@@ -598,6 +598,7 @@ export const pt: Dict = {
       session: "1 sessão",
       sessions: "{n} sessões",
       rest: "dia de descanso",
+      noLoad: "sem carga",
     },
     totals: {
       title: "Totais",

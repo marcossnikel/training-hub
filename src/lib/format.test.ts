@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  eachDay,
   fmtDate,
   fmtDateLong,
   fmtDateWithYear,
@@ -199,3 +200,77 @@ describe("localStartedAt renders the athlete's true local day", () => {
     expect(fmtDate(iso, "en")).toBe("Mon 16 Mar");
   });
 });
+
+describe("eachDay", () => {
+  it("lists an inclusive range of day keys", () => {
+    expect(eachDay("2026-07-23", "2026-07-25")).toEqual(["2026-07-23", "2026-07-24", "2026-07-25"]);
+  });
+
+  it("returns the single day of a one-day range, and nothing for a reversed one", () => {
+    expect(eachDay("2026-07-25", "2026-07-25")).toEqual(["2026-07-25"]);
+    expect(eachDay("2026-07-25", "2026-07-24")).toEqual([]);
+    expect(eachDay("not-a-day", "2026-07-25")).toEqual([]);
+  });
+
+  it("includes 29 February of a leap year and skips it in a common one", () => {
+    expect(eachDay("2024-02-28", "2024-03-01")).toEqual(["2024-02-28", "2024-02-29", "2024-03-01"]);
+    expect(eachDay("2025-02-28", "2025-03-01")).toEqual(["2025-02-28", "2025-03-01"]);
+  });
+});
+
+// The DST regression eachDay was rewritten for: in a zone whose transition lands
+// at local MIDNIGHT (Santiago and Havana shift at 24:00, Beirut at 00:00) the old
+// midnight cursor slipped to 01:00 for good on the spring-forward day, and the
+// `cursor <= end` bound then dropped the LAST day of every range — the heatmap
+// lost today's cell and the PMC its last point. Pinned per zone so the guard holds
+// however the suite is invoked, not only when the ambient TZ happens to be one of
+// these. The two five-day ranges below bracket Santiago's 2026 transitions
+// (forward on 6 September, back on 5 April).
+for (const tz of [
+  "UTC",
+  "America/Sao_Paulo",
+  "Asia/Tokyo",
+  "America/Santiago",
+  "America/Havana",
+  "Asia/Beirut",
+]) {
+  describe(`eachDay is DST-safe under TZ=${tz}`, () => {
+    const originalTz = process.env.TZ;
+    beforeAll(() => {
+      process.env.TZ = tz;
+    });
+    afterAll(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it("keeps every day of a spring-forward span", () => {
+      expect(eachDay("2026-09-04", "2026-09-08")).toEqual([
+        "2026-09-04",
+        "2026-09-05",
+        "2026-09-06",
+        "2026-09-07",
+        "2026-09-08",
+      ]);
+    });
+
+    it("keeps every day of a fall-back span", () => {
+      expect(eachDay("2026-04-03", "2026-04-07")).toEqual([
+        "2026-04-03",
+        "2026-04-04",
+        "2026-04-05",
+        "2026-04-06",
+        "2026-04-07",
+      ]);
+    });
+
+    it("yields the exact inclusive count of a range crossing both transitions", () => {
+      // 21 July 2025 through 25 July 2026: 370 days, ending on the day asked for.
+      const days = eachDay("2025-07-21", "2026-07-25");
+      expect(days).toHaveLength(370);
+      expect(days[0]).toBe("2025-07-21");
+      expect(days[days.length - 1]).toBe("2026-07-25");
+      // No day repeated or skipped anywhere in between.
+      expect(new Set(days).size).toBe(370);
+    });
+  });
+}

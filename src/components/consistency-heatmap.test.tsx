@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ConsistencyHeatmapCard } from "@/components/consistency-heatmap";
 import { consistencyHeatmap } from "@/lib/consistency";
@@ -8,9 +8,12 @@ import { eachDay } from "@/lib/format";
 
 afterEach(cleanup);
 
-// Saturday 25 July 2026, built from local components so the grid is the same in
-// any process timezone.
-const now = new Date(2026, 6, 25, 9);
+// Saturday 25 July 2026. Built from local wall-clock components, and always
+// INSIDE a test rather than at module scope, so it is the same calendar day under
+// the zone the test itself is pinned to.
+function saturday() {
+  return new Date(2026, 6, 25, 9);
+}
 
 function series(loads: Record<string, number> = {}) {
   return eachDay("2025-07-21", "2026-07-25").map((date) => ({ date, load: loads[date] ?? 0 }));
@@ -19,7 +22,8 @@ function series(loads: Record<string, number> = {}) {
 function renderCard(
   loads: Record<string, number> = {},
   sessions: Record<string, number> = {},
-  lang: "en" | "pt" = "en"
+  lang: "en" | "pt" = "en",
+  now = saturday()
 ) {
   const heatmap = consistencyHeatmap(series(loads), new Map(Object.entries(sessions)), now);
   return render(<ConsistencyHeatmapCard heatmap={heatmap} lang={lang} t={dictionaries[lang]} />);
@@ -34,7 +38,19 @@ const WEEK = {
   "2026-07-25": 60,
 };
 
-describe("ConsistencyHeatmapCard", () => {
+// Rendered under both a zone that shifts at a civil hour and one that shifts at
+// local MIDNIGHT (America/Santiago), pinned here so the guard holds whatever the
+// ambient TZ is: with the old day-stepping eachDay, Santiago drew 369 cells and
+// lost today's square along with the streak and active-days figures.
+describe.each(["UTC", "America/Santiago"])("ConsistencyHeatmapCard under TZ=%s", (tz) => {
+  const originalTz = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = tz;
+  });
+  afterAll(() => {
+    process.env.TZ = originalTz;
+  });
+
   it("draws one cell per day of the trailing year", () => {
     const { container } = renderCard(WEEK);
     expect(container.querySelectorAll("rect")).toHaveLength(370);
@@ -114,6 +130,32 @@ describe("ConsistencyHeatmapCard", () => {
     const titles = [...container.querySelectorAll("title")].map((node) => node.textContent);
     expect(titles).toContain("25 Jul 2026 · 60 TSS · 2 sessões");
     expect(titles).toContain("21 Jul 2025 · dia de descanso");
+  });
+
+  it("says a session without computable load carries no load, instead of 0 TSS", () => {
+    // A strength or soccer session with no TSS leaves the cell on --muted, because
+    // the grid paints load and the streak counts load. The title must not then
+    // claim "0 TSS" beside "1 session": empty square, "no load" tooltip.
+    const { container } = renderCard(WEEK, { "2026-07-19": 1 });
+    const titles = [...container.querySelectorAll("title")].map((node) => node.textContent);
+    expect(titles).toContain("19 Jul 2026 · no load · 1 session");
+    const cell = [...container.querySelectorAll("rect")].find((rect) =>
+      rect.querySelector("title")?.textContent?.startsWith("19 Jul 2026")
+    );
+    expect(cell?.getAttribute("fill")).toBe("var(--muted)");
+  });
+
+  it("drops a month label the viewBox would clip instead of drawing a stub", () => {
+    // 1 August 2026 falls in the current week, so its label would start at x=676
+    // in a 686-unit viewBox and render as a truncated "Aug". Twelve labels are
+    // drawn (Sep 2025 through Jul 2026) and only one "Aug" — the 2025 one.
+    renderCard(WEEK, {}, "en", new Date(2026, 7, 1, 9));
+    expect(screen.getAllByText(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/)).toHaveLength(
+      12
+    );
+    expect(screen.getAllByText("Aug")).toHaveLength(1);
+    const labels = [...document.querySelectorAll("text")];
+    expect(labels.every((label) => Number(label.getAttribute("x")) <= 686 - 16)).toBe(true);
   });
 
   it("scrolls horizontally rather than squashing a year onto a phone", () => {

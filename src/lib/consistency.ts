@@ -136,8 +136,19 @@ function loadQuartiles(loads: number[]): [number, number, number] | null {
   return [quantile(active, 0.25), quantile(active, 0.5), quantile(active, 0.75)];
 }
 
+/**
+ * A day's bucket from the year's cuts. A load exactly ON a cut takes the LOWER
+ * bucket (`<=`), so the day at the median reads as a level-2 day.
+ *
+ * When every active day of the displayed year carries the same load — or there is
+ * exactly one active day — all three cuts collapse onto that value, and `<=`
+ * would paint the hardest day of the year at the faintest step, nearly
+ * indistinguishable from a rest day. An active day that is the year's only load
+ * level is a top day, so the collapsed case goes to 4.
+ */
 function levelOf(load: number, quartiles: [number, number, number] | null): HeatLevel {
   if (load <= 0 || quartiles == null) return 0;
+  if (quartiles[0] === quartiles[2]) return 4;
   if (load <= quartiles[0]) return 1;
   if (load <= quartiles[1]) return 2;
   if (load <= quartiles[2]) return 3;

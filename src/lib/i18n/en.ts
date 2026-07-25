@@ -604,6 +604,7 @@ export const en = {
       session: "1 session",
       sessions: "{n} sessions",
       rest: "rest day",
+      noLoad: "no load",
     },
     totals: {
       title: "Totals",

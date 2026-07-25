@@ -229,14 +229,35 @@ export function parseLocalDate(key: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** Inclusive list of local YYYY-MM-DD day keys from `from` to `to`. */
+/** Local noon of a wall-clock Date's calendar day. Noon is the one hour of the
+ * day no real DST transition skips or repeats, so day arithmetic anchored there
+ * is exact even in zones that shift at local midnight. */
+function localNoon(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+}
+
+/**
+ * Inclusive list of local YYYY-MM-DD day keys from `from` to `to`.
+ *
+ * Every day is rebuilt from `from`'s calendar components at local noon instead of
+ * advancing one midnight cursor a day at a time. In a zone whose DST transition
+ * lands at local midnight (America/Santiago, America/Havana, Asia/Beirut,
+ * Asia/Damascus) that cursor's wall time slipped permanently to 01:00 after the
+ * spring-forward day, and the old `cursor <= end` bound — with `end` at 00:00 —
+ * then dropped the LAST day of every range in those zones (a heatmap missing
+ * today's cell, a PMC missing its last point). Returns [] for an unparseable
+ * bound or a reversed range.
+ */
 export function eachDay(from: string, to: string): string[] {
+  const start = parseLocalDate(from);
+  const span = Math.round(
+    (localNoon(parseLocalDate(to)).getTime() - localNoon(start).getTime()) / 86400000
+  );
   const out: string[] = [];
-  const cursor = parseLocalDate(from);
-  const end = parseLocalDate(to);
-  while (cursor <= end) {
-    out.push(localDateInputValue(cursor));
-    cursor.setDate(cursor.getDate() + 1);
+  for (let i = 0; i <= span; i += 1) {
+    out.push(
+      localDateInputValue(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, 12))
+    );
   }
   return out;
 }
