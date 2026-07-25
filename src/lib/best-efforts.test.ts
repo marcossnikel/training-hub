@@ -190,6 +190,17 @@ describe("prBadgeEffortNames", () => {
     ).toBe(0);
   });
 
+  it("matches a padded payload name against the trimmed row it stored", () => {
+    // bestEffortRows trims before storing, so " 5K " in a payload becomes a "5K" row.
+    // Looking the raw name up would miss and withhold the badge on a real record.
+    const names = prBadgeEffortNames(
+      [effort({ name: " 5K ", moving_time: 1351, pr_rank: 1 })],
+      [{ name: "5K", moving_time_s: 1351 }]
+    );
+    // Returned as the payload spells it: that is the key the chip renders and looks up.
+    expect([...names]).toEqual([" 5K "]);
+  });
+
   it("keeps the fastest stored time when handed several rows per name", () => {
     const names = prBadgeEffortNames(
       [effort({ moving_time: 1351, pr_rank: 1 })],

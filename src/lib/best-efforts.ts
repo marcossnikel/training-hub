@@ -120,9 +120,21 @@ export function effortTimeS(effort: StravaBestEffort): number {
  *    and a 1-mile row ranked 1 that a later run beat by 169 s. Cross-checking the
  *    stored times demotes those stale claims instead of showing two records.
  *
- * The pair is deliberately CONSERVATIVE: it can miss a badge (a genuine record whose
- * payload was fetched before it was one) but it cannot show a record that our own
- * data contradicts. An effort with no stored row to check against gets no badge.
+ * The pair is deliberately CONSERVATIVE: it can miss a badge but it cannot show a
+ * record that our own data contradicts. Known misses:
+ *  - a genuine record whose payload was fetched before it was one (Strava's rank is
+ *    what says "all-time", and it was frozen then);
+ *  - an effort with no stored row to check against — nothing to demote a stale rank
+ *    with, so the badge is withheld;
+ *  - a run whose distance name no OTHER activity has an effort for still gets its
+ *    badge, but only because the caller passes the viewed activity's own rows in
+ *    (`listFastestBestEfforts({ includeActivityId })`); reading confirmed rows alone
+ *    would withhold it.
+ *
+ * Names are matched on their TRIMMED form, the same normalisation `bestEffortRows`
+ * applies before storing, so a payload effort named " 5K" still finds the "5K" row it
+ * wrote. The returned set holds names exactly as the PAYLOAD spells them, since the
+ * caller looks each chip up by the name it renders.
  */
 export function prBadgeEffortNames(
   efforts: readonly StravaBestEffort[],
@@ -130,16 +142,17 @@ export function prBadgeEffortNames(
 ): Set<string> {
   const fastestByName = new Map<string, number>();
   for (const row of fastestStored) {
-    const current = fastestByName.get(row.name);
+    const key = row.name.trim();
+    const current = fastestByName.get(key);
     if (current === undefined || row.moving_time_s < current) {
-      fastestByName.set(row.name, row.moving_time_s);
+      fastestByName.set(key, row.moving_time_s);
     }
   }
   const names = new Set<string>();
   for (const effort of efforts) {
     if (effort?.pr_rank !== 1) continue;
     const time = effortTimeS(effort);
-    const fastest = fastestByName.get(effort.name);
+    const fastest = fastestByName.get(effort.name?.trim() ?? "");
     if (time > 0 && fastest !== undefined && time <= fastest) names.add(effort.name);
   }
   return names;

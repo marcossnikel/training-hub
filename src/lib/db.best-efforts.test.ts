@@ -87,12 +87,13 @@ describe("listFastestBestEfforts", () => {
     name: string,
     startedAt: string,
     status: string,
-    isRace: number
+    isRace: number,
+    sportType = "Run"
   ): Promise<number> {
     const inserted = await db.client.execute({
       sql: `INSERT INTO activities (name, sport_type, started_at, started_at_local, distance_km, status, is_race)
-            VALUES (?, 'Run', ?, ?, 21, ?, ?)`,
-      args: [name, startedAt, startedAt, status, isRace],
+            VALUES (?, ?, ?, ?, 21, ?, ?)`,
+      args: [name, sportType, startedAt, startedAt, status, isRace],
     });
     return Number(inserted.lastInsertRowid);
   }
@@ -151,5 +152,53 @@ describe("listFastestBestEfforts", () => {
 
     const mile = (await db.listFastestBestEfforts()).find((row) => row.name === "1 mile");
     expect(mile?.activity_name).toBe("First");
+  });
+
+  it("excludes rides and trail runs, which the road ladder rejects on the other side", async () => {
+    // cacheBestEfforts writes whatever a payload carries, so a ride and a trail run can
+    // both hold a "5K" row. raceCategory keeps those activities out of the whole-activity
+    // ladder, so this query must reject them too or the two halves of the /performance
+    // merge would draw from different populations.
+    const ride = await insertActivity("Fast ride", "2026-07-21T10:00:00Z", "confirmed", 0, "Ride");
+    const trailSport = await insertActivity(
+      "Serra longo",
+      "2026-07-22T10:00:00Z",
+      "confirmed",
+      0,
+      "TrailRun"
+    );
+    const trailName = await insertActivity(
+      "Butinada Trail",
+      "2026-07-23T10:00:00Z",
+      "confirmed",
+      0
+    );
+    for (const id of [ride, trailSport, trailName]) {
+      await db.upsertActivityBestEfforts(id, [
+        { name: "5K", distance_m: 5000, elapsed_time_s: 1002, moving_time_s: 1000, pr_rank: 1 },
+      ]);
+    }
+
+    // All three are faster than 1351 s and none of them wins.
+    const fiveK = (await db.listFastestBestEfforts()).find((row) => row.name === "5K");
+    expect(fiveK).toMatchObject({ moving_time_s: 1351, activity_name: "Half marathon" });
+  });
+
+  it("admits one named activity's own rows whatever its review status", async () => {
+    // A freshly synced run is pending_review — exactly when a new record wants its PR
+    // badge. Its own rows are visible when the activity page names it, and invisible to
+    // the /performance ladder, which passes no id.
+    const fresh = await insertActivity("Just synced", "2026-07-24T10:00:00Z", "pending_review", 0);
+    await db.upsertActivityBestEfforts(fresh, [
+      { name: "5K", distance_m: 5000, elapsed_time_s: 1105, moving_time_s: 1100, pr_rank: 1 },
+    ]);
+
+    const ladder = (await db.listFastestBestEfforts()).find((row) => row.name === "5K");
+    expect(ladder).toMatchObject({ moving_time_s: 1351, activity_name: "Half marathon" });
+
+    const own = (await db.listFastestBestEfforts({ includeActivityId: fresh })).find(
+      (row) => row.name === "5K"
+    );
+    expect(own).toMatchObject({ moving_time_s: 1100, activity_name: "Just synced" });
   });
 });

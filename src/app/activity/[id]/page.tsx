@@ -457,11 +457,18 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
     : [];
   // `ensureActivityDetail` has already mirrored this activity's efforts into
   // `activity_best_efforts`, so the stored ladder is what tells a live record from a
-  // pr_rank frozen at first fetch. Read only when there are chips to badge.
-  const prNames =
-    bestEfforts.length > 0
-      ? prBadgeEffortNames(bestEfforts, await listFastestBestEfforts())
-      : new Set<string>();
+  // pr_rank frozen at first fetch. Only a quarter of stored rows carry any rank at
+  // all, so the window-function read fires only when some chip actually CLAIMS a
+  // record; without a rank-1 chip every returned row would be discarded. This
+  // activity's own rows are included whatever its review status, so the badge works
+  // on a freshly synced (still `pending_review`) run.
+  const claimsRecord = bestEfforts.some((effort) => effort.pr_rank === 1);
+  const prNames = claimsRecord
+    ? prBadgeEffortNames(
+        bestEfforts,
+        await listFastestBestEfforts({ includeActivityId: activity.id })
+      )
+    : new Set<string>();
   // Devices auto-lap every km; only show laps when they carry real structure.
   const structuredLaps =
     laps.length > 1 && laps.some((lap) => Math.abs((lap.distance ?? 0) - 1000) > 150);

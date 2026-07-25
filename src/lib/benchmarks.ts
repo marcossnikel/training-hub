@@ -170,7 +170,11 @@ export function bestEffortsByDistance(efforts: RunEffort[]): BestEffort[] {
 // map to `half`: 20 km is 1097 m SHORT of a half marathon, so its time would read
 // as a falsely fast half. Our "12k" has no Strava equivalent, so it always comes
 // from the whole-activity ladder.
-const SEGMENT_DISTANCE_BY_NAME: Record<string, StandardDistance> = {
+//
+// Exported so a test can pin the mapping itself: the length tolerance below would
+// reject a wrongly mapped name for its own reason, which is not proof the mapping
+// is right.
+export const SEGMENT_DISTANCE_BY_NAME: Record<string, StandardDistance> = {
   "5K": "5k",
   "10K": "10k",
   "15K": "15k",
@@ -205,28 +209,52 @@ export interface BestEffortRecord extends BestEffort {
 }
 
 /**
+ * Which of the two candidates at one distance the card should show.
+ *
+ * The segment is the better MEASUREMENT — a real 5 km inside the run rather than a
+ * whole activity that merely happened to be about 5 km long — so it wins ties and
+ * every close call. The whole activity only takes the row when it is genuinely the
+ * better PERFORMANCE:
+ *
+ *  - Pace decides first, the same key `bestEffortsByDistance` ranks with, because a
+ *    whole-activity effort may be up to the ±10% band shorter or longer than the
+ *    canonical distance while a segment is exactly it. Comparing raw times across
+ *    different lengths would simply favour whichever effort was shortest.
+ *  - But a pace win by an OVER-DISTANCE activity is not a performance win at all
+ *    when its raw time is no better: running 21.20 km in 1:38:32 spreads the same
+ *    effort over 100 m more, which reads as 0.17 s/km "faster" than a true 21097 m
+ *    segment in 1:38:07 while actually taking 25 s LONGER to cover the distance.
+ *    Rounding noise of that size cannot be allowed to discard the exact segment, so
+ *    when the activity is longer than the canonical distance the segment keeps the
+ *    row unless the activity also beat it on raw time.
+ *
+ * An UNDER-distance activity that is faster per kilometre still wins: its raw time is
+ * smaller only because it covered less ground, and pace is the only fair comparison
+ * left. Live example at the time of writing — 10k shows a true 10.00 km segment in
+ * 45:35 (4:34/km) rather than 45:12 over 9.86 km (4:35/km), which was never a 10 km.
+ * The UI shows the measured length of whichever row wins, so the reader can always
+ * see what the time covers.
+ */
+function preferredRecord(segment: BestEffortRecord, whole: BestEffortRecord): BestEffortRecord {
+  // Strict `<`: an equal-pace segment keeps its place, being the truer measurement.
+  if (!(whole.paceSPerKm < segment.paceSPerKm)) return segment;
+  const overDistance = whole.distanceKm * METERS_PER_KM > STANDARD_DISTANCE_M[segment.distance];
+  if (overDistance && segment.movingTimeS <= whole.movingTimeS) return segment;
+  return whole;
+}
+
+/**
  * The best time at each standard distance from BOTH sources: the true sub-segments
  * Strava cut out of individual runs (`activity_best_efforts`, passed in as stored
- * rows) and the whole-activity ladder above.
+ * rows) and the whole-activity ladder above. `preferredRecord` owns the choice
+ * between the two; every distance either source knows about is reported, so a
+ * distance with no segment (our "12k" has no Strava equivalent) still falls back to
+ * the whole-activity ladder rather than disappearing.
  *
- * A segment is the better measurement — it is a real 5 km inside the run rather
- * than a whole activity that merely happened to be about 5 km long — so it WINS
- * TIES and is preferred wherever it exists. But it is not preferred blindly: only
- * a fraction of runs have a cached detail payload, so the fastest stored 5K may
- * come from an easy run while the whole-activity ladder holds a 5 km race. Taking
- * the faster of the two is what makes this strictly an improvement: the displayed
- * effort can only get faster, never slower, than the whole-activity value alone.
- *
- * "Faster" is compared by PACE, the same key `bestEffortsByDistance` ranks with,
- * because a whole-activity effort may be up to the ±10% band shorter or longer
- * than the canonical distance while a segment is exactly it; comparing raw times
- * across different lengths would favour whichever effort was shortest. So the
- * displayed TIME can rise in one narrow case: when the whole-activity row it
- * replaces was under-distance. Live example at the time of writing — 10k went from
- * 45:12 over 9.86 km (4:35/km, never actually a 10 km) to 45:35 over a true
- * 10.00 km segment (4:34/km). The row got faster per kilometre AND honest about
- * the distance; keeping the 9.86 km time only because the number was smaller would
- * be the dishonest option.
+ * Preferring the segment is what makes this an improvement rather than a swap: only
+ * a fraction of runs have a cached detail payload, so the fastest stored 5K may come
+ * from an easy run while the whole-activity ladder holds a 5 km race, and that race
+ * still wins.
  *
  * pr_rank is deliberately IGNORED here. Strava's rank is frozen at the moment an
  * activity's detail was first fetched (`saveActivityDetail` only writes when
@@ -239,7 +267,7 @@ export function bestEffortRecords(
   efforts: RunEffort[],
   stored: readonly StoredBestEffort[]
 ): BestEffortRecord[] {
-  const best = new Map<StandardDistance, BestEffortRecord>();
+  const segments = new Map<StandardDistance, BestEffortRecord>();
   for (const row of stored) {
     const distance = segmentDistanceOf(row);
     if (!distance) continue;
@@ -255,15 +283,15 @@ export function bestEffortRecords(
       date: row.date,
       source: "segment",
     };
-    const current = best.get(distance);
-    if (!current || record.paceSPerKm < current.paceSPerKm) best.set(distance, record);
+    const current = segments.get(distance);
+    if (!current || record.paceSPerKm < current.paceSPerKm) segments.set(distance, record);
   }
+
+  const best = new Map(segments);
   for (const whole of bestEffortsByDistance(efforts)) {
-    const current = best.get(whole.distance);
-    // Strict `<`: an equal-pace segment keeps its place, being the truer measurement.
-    if (!current || whole.paceSPerKm < current.paceSPerKm) {
-      best.set(whole.distance, { ...whole, source: "activity" });
-    }
+    const segment = best.get(whole.distance);
+    const activity: BestEffortRecord = { ...whole, source: "activity" };
+    best.set(whole.distance, segment ? preferredRecord(segment, activity) : activity);
   }
   return STANDARD_DISTANCE_ORDER.filter((d) => best.has(d)).map((d) => best.get(d)!);
 }

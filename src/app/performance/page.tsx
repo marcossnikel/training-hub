@@ -95,12 +95,15 @@ export default async function PerformancePage() {
               <CardDescription>{tp.bestEffortsBody}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-x-4 gap-y-2 text-sm sm:gap-x-6">
+              <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-x-3 gap-y-2 text-sm sm:gap-x-5">
                 <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
                   {tp.distance}
                 </div>
                 <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
                   {tp.time}
+                </div>
+                <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+                  {tp.measured}
                 </div>
                 <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
                   {tp.pace}
@@ -129,6 +132,12 @@ export default async function PerformancePage() {
                     </div>
                     <div className="border-t border-border/50 pt-2 font-mono tabular-nums">
                       {fmtDuration(effort.movingTimeS)}
+                    </div>
+                    {/* The length the time was actually measured over: a segment is
+                        exactly the distance, a whole activity only within ±10% of
+                        it, so the Time column needs this to be readable at all. */}
+                    <div className="border-t border-border/50 pt-2 font-mono tabular-nums text-muted-foreground">
+                      {fmtKm(effort.distanceKm, 2)}
                     </div>
                     <div className="border-t border-border/50 pt-2 font-mono tabular-nums text-muted-foreground">
                       {fmtPace(effort.paceSPerKm)}

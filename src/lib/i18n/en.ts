@@ -251,7 +251,8 @@ export const en = {
     bestEfforts: "Best efforts",
     prRank: "All-time rank",
     prBadge: "PR",
-    prBadgeTitle: "Your record at this distance: Strava ranked it first and no later run beat it.",
+    prBadgeTitle:
+      "Strava ranked this effort first when the run was first read, and no effort we have stored at this distance is faster. Only some activities carry the detail this check reads.",
     lap: "Lap",
     hr: "HR",
     maxShort: "Max",
@@ -533,9 +534,10 @@ export const en = {
       "The threshold estimate and the predictions come from activity summaries — whole-activity times, not segments inside a run. Cycling power (FTP) needs per-second streams and is not covered here.",
     bestEfforts: "Best efforts by distance",
     bestEffortsBody:
-      "The fastest time at each standard distance: a true segment inside a run where Strava recorded one, otherwise the fastest whole activity.",
+      "The fastest time at each standard distance, next to the length it was measured over. A true segment inside a run wins wherever Strava recorded one; a whole activity takes the row only when there is no segment, or when it is faster per kilometre without simply being longer than the distance.",
     distance: "Distance",
     time: "Time",
+    measured: "Measured",
     pace: "Pace",
     date: "Date",
     raceTag: "race",

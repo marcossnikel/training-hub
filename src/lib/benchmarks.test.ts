@@ -6,6 +6,7 @@ import {
   pickReferenceEffort,
   predictRaceTimes,
   RIEGEL_FATIGUE_EXPONENT,
+  SEGMENT_DISTANCE_BY_NAME,
   type RunEffort,
 } from "@/lib/benchmarks";
 import type { StoredBestEffort } from "@/lib/best-efforts";
@@ -130,6 +131,30 @@ describe("bestEffortRecords", () => {
     expect(records[0].paceSPerKm).toBeLessThan(2712 / 9.86);
   });
 
+  it("takes an exact segment over an OVER-DISTANCE whole activity with the same or worse time", () => {
+    // The live half case: the whole activity covered 21.20 km in 1:38:32 (5912 s),
+    // which reads 0.17 s/km "faster" than a true 21097 m segment in 1:38:07 (5887 s)
+    // only because it ran 100 m further. It took 25 s LONGER to cover the distance,
+    // so the pace edge is a rounding artifact and the segment must keep the row.
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 21.2, movingTimeS: 5912, isRace: true, name: "Half marathon" })],
+      [stored({ name: "Half-Marathon", distance_m: 21097, moving_time_s: 5887 })]
+    );
+    expect(records[0]).toMatchObject({ movingTimeS: 5887, distanceKm: 21.097, source: "segment" });
+    // The whole activity was the faster PACE and still lost — the check is raw time.
+    expect(5912 / 21.2).toBeLessThan(records[0].paceSPerKm);
+  });
+
+  it("keeps an over-distance whole activity that beat the segment on raw time too", () => {
+    // Same shape as above but the activity genuinely ran the distance faster: 1:36:40
+    // over 21.20 km beats the 1:38:07 segment on both time and pace, so it wins.
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 21.2, movingTimeS: 5800 })],
+      [stored({ name: "Half-Marathon", distance_m: 21097, moving_time_s: 5887 })]
+    );
+    expect(records[0]).toMatchObject({ movingTimeS: 5800, distanceKm: 21.2, source: "activity" });
+  });
+
   it("falls back to the whole-activity ladder for distances with no stored row", () => {
     const records = bestEffortRecords(
       [effort({ distanceKm: 5, movingTimeS: 1300 }), effort({ distanceKm: 10, movingTimeS: 2700 })],
@@ -167,6 +192,33 @@ describe("bestEffortRecords", () => {
       ]
     );
     expect(records).toEqual([]);
+  });
+
+  // The assertion above cannot tell "not in the map" from "in the map but outside the
+  // length tolerance": every row it passes is also the wrong length for the distance a
+  // bad mapping would give it. These two pin the mapping on its own.
+  it("pins the Strava-name mapping itself", () => {
+    expect(SEGMENT_DISTANCE_BY_NAME).toEqual({
+      "5K": "5k",
+      "10K": "10k",
+      "15K": "15k",
+      "HALF-MARATHON": "half",
+      "30K": "30k",
+      MARATHON: "marathon",
+    });
+    // Keys are matched uppercased, so a lowercase key could never be found.
+    for (const key of Object.keys(SEGMENT_DISTANCE_BY_NAME)) expect(key).toBe(key.toUpperCase());
+    // "12k" has no Strava equivalent and must always fall back to whole activities.
+    expect(Object.values(SEGMENT_DISTANCE_BY_NAME)).not.toContain("12k");
+  });
+
+  it("rejects a 20K row even when its length would pass as a half marathon", () => {
+    // Tolerance-independent teeth for the mapping: a "20K" row measured at a genuine
+    // 21097 m is INSIDE the 0.1% half-marathon band, so the only thing that can reject
+    // it is the name not mapping to `half`.
+    expect(
+      bestEffortRecords([], [stored({ name: "20K", distance_m: 21097, moving_time_s: 5000 })])
+    ).toEqual([]);
   });
 
   it("matches names case-insensitively but rejects a length that is not the distance", () => {

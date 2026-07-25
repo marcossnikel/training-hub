@@ -327,19 +327,44 @@ export async function listBestEffortCounts(activityId?: number): Promise<BestEff
 
 /**
  * The fastest stored effort at each distance name ("5K", "Half-Marathon", …), one row
- * per name, with the confirmed activity it came from. This is what both readers of
+ * per name, from confirmed ROAD RUNS. This is what both readers of
  * `activity_best_efforts` need: /performance ranks the distance ladder from it and the
- * activity page uses it to demote a stale `pr_rank = 1` that a later run has beaten.
+ * activity page uses it to demote a stale `pr_rank = 1` that another run has beaten.
+ *
+ * The population is filtered to match the whole-activity half of the /performance merge
+ * exactly (`listRunEfforts` + `raceCategory`), so the two halves can never disagree
+ * about which activities count:
+ *  - run sports only — `cacheBestEfforts` writes whatever a payload carries without
+ *    checking the sport, so the sport gate has to live at READ time;
+ *  - no trail, by name or sport — `raceCategory` returns "trail" for those, which
+ *    keeps them out of the road ladder, and a trail 5K segment must not sneak into a
+ *    road-distance ladder documented as excluding trail.
+ * The LIKE conditions mirror those predicates: `sportCategory(sport) === "run"` is
+ * lower(sport) containing "run", and the trail test is lower(name) or lower(sport)
+ * containing "trail". They are expressed in SQL because the filter has to run BEFORE
+ * the ranking below — filtering afterwards would drop a whole distance name rather
+ * than fall through to the next-fastest eligible row.
+ *
+ * `includeActivityId` additionally admits one activity's own rows whatever its review
+ * status. The activity page passes the activity being viewed: a freshly synced run is
+ * `pending_review`, which is exactly when a new record wants its badge, and without
+ * this the PR badge could never fire on a distance no confirmed run has an effort for.
+ * A confirmed activity's own rows are in the set either way, so this only makes an
+ * unreviewed activity behave like a reviewed one. /performance passes nothing, so no
+ * pending row can reach the ladder.
  *
  * Aggregated in SQL rather than by reading every row: ~103 rows exist today, but
  * T24's fetch-history pass would push that into the thousands while the answer stays
  * one row per name. ROW_NUMBER (not a bare-column MIN) so the winning row's own
  * columns come back and ties break deterministically on the lower activity id.
  */
-export async function listFastestBestEfforts(): Promise<StoredBestEffort[]> {
+export async function listFastestBestEfforts(options?: {
+  includeActivityId?: number;
+}): Promise<StoredBestEffort[]> {
   interface Row extends Omit<StoredBestEffort, "is_race"> {
     is_race: number;
   }
+  const ownId = options?.includeActivityId ?? null;
   const rows = await many<Row>(
     `SELECT name, distance_m, elapsed_time_s, moving_time_s, pr_rank,
             activity_name, is_race, date
@@ -352,10 +377,15 @@ export async function listFastestBestEfforts(): Promise<StoredBestEffort[]> {
               ) AS rn
        FROM activity_best_efforts e
        JOIN activities a ON a.id = e.activity_id
-       WHERE a.status = 'confirmed' AND e.moving_time_s > 0 AND e.distance_m > 0
+       WHERE (a.status = 'confirmed' OR a.id = ?)
+         AND e.moving_time_s > 0 AND e.distance_m > 0
+         AND LOWER(COALESCE(a.sport_type, '')) LIKE '%run%'
+         AND LOWER(COALESCE(a.sport_type, '')) NOT LIKE '%trail%'
+         AND LOWER(COALESCE(a.name, '')) NOT LIKE '%trail%'
      )
      WHERE rn = 1
-     ORDER BY distance_m ASC`
+     ORDER BY distance_m ASC`,
+    [ownId]
   );
   return rows.map((row) => ({ ...row, is_race: sqliteBool(row.is_race) }));
 }

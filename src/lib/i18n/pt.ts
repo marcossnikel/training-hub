@@ -247,7 +247,7 @@ export const pt: Dict = {
     prRank: "Posição geral",
     prBadge: "RP",
     prBadgeTitle:
-      "Seu recorde nesta distância: o Strava classificou em primeiro e nenhuma corrida posterior superou.",
+      "O Strava classificou este esforço em primeiro quando a corrida foi lida pela primeira vez, e nenhum esforço que temos armazenado nesta distância é mais rápido. Só parte das atividades tem o detalhe que essa verificação lê.",
     lap: "Volta",
     hr: "FC",
     maxShort: "Máx",
@@ -530,9 +530,10 @@ export const pt: Dict = {
       "A estimativa de limiar e as previsões vêm dos resumos das atividades — tempos de atividade inteira, não trechos dentro de uma corrida. A potência do ciclismo (FTP) exige streams por segundo e não é coberta aqui.",
     bestEfforts: "Melhores tempos por distância",
     bestEffortsBody:
-      "O tempo mais rápido em cada distância padrão: um trecho real dentro de uma corrida quando o Strava registrou um, senão a atividade inteira mais rápida.",
+      "O tempo mais rápido em cada distância padrão, ao lado do comprimento em que foi medido. Um trecho real dentro de uma corrida vence sempre que o Strava registrou um; a atividade inteira só assume a linha quando não existe trecho ou quando é mais rápida por quilômetro sem ser apenas mais longa que a distância.",
     distance: "Distância",
     time: "Tempo",
+    measured: "Medido",
     pace: "Ritmo",
     date: "Data",
     raceTag: "prova",
