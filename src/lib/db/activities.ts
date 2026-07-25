@@ -2,7 +2,6 @@ import { cache } from "react";
 import { batchWrite, exec, many, one, sqliteBool } from "./helpers";
 import { client } from "./client";
 import { ensureMigrated } from "./migrations";
-import { parseLocalDate } from "../format";
 import type { BlockActivity } from "../blocks";
 import type { TotalsActivity } from "../totals";
 import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
@@ -111,20 +110,24 @@ export async function listBlockActivities(
 /**
  * Confirmed activities from a local calendar day onwards, with their persisted
  * load, for the /fitness totals table. Rows come back per activity and ungrouped
- * on purpose: every week/month bucket is built in JS from the local day of
- * `started_at` (see `periodTotals`), because grouping with SQL strftime would
- * bucket by UTC and drift each period boundary by the athlete's tz offset.
+ * on purpose: every week/month bucket is built in JS from the athlete's local day
+ * (`started_at_local`, falling back to `started_at` — see `periodTotals`),
+ * because grouping with SQL strftime would bucket by UTC and drift each period
+ * boundary by the athlete's tz offset.
  */
 export async function listTotalsActivities(fromDay: string): Promise<TotalsActivity[]> {
   return many<TotalsActivity>(
-    `SELECT a.started_at, l.tss, a.moving_time_s, a.distance_km, a.elevation_gain_m
+    `SELECT a.started_at, a.started_at_local, a.sport_type,
+            l.tss, a.moving_time_s, a.distance_km, a.elevation_gain_m
      FROM activities a
      LEFT JOIN activity_load l ON l.activity_id = a.id
-     WHERE a.status = 'confirmed' AND a.started_at IS NOT NULL AND a.started_at >= ?
+     WHERE a.status = 'confirmed' AND a.started_at IS NOT NULL
+       AND COALESCE(a.started_at_local, a.started_at) >= ?
      ORDER BY a.started_at ASC`,
-    // The local day's midnight as a UTC instant: the exact boundary the JS
-    // local-day bucketing uses, so no row is fetched or missed by an offset.
-    [parseLocalDate(fromDay).toISOString()]
+    // Midnight of the first local day, compared against the very stamp the JS
+    // bucketing takes its day key from, so no row is fetched or missed by an
+    // offset. Both stamps are Z-suffixed ISO, which sorts lexicographically.
+    [`${fromDay}T00:00:00Z`]
   );
 }
 

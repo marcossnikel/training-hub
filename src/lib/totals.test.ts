@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  filterBySport,
   periodTotals,
   totalsFrom,
   TOTALS_METRICS,
@@ -8,11 +9,12 @@ import {
   type TotalsActivity,
 } from "@/lib/totals";
 
-// Timestamps are built from local wall-clock components and stored as the UTC
-// instant they represent, exactly like Strava's start_date. Bucketing reads them
-// back as local days, so these tests hold in any process timezone.
+// A stored UTC instant, written as the literal ISO the DB holds rather than built
+// from local wall-clock components: the day these tests expect is the one printed
+// in the string, in every process timezone.
 function at(y: number, m: number, d: number, hour = 12): string {
-  return new Date(y, m - 1, d, hour).toISOString();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${y}-${pad(m)}-${pad(d)}T${pad(hour)}:00:00Z`;
 }
 
 function activity(
@@ -21,6 +23,8 @@ function activity(
 ): TotalsActivity {
   return {
     started_at: startedAt,
+    started_at_local: null,
+    sport_type: "Run",
     tss: 50,
     moving_time_s: 3600,
     distance_km: 10,
@@ -85,15 +89,6 @@ describe("periodTotals", () => {
     });
   });
 
-  it("buckets an activity started late in the local evening into that local day's week", () => {
-    // 23:30 local on Sunday 26 July is a UTC instant that lands in the next
-    // calendar day for negative offsets; the week it counts in is still the one
-    // starting Monday 20 July.
-    const rows = periodTotals([activity(at(2026, 7, 26, 23))], "weeks", 2, now);
-    expect(rows[0].start).toBe("2026-07-20");
-    expect(rows[0].values.sessions).toBe(1);
-  });
-
   it("buckets by calendar month when asked for months", () => {
     const rows = periodTotals(
       [activity(at(2026, 7, 1)), activity(at(2026, 7, 31)), activity(at(2026, 6, 30))],
@@ -113,7 +108,7 @@ describe("periodTotals", () => {
     expect(rows[TOTALS_ROWS - 1].start).toBe("2026-05-04");
   });
 
-  it("deltas every metric against the previous period", () => {
+  it("carries the previous period's totals for every row to compare against", () => {
     const rows = periodTotals(
       [
         activity(at(2026, 7, 21), { tss: 60, moving_time_s: 3600, distance_km: 10 }),
@@ -124,26 +119,17 @@ describe("periodTotals", () => {
       2,
       now
     );
-    expect(rows[0].delta).toEqual({
-      load: -60,
-      seconds: -3600,
-      km: -5,
-      elevationM: -100,
-      sessions: -1,
-    });
-    // The oldest displayed row compares against the extra period loaded behind it.
-    expect(rows[1].delta).toEqual({
+    expect(rows[0].previous).toEqual(rows[1].values);
+    expect(rows[0].previous).toEqual({
       load: 120,
       seconds: 7200,
       km: 15,
       elevationM: 200,
       sessions: 2,
     });
-  });
-
-  it("gives the oldest displayed row a delta too, so no row is left without one", () => {
-    const rows = periodTotals([activity(at(2026, 7, 25))], "weeks", TOTALS_ROWS, now);
-    expect(rows.every((r) => r.delta !== null)).toBe(true);
+    // The oldest displayed row compares against the extra period loaded behind
+    // it, which is empty here.
+    expect(rows[1].previous).toEqual({ load: 0, seconds: 0, km: 0, elevationM: 0, sessions: 0 });
   });
 
   it("ignores activities outside the loaded range", () => {
@@ -156,3 +142,98 @@ describe("periodTotals", () => {
     expect(TOTALS_METRICS).toEqual(["load", "seconds", "km", "elevationM", "sessions"]);
   });
 });
+
+describe("filterBySport", () => {
+  const rows = [
+    activity(at(2026, 7, 21), { sport_type: "Run" }),
+    activity(at(2026, 7, 21), { sport_type: "TrailRun" }),
+    activity(at(2026, 7, 22), { sport_type: "VirtualRide" }),
+    activity(at(2026, 7, 23), { sport_type: "WeightTraining" }),
+    activity(at(2026, 7, 23), { sport_type: null }),
+  ];
+
+  it("keeps every row when no sport is selected", () => {
+    expect(filterBySport(rows, "all")).toBe(rows);
+  });
+
+  it("keeps the rows the weekly bars stack under that sport, not just the exact name", () => {
+    expect(filterBySport(rows, "run").map((r) => r.sport_type)).toEqual(["Run", "TrailRun"]);
+    expect(filterBySport(rows, "bike").map((r) => r.sport_type)).toEqual(["VirtualRide"]);
+    expect(filterBySport(rows, "other").map((r) => r.sport_type)).toEqual(["WeightTraining", null]);
+  });
+
+  it("totals only the filtered sport, so the table agrees with a sport-filtered page", () => {
+    const runOnly = periodTotals(filterBySport(rows, "run"), "weeks", 2, now);
+    expect(runOnly[0].values).toEqual({
+      load: 100,
+      seconds: 7200,
+      km: 20,
+      elevationM: 200,
+      sessions: 2,
+    });
+    expect(periodTotals(rows, "weeks", 2, now)[0].values.sessions).toBe(5);
+  });
+});
+
+// The plan's central landmine: a period must be keyed by the athlete's own
+// calendar day, never by the day the server process happens to be in. Every
+// fixture below is a LITERAL ISO instant and the block is re-run pinned to three
+// zones (the format.test.ts idiom), so bucketing that keys off `started_at`
+// instead of the local stamp, or reads either stamp with local getters, fails in
+// at least one of them.
+for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo"]) {
+  describe(`local-day bucketing under TZ=${tz}`, () => {
+    const originalTz = process.env.TZ;
+    beforeAll(() => {
+      process.env.TZ = tz;
+    });
+    afterAll(() => {
+      process.env.TZ = originalTz;
+    });
+
+    // Saturday 25 July 2026 at midday UTC: the same local day in all three zones.
+    const today = new Date("2026-07-25T12:00:00Z");
+
+    it("counts an evening session on its local day's week, not the UTC instant's", () => {
+      // 21:00 on Sunday 26 July in a UTC-3 zone: the stored instant is already
+      // Monday the 27th, but the session belongs to the week of Monday the 20th.
+      const rows = periodTotals(
+        [
+          activity("2026-07-27T00:00:00Z", { started_at_local: "2026-07-26T21:00:00Z" }),
+          activity("2026-07-20T02:00:00Z", { started_at_local: "2026-07-19T23:00:00Z" }),
+        ],
+        "weeks",
+        2,
+        today
+      );
+      expect(rows.map((r) => r.start)).toEqual(["2026-07-20", "2026-07-13"]);
+      // The Sunday-evening session lands in the week of the 20th; the Sunday
+      // 19th one (stored as 02:00Z on the 20th) in the week before it.
+      expect(rows[0].values.sessions).toBe(1);
+      expect(rows[1].values.sessions).toBe(1);
+    });
+
+    it("falls back to reading the UTC instant as UTC when no local stamp was captured", () => {
+      // Rows synced before started_at_local existed have only the instant, and
+      // 02:00Z on Monday 20 July must stay in that week rather than sliding back
+      // to Sunday where local getters would put it in a negative-offset zone.
+      const rows = periodTotals([activity("2026-07-20T02:00:00Z")], "weeks", 2, today);
+      expect(rows[0].start).toBe("2026-07-20");
+      expect(rows[0].values.sessions).toBe(1);
+      expect(rows[1].values.sessions).toBe(0);
+    });
+
+    it("counts a month by the local day too", () => {
+      // 21:00 on 30 June in a UTC-3 zone: stored as 1 July, counted in June.
+      const rows = periodTotals(
+        [activity("2026-07-01T00:00:00Z", { started_at_local: "2026-06-30T21:00:00Z" })],
+        "months",
+        2,
+        today
+      );
+      expect(rows.map((r) => r.start)).toEqual(["2026-07-01", "2026-06-01"]);
+      expect(rows[0].values.sessions).toBe(0);
+      expect(rows[1].values.sessions).toBe(1);
+    });
+  });
+}

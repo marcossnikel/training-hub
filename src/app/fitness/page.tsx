@@ -36,14 +36,22 @@ import {
   type LoadSport,
 } from "@/lib/fitness";
 import { fmtTsb, localDateInputValue, parseLocalDate } from "@/lib/format";
-import { periodTotals, totalsFrom, TOTALS_PERIODS, type TotalsPeriod } from "@/lib/totals";
+import {
+  filterBySport,
+  periodTotals,
+  totalsFrom,
+  TOTALS_PERIODS,
+  type TotalsPeriod,
+} from "@/lib/totals";
 import { timeWindows } from "@/lib/windows";
 import { STATE_COLOR } from "@/lib/zones";
 
 export const metadata = { title: "Fitness" };
 
 const WINDOWS = timeWindows(["90d", "6m", "1y", "all"]);
-const DEFAULT_WINDOW = "6m";
+// The window a bare /fitness URL shows (6m). One constant, so the fallback below
+// and the key fitnessHref leaves implicit can never name different windows.
+const DEFAULT_WINDOW = WINDOWS[1];
 
 // Projection horizon (T05): 28 days by default, stretched to reach the next
 // goal race when it lands within 56 days (further out and the closed-form
@@ -73,7 +81,7 @@ interface FitnessFilters {
 function fitnessHref(current: FitnessFilters, override: Partial<FitnessFilters>): string {
   const { window, sport, period } = { ...current, ...override };
   const query = new URLSearchParams();
-  if (window !== DEFAULT_WINDOW) query.set("window", window);
+  if (window !== DEFAULT_WINDOW.key) query.set("window", window);
   if (sport !== "all") query.set("sport", sport);
   if (period !== TOTALS_PERIODS[0]) query.set("period", period);
   const qs = query.toString();
@@ -168,8 +176,8 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   await getAthleteThresholds();
   const loads = await listActivityLoadsForPmc();
 
-  const rawWindow = typeof params.window === "string" ? params.window : DEFAULT_WINDOW;
-  const win = WINDOWS.find((w) => w.key === rawWindow) ?? WINDOWS[1];
+  const rawWindow = typeof params.window === "string" ? params.window : DEFAULT_WINDOW.key;
+  const win = WINDOWS.find((w) => w.key === rawWindow) ?? DEFAULT_WINDOW;
 
   // Totals period (T20): weeks unless the URL asks for months.
   const period: TotalsPeriod = params.period === "months" ? "months" : "weeks";
@@ -297,8 +305,10 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
     .map((s) => buildWellnessLane(s.metric, dates, s.points));
 
   // Totals (T20): weekly or monthly volume with each period's change from the
-  // one before, bucketed by local calendar day like every other series here.
-  const totals = periodTotals(totalsActivities, period);
+  // one before, bucketed by the athlete's local calendar day. The active sport
+  // filter narrows these rows too, through the same loadSport buckets the weekly
+  // bars stack, so the card cannot contradict the chart above it.
+  const totals = periodTotals(filterBySport(totalsActivities, sport), period);
 
   const digest = await getWeeklyDigest();
   const coachConfigured = isCoachConfigured();

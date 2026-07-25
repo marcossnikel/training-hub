@@ -1,13 +1,23 @@
 // Period totals for the /fitness totals table: weekly and monthly volume with
-// the change from the period before. Pure — bucketing and delta arithmetic only,
-// no DB reads and no formatting, so the table component just lays numbers out.
+// the period before it to compare against. Pure — bucketing only, no DB reads and
+// no formatting, so the table component just lays numbers out.
 //
-// Every bucket is keyed by the LOCAL calendar day an activity started on, the
-// same started_at -> local-day conversion dailyLoadSeries uses. Doing this in
-// SQL (strftime) would group by UTC and drift every week boundary by the
-// athlete's timezone offset.
+// Every bucket is keyed by the athlete's own calendar day: Strava's naive-local
+// `started_at_local` when the row carries one (localStartedAt), else the UTC
+// instant `started_at`. The day is read off that stamp with UTC getters, so the
+// key is the athlete's real local day and is identical in every process timezone
+// — the local-stamp-first convention the training log reads days by, and exactly
+// the day key src/lib/insights.ts groups on. Doing this in SQL (strftime) would
+// group by UTC and drift every period boundary by the athlete's timezone offset.
+//
+// Residual, deliberately out of scope here: dailyLoadSeries and weeklySportLoad
+// in src/lib/fitness.ts still key off `started_at` alone (and with local
+// getters), so as `started_at_local` fills in on synced rows the /fitness weekly
+// load bar can drift from this table by a period boundary. Migrating those
+// rewrites PMC history and is its own task.
 
-import { localDateInputValue, mondayOf, parseLocalDate } from "./format";
+import { localDateInputValue, localStartedAt, mondayOf, parseLocalDate } from "./format";
+import { loadSport, type LoadSport } from "./fitness";
 
 /** Which calendar period the totals table groups by. */
 export type TotalsPeriod = "weeks" | "months";
@@ -40,8 +50,12 @@ export type TotalsMetric = keyof TotalsValues;
 
 /** One confirmed activity, as the totals query hands it back. */
 export interface TotalsActivity {
-  /** Stored UTC instant, bucketed by its local calendar day. */
+  /** Stored UTC instant; the fallback day source when no local stamp was captured. */
   started_at: string;
+  /** Strava's naive-local wall-clock stamp, the day this row is bucketed by. */
+  started_at_local: string | null;
+  /** Raw Strava sport, bucketed by `loadSport` for the sport filter. */
+  sport_type: string | null;
   tss: number | null;
   moving_time_s: number | null;
   distance_km: number | null;
@@ -52,8 +66,34 @@ export interface PeriodTotals {
   /** Local day key the period starts on: its Monday (weeks) or its 1st (months). */
   start: string;
   values: TotalsValues;
-  /** This period minus the period before it; null when no earlier one was loaded. */
-  delta: TotalsValues | null;
+  /**
+   * The period immediately before this one, which the table's deltas are read
+   * against. Never absent: `totalsFrom` loads one period more than the table
+   * shows precisely so the oldest displayed row has a base too.
+   */
+  previous: TotalsValues;
+}
+
+/**
+ * The athlete's calendar day an activity counts on, as a YYYY-MM-DD key. Slicing
+ * the Z-suffixed stamp is the UTC-getter read localStartedAt's contract asks for,
+ * so the key never moves with the process timezone.
+ */
+function activityDay(activity: TotalsActivity): string {
+  return (localStartedAt(activity) ?? activity.started_at).slice(0, 10);
+}
+
+/**
+ * The rows an active sport filter keeps. Bucketed with the same `loadSport`
+ * helper the weekly load bars use, so a sport-filtered table and the bars agree
+ * on what counts as that sport instead of only roughly matching.
+ */
+export function filterBySport(
+  activities: TotalsActivity[],
+  sport: LoadSport | "all"
+): TotalsActivity[] {
+  if (sport === "all") return activities;
+  return activities.filter((activity) => loadSport(activity.sport_type) === sport);
 }
 
 /** The local day key of the start of the period containing `day`. */
@@ -79,22 +119,12 @@ export function totalsFrom(period: TotalsPeriod, rows = TOTALS_ROWS, now = new D
   return shiftPeriod(periodStart(localDateInputValue(now), period), period, -rows);
 }
 
-function deltaOf(current: TotalsValues, previous: TotalsValues): TotalsValues {
-  return {
-    load: current.load - previous.load,
-    seconds: current.seconds - previous.seconds,
-    km: current.km - previous.km,
-    elevationM: current.elevationM - previous.elevationM,
-    sessions: current.sessions - previous.sessions,
-  };
-}
-
 /**
  * Bucket activities into the `rows` periods ending with the one containing
- * today, newest first, each carrying its change from the period before. Empty
- * periods are kept as zero rows so a rest week still occupies its slot; the
- * extra oldest period `totalsFrom` loads is dropped once it has served as the
- * last row's comparison base.
+ * today, newest first, each carrying the period before it to compare against.
+ * Empty periods are kept as zero rows so a rest week still occupies its slot;
+ * the extra oldest period `totalsFrom` loads is dropped once it has served as
+ * the last row's comparison base.
  */
 export function periodTotals(
   activities: TotalsActivity[],
@@ -110,8 +140,7 @@ export function periodTotals(
     cursor = shiftPeriod(cursor, period, 1);
   }
   for (const activity of activities) {
-    const day = localDateInputValue(new Date(activity.started_at));
-    const bucket = buckets.get(periodStart(day, period));
+    const bucket = buckets.get(periodStart(activityDay(activity), period));
     if (!bucket) continue;
     bucket.load += activity.tss ?? 0;
     bucket.seconds += activity.moving_time_s ?? 0;
@@ -119,14 +148,12 @@ export function periodTotals(
     bucket.elevationM += activity.elevation_gain_m ?? 0;
     bucket.sessions += 1;
   }
-  // Map insertion order is the ascending period cursor above.
+  // Map insertion order is the ascending period cursor above. Dropping the first
+  // entry first leaves every remaining row with a predecessor at the same index
+  // in `ascending`, so `previous` is always a real period.
   const ascending = [...buckets.entries()];
   return ascending
-    .map(([start, values], index) => ({
-      start,
-      values,
-      delta: index === 0 ? null : deltaOf(values, ascending[index - 1][1]),
-    }))
     .slice(1)
+    .map(([start, values], index) => ({ start, values, previous: ascending[index][1] }))
     .reverse();
 }

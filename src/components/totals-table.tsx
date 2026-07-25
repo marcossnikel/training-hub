@@ -32,45 +32,67 @@ function headerOf(metric: TotalsMetric, t: Dict): string {
   }
 }
 
-function valueOf(metric: TotalsMetric, values: TotalsValues): string {
+/**
+ * A column's number at the precision that column prints: load, elevation and
+ * sessions whole, distance to a tenth, hours in whole minutes. Both the value and
+ * the delta below it are derived from this, so a visible step always carries a
+ * delta and a printed delta always matches a visible step.
+ */
+function rounded(metric: TotalsMetric, values: TotalsValues): number {
   switch (metric) {
     case "load":
-      return String(Math.round(values.load));
+      return Math.round(values.load);
     case "seconds":
-      return fmtHoursMin(values.seconds);
+      return Math.round(values.seconds / 60);
     case "km":
-      return fmtKm(values.km, 1);
+      return Math.round(values.km * 10) / 10;
     case "elevationM":
-      return fmtElev(values.elevationM);
+      return Math.round(values.elevationM);
     case "sessions":
-      return String(values.sessions);
+      return values.sessions;
   }
 }
 
 /**
- * A change at its column's precision: "+8.3 km", "-42". Null when it rounds to
- * nothing there, so an unchanged (usually empty) row stays quiet.
+ * A rounded value in its column's unit. A genuine zero prints as a zero (an
+ * illness week reads as a rest week, not as missing data), which is why the hours
+ * cell does not hand 0 to fmtHoursMin — that renders the absent-value dash.
  */
-function signed(value: number, digits: number, unit = ""): string | null {
-  const factor = 10 ** digits;
-  const rounded = Math.round(value * factor) / factor;
-  if (rounded === 0) return null;
-  return `${rounded > 0 ? "+" : ""}${rounded.toFixed(digits)}${unit}`;
-}
-
-function deltaOf(metric: TotalsMetric, delta: TotalsValues | null): string | null {
-  if (!delta) return null;
+function valueOf(metric: TotalsMetric, value: number): string {
   switch (metric) {
     case "load":
-      return signed(delta.load, 0);
+      return String(value);
     case "seconds":
-      return signed(delta.seconds / 3600, 1, " h");
+      return value === 0 ? "0h 00m" : fmtHoursMin(value * 60);
     case "km":
-      return signed(delta.km, 1, " km");
+      return fmtKm(value, 1);
     case "elevationM":
-      return signed(delta.elevationM, 0, " m");
+      return fmtElev(value);
     case "sessions":
-      return signed(delta.sessions, 0);
+      return String(value);
+  }
+}
+
+/**
+ * A change between two rounded values, in its column's unit: "+8.3 km", "-42",
+ * "+1h 20m". Null when the two round to the same thing, so an unchanged (usually
+ * empty) row stays quiet.
+ */
+function deltaOf(metric: TotalsMetric, change: number): string | null {
+  if (change === 0) return null;
+  const sign = change > 0 ? "+" : "-";
+  const size = Math.abs(change);
+  switch (metric) {
+    case "load":
+      return `${sign}${size}`;
+    case "seconds":
+      return `${sign}${fmtHoursMin(size * 60)}`;
+    case "km":
+      return `${sign}${size.toFixed(1)} km`;
+    case "elevationM":
+      return `${sign}${size} m`;
+    case "sessions":
+      return `${sign}${size}`;
   }
 }
 
@@ -111,23 +133,22 @@ export function TotalsTable({
                 {periodLabel(row.start, period, lang)}
               </td>
               {TOTALS_METRICS.map((metric) => {
-                const change = deltaOf(metric, row.delta);
+                const value = rounded(metric, row.values);
+                const change = value - rounded(metric, row.previous);
+                const label = deltaOf(metric, change);
                 return (
                   <td key={metric} className={TD}>
-                    {valueOf(metric, row.values)}
+                    {valueOf(metric, value)}
                     {/* Deltas stay neutral-negative: more training is not always
                         better, so only a gain is colored. */}
-                    {change ? (
+                    {label ? (
                       <span
                         className="mt-0.5 block text-[10px] leading-none"
                         style={{
-                          color:
-                            (row.delta?.[metric] ?? 0) > 0
-                              ? "var(--positive)"
-                              : "var(--muted-foreground)",
+                          color: change > 0 ? "var(--positive)" : "var(--muted-foreground)",
                         }}
                       >
-                        {change}
+                        {label}
                       </span>
                     ) : null}
                   </td>
