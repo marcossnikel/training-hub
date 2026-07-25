@@ -51,8 +51,9 @@ export function ExecutionCard({ analysis, t }: { analysis: RaceAnalysis; t: Dict
       ? [atGoalSec, belowGoalSec, aboveGoalSec]
       : null;
 
-  // A stream without a usable distance grid yields nothing to show; the card
-  // stays out of the page rather than rendering an empty shell.
+  // Each section stands on its own inputs: split and fade need the distance grid,
+  // the goal breakdown needs only pace plus a goal pace. The card leaves the page
+  // entirely only when none of them has data, rather than rendering an empty shell.
   if (splitDeltaS == null && fadePct == null && goalSec == null) return null;
 
   return (
