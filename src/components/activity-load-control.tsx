@@ -10,16 +10,64 @@ import { useI18n } from "@/components/i18n-provider";
 import { resetActivityLoadAction, setActivityLoadManualAction } from "@/lib/actions";
 import type { LoadMethod } from "@/lib/fitness";
 
+/** Decoupling bands: under 5% well supported, 5-10% drifting, above 10% too much. */
+function decouplingColor(pct: number): string {
+  if (pct < 5) return "var(--positive)";
+  if (pct <= 10) return "var(--wear-worn)";
+  return "var(--wear-critical)";
+}
+
+function MetricTile({
+  label,
+  value,
+  sub,
+  color,
+  title,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+  /** One-line definition, shown on hover. */
+  title: string;
+}) {
+  return (
+    <div className="min-w-0" title={title}>
+      <dt className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd
+        className="mt-0.5 font-display text-2xl font-semibold tabular-nums"
+        style={color ? { color } : undefined}
+      >
+        {value}
+        {sub ? (
+          <span className="ml-1 align-middle text-xs font-medium text-muted-foreground">{sub}</span>
+        ) : null}
+      </dd>
+    </div>
+  );
+}
+
 export function ActivityLoadControl({
   activityId,
   tss,
   method,
   source,
+  intensityFactor,
+  ef,
+  decoupling,
 }: {
   activityId: number;
   tss: number;
   method: LoadMethod | null;
   source: "auto" | "manual" | "computed";
+  /** Persisted IF of the load; null on manual overrides and RPE loads. */
+  intensityFactor: number | null;
+  /** Efficiency factor, null when the sport or the recording gives no basis. */
+  ef: number | null;
+  /** Aerobic decoupling in percent, null for short or streamless efforts. */
+  decoupling: number | null;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -61,7 +109,7 @@ export function ActivityLoadControl({
 
   if (editing) {
     return (
-      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
+      <div className="mt-6 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
         <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
           {t.detail.load}
         </span>
@@ -92,33 +140,55 @@ export function ActivityLoadControl({
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {t.detail.load}
-      </span>
-      <span className="font-mono font-medium tabular-nums">
-        {tss} {t.fitness.tssUnit}
-      </span>
-      {source === "manual" ? (
-        <span className="rounded-full border bg-card px-2 py-0.5 text-[11px] text-muted-foreground">
-          {t.detail.loadManual}
-        </span>
-      ) : methodLabel ? (
-        <span className="text-xs text-muted-foreground">· {methodLabel}</span>
-      ) : null}
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label={t.detail.editLoad}
-        onClick={() => setEditing(true)}
-      >
-        <PencilIcon />
-      </Button>
-      {source === "manual" ? (
-        <Button size="sm" variant="ghost" onClick={reset} disabled={pending}>
-          <RotateCcwIcon data-icon="inline-start" /> {t.detail.resetLoad}
+    <div className="mt-6 rounded-xl border bg-card p-4">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+        <MetricTile
+          label={t.detail.load}
+          value={String(tss)}
+          sub={t.fitness.tssUnit}
+          title={t.detail.loadTooltip}
+        />
+        {intensityFactor != null ? (
+          <MetricTile
+            label={t.detail.intensityFactor}
+            value={intensityFactor.toFixed(2)}
+            title={t.detail.intensityFactorTooltip}
+          />
+        ) : null}
+        {ef != null ? (
+          <MetricTile label={t.detail.ef} value={ef.toFixed(2)} title={t.detail.efTooltip} />
+        ) : null}
+        {decoupling != null ? (
+          <MetricTile
+            label={t.detail.decoupling}
+            value={`${decoupling.toFixed(1)}%`}
+            color={decouplingColor(decoupling)}
+            title={t.detail.decouplingTooltip}
+          />
+        ) : null}
+      </dl>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-2 text-xs text-muted-foreground">
+        {source === "manual" ? (
+          <span className="rounded-full border px-2 py-0.5 text-[11px]">{t.detail.loadManual}</span>
+        ) : methodLabel ? (
+          <span>
+            {t.detail.loadMethod}: {methodLabel}
+          </span>
+        ) : null}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t.detail.editLoad}
+          onClick={() => setEditing(true)}
+        >
+          <PencilIcon />
         </Button>
-      ) : null}
+        {source === "manual" ? (
+          <Button size="sm" variant="ghost" onClick={reset} disabled={pending}>
+            <RotateCcwIcon data-icon="inline-start" /> {t.detail.resetLoad}
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
