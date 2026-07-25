@@ -7,6 +7,7 @@ import { ActivityChart } from "@/components/activity-chart";
 import { ActivityLoadControl } from "@/components/activity-load-control";
 import { BikeSection } from "@/components/bike-section";
 import { CoachChat } from "@/components/coach-chat";
+import { ExecutionCard } from "@/components/execution-card";
 import { RaceControl } from "@/components/race-control";
 import { JournalEditor } from "@/components/journal-editor";
 import { SplitsSection } from "@/components/splits-section";
@@ -21,6 +22,7 @@ import {
   listShoes,
 } from "@/lib/db";
 import { computeDecoupling, computeEf, type EfBasis } from "@/lib/analysis";
+import { analyzeRace } from "@/lib/blocks";
 import { isCoachConfigured } from "@/lib/coach";
 import {
   computeLoad,
@@ -466,6 +468,14 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
     ...(paceZoneSec ? [{ key: "pace" as const, label: t.chart.pace, zoneSec: paceZoneSec }] : []),
   ];
 
+  // Execution (T13): races and long runs get the pacing breakdown the race
+  // comparison already computes — same engine, same numbers, read here from this
+  // activity's cached stream. Shorter easy runs get nothing.
+  const executionAnalysis =
+    streams && (activity.is_race || (run && (activity.distance_km ?? 0) >= 10))
+      ? analyzeRace(activity, streams, thresholds)
+      : null;
+
   const description = detail?.description?.trim();
 
   const coachConfigured = isCoachConfigured();
@@ -643,6 +653,8 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
           </CardContent>
         </Card>
       ) : null}
+
+      {executionAnalysis ? <ExecutionCard analysis={executionAnalysis} t={t} /> : null}
 
       {structuredLaps ? (
         <Card className="mt-6">

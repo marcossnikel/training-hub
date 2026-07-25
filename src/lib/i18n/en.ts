@@ -235,6 +235,13 @@ export const en = {
     kmSplits: "Splits",
     zones: "Zones",
     easyHard: "{easy}% easy · {hard}% hard",
+    execution: "Execution",
+    vsGoal: {
+      title: "Against goal pace",
+      at: "At goal",
+      faster: "Faster",
+      slower: "Slower",
+    },
     bestEfforts: "Best efforts",
     prRank: "All-time rank",
     lap: "Lap",
