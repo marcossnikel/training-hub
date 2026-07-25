@@ -21,7 +21,7 @@ import {
   listBikes,
   listShoes,
 } from "@/lib/db";
-import { computeDecoupling, computeEf, type EfBasis } from "@/lib/analysis";
+import { computeDecoupling, computeEf, splitGap, type EfBasis } from "@/lib/analysis";
 import { analyzeRace } from "@/lib/blocks";
 import { isCoachConfigured } from "@/lib/coach";
 import {
@@ -313,10 +313,26 @@ function ZoneDistributions({ bars, t }: { bars: ZoneDistribution[]; t: Dict }) {
 }
 
 function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
-  const paces = splits
-    .map((s) => (s.average_speed ? 1000 / s.average_speed : paceOf(s.distance, s.moving_time)))
-    .map((p) => p ?? Number.POSITIVE_INFINITY);
-  const fastest = Math.min(...paces.filter((p) => Number.isFinite(p)));
+  const rows = splits.map((split) => {
+    const pace = split.average_speed
+      ? 1000 / split.average_speed
+      : paceOf(split.distance, split.moving_time);
+    return {
+      split,
+      pace,
+      gap: splitGap({
+        gradeAdjustedSpeedMPerS: split.average_grade_adjusted_speed ?? null,
+        paceSPerKm: pace,
+        elevationDiffM: split.elevation_difference ?? null,
+        distanceM: split.distance ?? null,
+      }),
+    };
+  });
+  // The bar compares kilometres on the fairest basis each one has: grade-adjusted
+  // pace where it exists, raw pace otherwise.
+  const barPaces = rows.map((row) => row.gap?.paceSPerKm ?? row.pace ?? Number.POSITIVE_INFINITY);
+  const fastest = Math.min(...barPaces.filter((p) => Number.isFinite(p)));
+  const showGap = rows.some((row) => row.gap);
 
   return (
     <div className="overflow-x-auto">
@@ -324,19 +340,21 @@ function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
         <thead>
           <tr className="border-b">
             <th className={TH}>km</th>
-            <th className={TH}>{t.review.pace}</th>
+            <th className={TH} title={showGap ? t.detail.gapTooltip : undefined}>
+              {showGap ? `${t.review.pace} / ${t.detail.gap}` : t.review.pace}
+            </th>
             <th className={`${TH} w-full`} aria-hidden></th>
             <th className={TH}>{t.detail.hr}</th>
             <th className={TH}>{t.detail.elev}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/50">
-          {splits.map((split, index) => {
-            const pace = paces[index];
+          {rows.map(({ split, pace, gap }, index) => {
             const partial = (split.distance ?? 1000) < 950;
+            const barPace = barPaces[index];
             const width =
-              Number.isFinite(pace) && Number.isFinite(fastest) && pace > 0
-                ? Math.max(8, Math.round((fastest / pace) * 100))
+              Number.isFinite(barPace) && Number.isFinite(fastest) && barPace > 0
+                ? Math.max(8, Math.round((fastest / barPace) * 100))
                 : 0;
             return (
               <tr key={index}>
@@ -344,7 +362,13 @@ function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
                   {partial ? ((split.distance ?? 0) / 1000).toFixed(1) : (split.split ?? index + 1)}
                 </td>
                 <td className={`${TD} font-medium`}>
-                  {Number.isFinite(pace) ? fmtPace(pace) : "–"}
+                  {pace != null ? fmtPace(pace) : "–"}
+                  {gap ? (
+                    <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                      {gap.approximate ? "~" : ""}
+                      {fmtPace(gap.paceSPerKm)}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="w-full min-w-28 px-2 py-1.5">
                   <div className="h-1.5 rounded-full bg-muted">

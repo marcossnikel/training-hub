@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDecoupling, computeEf } from "./analysis";
+import { computeDecoupling, computeEf, splitGap } from "./analysis";
 import type { ActivityStreams } from "./streams";
 
 /**
@@ -144,5 +144,53 @@ describe("computeDecoupling", () => {
   it("is null when the samples carry no usable pace", () => {
     const stopped = streamOf({ durationS: HOUR_S, hr: () => 150, paceSPerKm: () => null });
     expect(computeDecoupling({ streams: stopped, basis: "speed", movingTimeS: HOUR_S })).toBeNull();
+  });
+});
+
+describe("splitGap", () => {
+  const flat = { paceSPerKm: 300, distanceM: 1000, elevationDiffM: 0 };
+
+  it("prefers Strava's own grade-adjusted speed and does not mark it approximate", () => {
+    // 2.5 m/s = 400 s/km, deliberately unrelated to the raw pace so the source
+    // of the number is unambiguous.
+    expect(splitGap({ ...flat, gradeAdjustedSpeedMPerS: 2.5 })).toEqual({
+      paceSPerKm: 400,
+      approximate: false,
+    });
+  });
+
+  it("approximates a flat split as its raw pace", () => {
+    const gap = splitGap({ ...flat, gradeAdjustedSpeedMPerS: null });
+    expect(gap).toEqual({ paceSPerKm: 300, approximate: true });
+  });
+
+  it("makes an uphill split faster than its raw pace", () => {
+    // +5% over a kilometre = 50 m of climb.
+    const gap = splitGap({ ...flat, elevationDiffM: 50, gradeAdjustedSpeedMPerS: null });
+    expect(gap?.paceSPerKm).toBeLessThan(300);
+    expect(gap?.paceSPerKm).toBeCloseTo(300 / 1.165, 6);
+    expect(gap?.approximate).toBe(true);
+  });
+
+  it("makes a downhill split slower than its raw pace", () => {
+    const gap = splitGap({ ...flat, elevationDiffM: -50, gradeAdjustedSpeedMPerS: null });
+    expect(gap?.paceSPerKm).toBeGreaterThan(300);
+    expect(gap?.paceSPerKm).toBeCloseTo(300 / 0.91, 6);
+  });
+
+  it("clamps grade beyond ten percent in both directions", () => {
+    const steepUp = splitGap({ ...flat, elevationDiffM: 300, gradeAdjustedSpeedMPerS: null });
+    expect(steepUp?.paceSPerKm).toBeCloseTo(300 / 1.33, 6);
+    const steepDown = splitGap({ ...flat, elevationDiffM: -300, gradeAdjustedSpeedMPerS: null });
+    expect(steepDown?.paceSPerKm).toBeCloseTo(300 / 0.82, 6);
+  });
+
+  it("is null for an indoor split, which has no elevation to adjust by", () => {
+    expect(splitGap({ ...flat, elevationDiffM: null, gradeAdjustedSpeedMPerS: null })).toBeNull();
+  });
+
+  it("is null without a usable raw pace or distance", () => {
+    expect(splitGap({ ...flat, paceSPerKm: null, gradeAdjustedSpeedMPerS: null })).toBeNull();
+    expect(splitGap({ ...flat, distanceM: 0, gradeAdjustedSpeedMPerS: null })).toBeNull();
   });
 });

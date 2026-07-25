@@ -266,6 +266,8 @@ export interface StravaSplit {
   moving_time?: number;
   elapsed_time?: number;
   average_speed?: number;
+  /** Strava's own grade-adjusted speed, m/s. Present on outdoor-run splits only. */
+  average_grade_adjusted_speed?: number;
   average_heartrate?: number;
   elevation_difference?: number;
 }

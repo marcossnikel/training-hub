@@ -243,6 +243,9 @@ export const pt: Dict = {
     hr: "FC",
     maxShort: "Máx",
     elev: "Elev",
+    gap: "GAP",
+    gapTooltip:
+      "Ritmo ajustado pela inclinação: o ritmo que cada quilômetro teria no plano. Usa o valor do próprio Strava quando existe; senão é aproximado pela variação líquida de altimetria da parcial e marcado com ~.",
     calories: "Calorias",
     maxHr: "FC máx",
     speed: "Velocidade",

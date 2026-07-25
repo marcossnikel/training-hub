@@ -119,3 +119,67 @@ export function computeDecoupling(input: DecouplingInput): number | null {
   if (!(ef1 > 0)) return null;
   return ((ef1 - halfEf(second)) * 100) / ef1;
 }
+
+/**
+ * Grade-adjusted pace for one split, plus where the number came from. Strava
+ * ships its own grade-adjusted speed on outdoor-run splits; the local
+ * approximation below only fills the gaps, and the UI marks it so the two are
+ * never confused.
+ */
+interface SplitGap {
+  /** Grade-adjusted pace, seconds per km. */
+  paceSPerKm: number;
+  /** True when produced by the local approximation rather than by Strava. */
+  approximate: boolean;
+}
+
+/** One split reduced to what grade adjustment needs. All fields nullable. */
+interface SplitGapInput {
+  /** Strava's own grade-adjusted speed for the split, m/s. Preferred whenever present. */
+  gradeAdjustedSpeedMPerS: number | null;
+  /** The split's actual pace, s/km. */
+  paceSPerKm: number | null;
+  /** Net elevation change across the split, metres, signed. */
+  elevationDiffM: number | null;
+  /** Split length, metres. */
+  distanceM: number | null;
+}
+
+/**
+ * APPROXIMATION — split-level only, superseded by real per-sample grade data
+ * (plan task T26). A whole kilometre is collapsed to its net elevation change,
+ * so a split that climbs 20 m and descends 20 m looks flat. Linear cost
+ * coefficients: 3.3% pace credit per 1% of climb, 1.8% pace debit per 1% of
+ * descent, grade clamped because the linear model breaks down on the steep.
+ * Self-contained on purpose: delete this block and the fallback branch below
+ * when stream grade lands.
+ */
+const MAX_ABS_GRADE_PCT = 10;
+const UPHILL_CREDIT_PER_PCT = 0.033;
+const DOWNHILL_DEBIT_PER_PCT = 0.018;
+
+function approximateGapFactor(gradePct: number): number {
+  const clamped = Math.max(-MAX_ABS_GRADE_PCT, Math.min(MAX_ABS_GRADE_PCT, gradePct));
+  // Dividing pace by a factor above 1 makes it faster, which is what climbing
+  // must do to a grade-adjusted pace; descending inverts it.
+  return clamped > 0 ? 1 + UPHILL_CREDIT_PER_PCT * clamped : 1 + DOWNHILL_DEBIT_PER_PCT * clamped;
+}
+
+/**
+ * Grade-adjusted pace for a split: the pace the same effort would have produced
+ * on flat ground, so hilly kilometres compare honestly against flat ones. Uses
+ * Strava's value when the split carries one, otherwise the approximation above.
+ * Null for indoor splits, which have neither a grade-adjusted speed nor an
+ * elevation change to work from.
+ */
+export function splitGap(input: SplitGapInput): SplitGap | null {
+  const gradeAdjusted = input.gradeAdjustedSpeedMPerS ?? 0;
+  if (gradeAdjusted > 0) {
+    return { paceSPerKm: METRES_PER_KM / gradeAdjusted, approximate: false };
+  }
+  const pace = input.paceSPerKm ?? 0;
+  const distanceM = input.distanceM ?? 0;
+  if (pace <= 0 || distanceM <= 0 || input.elevationDiffM == null) return null;
+  const gradePct = (input.elevationDiffM / distanceM) * 100;
+  return { paceSPerKm: pace / approximateGapFactor(gradePct), approximate: true };
+}

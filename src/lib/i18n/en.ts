@@ -248,6 +248,9 @@ export const en = {
     hr: "HR",
     maxShort: "Max",
     elev: "Elev",
+    gap: "GAP",
+    gapTooltip:
+      "Grade-adjusted pace: the pace each kilometre would have been on flat ground. Strava's own value where it exists, otherwise approximated from the split's net elevation change and marked with a ~.",
     calories: "Calories",
     maxHr: "Max HR",
     speed: "Speed",
