@@ -559,6 +559,13 @@ export const en = {
     predictionsBody:
       "Riegel projections from your {ref} effort ({time}). Estimates only; extrapolating far from the reference is less reliable.",
     predictedTime: "Predicted",
+    vdot: "VDOT",
+    vdotBody:
+      "Daniels-Gilbert VDOT from the best efforts inside your runs: the pace you hold and how long you hold it, as one fitness number that compares across distances. Efforts under 1.5 km are ignored — they are too anaerobic to read aerobic fitness off.",
+    vdotCurrent: "Current VDOT",
+    vdotWindow: "Best of the last {days} days",
+    vdotNoRecent: "No qualifying effort in the last {days} days",
+    vdotTrendLabel: "Best VDOT per month over the last {n} months",
   },
   fitness: {
     title: "Fitness",

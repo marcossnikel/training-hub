@@ -3,6 +3,7 @@
 // runs a per-activity chat or a weekly digest. Degrades gracefully — the client
 // is created lazily and every caller guards with isCoachConfigured().
 import Anthropic from "@anthropic-ai/sdk";
+import { VDOT_CURRENT_WINDOW_DAYS } from "./benchmarks";
 import type { DigestActivity, FieldSignals } from "./db";
 import type { AthleteThresholds, WeeklyMonotony } from "./fitness";
 import type { ActivityStreams } from "./streams";
@@ -542,6 +543,14 @@ export function buildZonesContext(input: {
   for (const e of s.efforts) {
     lines.push(
       `- ${e.label}: ${e.distanceKm.toFixed(1)} km in ${fmtDuration(e.timeS)} (${fmtPace(e.paceSPerKm)}), avg HR ${e.avgHr ? Math.round(e.avgHr) : "?"}, max ${e.maxHr ?? "?"}, ${e.date}${e.isRace ? " [RACE]" : ""}`
+    );
+  }
+
+  // The computed VDOT, so the agent's VO2max estimate starts from Daniels-Gilbert
+  // arithmetic on a real segment effort rather than a guess off the list above.
+  if (s.currentVdot !== null) {
+    lines.push(
+      `- Computed VDOT (Daniels-Gilbert, best stored segment effort of the last ${VDOT_CURRENT_WINDOW_DAYS} days): ${s.currentVdot.toFixed(1)}`
     );
   }
 

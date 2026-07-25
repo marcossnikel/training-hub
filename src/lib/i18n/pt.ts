@@ -556,6 +556,13 @@ export const pt: Dict = {
     predictionsBody:
       "Projeções de Riegel a partir do seu esforço de {ref} ({time}). Apenas estimativas; extrapolar para longe da referência é menos confiável.",
     predictedTime: "Previsto",
+    vdot: "VDOT",
+    vdotBody:
+      "VDOT de Daniels-Gilbert a partir dos melhores trechos dentro das suas corridas: o ritmo que você sustenta e por quanto tempo sustenta, como um único número de condicionamento comparável entre distâncias. Trechos abaixo de 1,5 km são ignorados — são anaeróbicos demais para indicar condicionamento aeróbico.",
+    vdotCurrent: "VDOT atual",
+    vdotWindow: "Melhor dos últimos {days} dias",
+    vdotNoRecent: "Nenhum esforço elegível nos últimos {days} dias",
+    vdotTrendLabel: "Melhor VDOT por mês nos últimos {n} meses",
   },
   fitness: {
     title: "Fitness",

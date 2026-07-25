@@ -4,7 +4,8 @@
 //     efforts Strava stores per run (`bestEffortRecords`),
 //   - a 2-parameter Critical Speed model (CS + D') and the threshold pace it
 //     implies,
-//   - Riegel race-time predictions.
+//   - Riegel race-time predictions,
+//   - VDOT (Daniels–Gilbert) per effort, the current value and a monthly-max trend.
 // No IO here — the data layer feeds these functions their inputs and the UI
 // renders their output.
 //
@@ -13,6 +14,7 @@
 // over maximal windows — which are not kept as summaries, so cycling power is
 // intentionally OUT OF SCOPE in this engine.
 import type { StoredBestEffort } from "./best-efforts";
+import { localDateInputValue } from "./format";
 import { raceCategory, type RaceCategory } from "./races";
 
 /** A whole-activity running summary the benchmark engine reads. */
@@ -450,4 +452,103 @@ export function pickReferenceEffort(efforts: RunEffort[]): RunEffort | null {
   const races = candidates.filter((e) => e.isRace);
   const pool = races.length > 0 ? races : candidates;
   return pool.reduce((best, effort) => (paceSPerKm(effort) < paceSPerKm(best) ? effort : best));
+}
+
+/**
+ * VDOT for one maximal effort, by Daniels and Gilbert: the VO2 that running at
+ * this speed demands, divided by the fraction of VO2max a human can hold for
+ * this long. The result is a pace-and-duration fitness index in ml/kg/min units,
+ * comparable across distances — a 5k and a half marathon run equally hard land on
+ * the same number, which is what makes it a fitness trend rather than a PR list.
+ *
+ * The two published curves, with v in metres per minute and t in minutes:
+ *   VO2 demand = -4.6 + 0.182258·v + 0.000104·v²
+ *   sustainable fraction = 0.8 + 0.1894393·e^(-0.012778·t) + 0.2989558·e^(-0.1932605·t)
+ *
+ * Straight arithmetic on the caller's numbers: pass a positive distance and time
+ * (`qualifiesForVdot` is the gate the trend uses) or the result is meaningless.
+ */
+export function vdotFromEffort(distanceM: number, timeS: number): number {
+  const minutes = timeS / 60;
+  const v = distanceM / minutes;
+  const demand = -4.6 + 0.182258 * v + 0.000104 * v * v;
+  const fraction =
+    0.8 + 0.1894393 * Math.exp(-0.012778 * minutes) + 0.2989558 * Math.exp(-0.1932605 * minutes);
+  return demand / fraction;
+}
+
+// Shortest effort VDOT is read off. Below about 1500 m the Daniels-Gilbert
+// duration curve is being asked about efforts an anaerobic contribution
+// dominates, so a fast 400 m reads as implausible aerobic fitness. It also drops
+// exactly the three sub-1500 m segments Strava cuts ("400m", "1/2 mile", "1K").
+export const MIN_VDOT_DISTANCE_M = 1500;
+
+/** How far back the current VDOT looks for its best qualifying effort. */
+export const VDOT_CURRENT_WINDOW_DAYS = 90;
+
+/** Months of monthly-max history the trend covers, including the current one. */
+export const VDOT_TREND_MONTHS = 12;
+
+/** A stored effort reduced to what the VDOT math reads: how far, how long, when. */
+export type VdotEffort = Pick<StoredBestEffort, "distance_m" | "moving_time_s" | "date">;
+
+/** Is this stored effort long enough, and complete enough, to read VDOT off? */
+function qualifiesForVdot(effort: VdotEffort): boolean {
+  return (
+    effort.distance_m >= MIN_VDOT_DISTANCE_M && effort.moving_time_s > 0 && effort.date !== null
+  );
+}
+
+/** The best VDOT one calendar month produced, or null when it had no qualifying effort. */
+export interface VdotMonth {
+  /** Month key, "YYYY-MM". */
+  month: string;
+  vdot: number | null;
+}
+
+export interface VdotTrend {
+  /** Best VDOT of the trailing VDOT_CURRENT_WINDOW_DAYS days; null when there is none. */
+  current: number | null;
+  /** VDOT_TREND_MONTHS entries, oldest first, ending in `asOf`'s month. */
+  months: VdotMonth[];
+}
+
+/** The local YYYY-MM-DD key `days` before `asOf`, via calendar arithmetic (DST-safe). */
+function dayKeyBefore(asOf: Date, days: number): string {
+  return localDateInputValue(new Date(asOf.getFullYear(), asOf.getMonth(), asOf.getDate() - days));
+}
+
+/**
+ * Current VDOT plus its monthly-max trend, from stored best efforts.
+ *
+ * Each month keeps the single best VDOT any qualifying effort in it produced, and
+ * months with none stay null: only a fraction of runs carry a cached detail
+ * payload, so an empty month means "nothing measured", never "fitness dropped to
+ * zero", and the UI has to draw it as a gap. The current value is a max over the
+ * trailing 90 days rather than the latest reading, so an easy-run segment cannot
+ * make fitness look like it collapsed since the last hard effort.
+ *
+ * Dates are compared as local YYYY-MM-DD keys, the form the rows already carry, so
+ * a stored stamp is never re-interpreted through a timezone.
+ */
+export function vdotTrend(efforts: readonly VdotEffort[], asOf: Date): VdotTrend {
+  const months: VdotMonth[] = [];
+  for (let back = VDOT_TREND_MONTHS - 1; back >= 0; back--) {
+    const month = new Date(asOf.getFullYear(), asOf.getMonth() - back, 1);
+    months.push({ month: localDateInputValue(month).slice(0, 7), vdot: null });
+  }
+  const byMonth = new Map(months.map((m) => [m.month, m]));
+  const currentFrom = dayKeyBefore(asOf, VDOT_CURRENT_WINDOW_DAYS);
+  let current: number | null = null;
+
+  for (const effort of efforts) {
+    if (!qualifiesForVdot(effort)) continue;
+    const day = (effort.date as string).slice(0, 10);
+    const vdot = vdotFromEffort(effort.distance_m, effort.moving_time_s);
+    if (day >= currentFrom && (current === null || vdot > current)) current = vdot;
+    const month = byMonth.get(day.slice(0, 7));
+    if (month && (month.vdot === null || vdot > month.vdot)) month.vdot = vdot;
+  }
+
+  return { current, months };
 }

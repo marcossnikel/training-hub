@@ -3,9 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/empty-state";
 import { ApplyThresholdPaceButton } from "@/components/apply-threshold-pace";
 import { ZonesPanel } from "@/components/zones-panel";
+import { VdotCard } from "@/components/vdot-card";
 import {
   getAthleteThresholds,
   getTrainingZones,
+  listBestEffortsForVdot,
   listFastestBestEfforts,
   listRunEfforts,
 } from "@/lib/db";
@@ -16,6 +18,7 @@ import {
   estimateCriticalSpeed,
   pickReferenceEffort,
   predictRaceTimes,
+  vdotTrend,
 } from "@/lib/benchmarks";
 import { fmtDate, fmtDuration, fmtKm, fmtPace } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
@@ -64,6 +67,9 @@ export default async function PerformancePage() {
   const criticalSpeed = estimateCriticalSpeed(efforts);
   const reference = pickReferenceEffort(efforts);
   const predictions = reference ? predictRaceTimes(reference) : [];
+  // VDOT reads EVERY stored segment effort with its date (not just the fastest per
+  // name), because the trend is per month: the same effort table, a different shape.
+  const vdot = vdotTrend(await listBestEffortsForVdot(), new Date());
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -234,6 +240,10 @@ export default async function PerformancePage() {
               </CardContent>
             </Card>
           ) : null}
+
+          {/* Riegel predicts times from one effort; VDOT turns the same efforts into
+              a single fitness number over time. They read as a pair. */}
+          <VdotCard trend={vdot} lang={lang} t={t} />
         </div>
       )}
     </div>

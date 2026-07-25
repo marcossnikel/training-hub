@@ -44,4 +44,35 @@ describe("sparkline", () => {
   it("returns null with nothing to draw", () => {
     expect(sparkline([], 120, 32)).toBeNull();
   });
+
+  it("breaks the line at gaps and keeps every value in its own x slot", () => {
+    // 4 slots, the second one unmeasured: the plotted values keep the x positions
+    // they would have had, and the line does not cross the hole.
+    const spark = sparkline([10, null, 20, 30], 120, 32, 2);
+    expect(spark?.points).toBe("2,30 79.33,16 118,2");
+    expect(spark?.segments).toEqual(["2,30", "79.33,16 118,2"]);
+    expect(spark?.vertices).toEqual([
+      { x: 2, y: 30 },
+      { x: 79.33, y: 16 },
+      { x: 118, y: 2 },
+    ]);
+    expect(spark?.last).toEqual({ x: 118, y: 2 });
+  });
+
+  it("scales only the measured values and ends on the last of them", () => {
+    // Trailing gaps must not drag the end dot into empty space, and the leading
+    // gap must not pull the bottom of the scale down to a value that is not there.
+    const spark = sparkline([null, 40, 50, null], 120, 32, 2);
+    expect(spark?.segments).toEqual(["40.67,30 79.33,2"]);
+    expect(spark?.last).toEqual({ x: 79.33, y: 2 });
+  });
+
+  it("gives a gapless series exactly one segment", () => {
+    const spark = sparkline([10, 20, 30], 120, 32, 2);
+    expect(spark?.segments).toEqual([spark?.points]);
+  });
+
+  it("returns null when every value is a gap", () => {
+    expect(sparkline([null, null], 120, 32)).toBeNull();
+  });
 });

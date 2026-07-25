@@ -2,6 +2,7 @@ import { cache } from "react";
 import { batchWrite, exec, many, one, sqliteBool } from "./helpers";
 import { client } from "./client";
 import { ensureMigrated } from "./migrations";
+import type { VdotEffort } from "../benchmarks";
 import type { BestEffortRow, StoredBestEffort } from "../best-efforts";
 import type { BlockActivity } from "../blocks";
 import type { SessionStart } from "../consistency";
@@ -388,6 +389,33 @@ export async function listFastestBestEfforts(options?: {
     [ownId]
   );
   return rows.map((row) => ({ ...row, is_race: sqliteBool(row.is_race) }));
+}
+
+/**
+ * EVERY stored effort with its date, from the same confirmed road runs
+ * `listFastestBestEfforts` ranks — the VDOT trend needs one point per effort per
+ * month, not one winner per distance name, so it cannot read that query's output.
+ * The population filter is duplicated rather than shared so the two reads stay
+ * independently readable; both mirror `listRunEfforts` + `raceCategory`.
+ *
+ * Unwindowed and unaggregated on purpose: ~103 rows exist today and the engine owns
+ * both the qualifying distance and the 12-month window (`vdotTrend`), so no window
+ * semantics are duplicated in SQL. If T24's history pass grows this table by orders
+ * of magnitude, push a date bound down to here.
+ */
+export async function listBestEffortsForVdot(): Promise<VdotEffort[]> {
+  return many<VdotEffort>(
+    `SELECT e.distance_m, e.moving_time_s,
+            COALESCE(a.started_at_local, a.started_at) AS date
+     FROM activity_best_efforts e
+     JOIN activities a ON a.id = e.activity_id
+     WHERE a.status = 'confirmed'
+       AND e.moving_time_s > 0 AND e.distance_m > 0
+       AND LOWER(COALESCE(a.sport_type, '')) LIKE '%run%'
+       AND LOWER(COALESCE(a.sport_type, '')) NOT LIKE '%trail%'
+       AND LOWER(COALESCE(a.name, '')) NOT LIKE '%trail%'
+     ORDER BY date ASC`
+  );
 }
 
 /** An activity's cached Strava detail payload, as the local backfill re-reads it. */

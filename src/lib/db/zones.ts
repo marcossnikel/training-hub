@@ -1,7 +1,9 @@
 import { many } from "./helpers";
+import { listBestEffortsForVdot } from "./activities";
 import { getMeta, setMeta } from "./meta";
 import { getAthleteThresholds } from "./load";
 import { getResolvedNumericSeries } from "./health";
+import { vdotTrend } from "../benchmarks";
 import { localDateInputValue } from "../format";
 import type { AthleteThresholds } from "../fitness";
 import type { DerivedZones } from "../zones";
@@ -52,6 +54,13 @@ export interface FieldSignals {
   thresholds: AthleteThresholds;
   restingHr: number;
   latestHrvMs: number | null;
+  /**
+   * Daniels VDOT from the best stored sub-segment effort of the trailing 90 days,
+   * or null when no qualifying effort was recorded. Computed here so the agent
+   * reasons from the same number /performance shows instead of guessing a VO2max
+   * off the effort list.
+   */
+  currentVdot: number | null;
 }
 
 interface RunRow {
@@ -166,6 +175,9 @@ export async function getRunningFieldSignals(): Promise<FieldSignals> {
   const today = localDateInputValue(new Date());
   const from = localDateInputValue(new Date(Date.now() - WINDOW_DAYS * 86_400_000));
   const hrv = await getResolvedNumericSeries("hrv_overnight", from, today);
+  // Only the current value is evidence here; the monthly trend behind it belongs
+  // to /performance, which reads the same query.
+  const vdot = vdotTrend(await listBestEffortsForVdot(), new Date());
 
   return {
     runCount: runs.length,
@@ -177,6 +189,7 @@ export async function getRunningFieldSignals(): Promise<FieldSignals> {
     thresholds,
     restingHr: thresholds.restingHr,
     latestHrvMs: hrv.at(-1)?.value ?? null,
+    currentVdot: vdot.current,
   };
 }
 

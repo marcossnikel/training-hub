@@ -7,7 +7,12 @@ import {
   predictRaceTimes,
   RIEGEL_FATIGUE_EXPONENT,
   SEGMENT_DISTANCE_BY_NAME,
+  vdotFromEffort,
+  vdotTrend,
+  MIN_VDOT_DISTANCE_M,
+  VDOT_TREND_MONTHS,
   type RunEffort,
+  type VdotEffort,
 } from "@/lib/benchmarks";
 import type { StoredBestEffort } from "@/lib/best-efforts";
 
@@ -377,5 +382,99 @@ describe("pickReferenceEffort", () => {
 
   it("returns null when there is no standard-distance effort", () => {
     expect(pickReferenceEffort([])).toBeNull();
+  });
+});
+
+describe("vdotFromEffort (Daniels-Gilbert)", () => {
+  // Published VDOT table anchors. These are the ground truth for the formula: if
+  // an implementation change moves them, the change is wrong.
+  it("matches the published table at 5k and 10k", () => {
+    // Precision 0 is exactly the "within 0.5" tolerance the anchors are stated with.
+    expect(vdotFromEffort(5000, 20 * 60)).toBeCloseTo(49.8, 0);
+    expect(vdotFromEffort(10000, 40 * 60)).toBeCloseTo(52, 0);
+  });
+
+  it("reads a real half marathon for what it is", () => {
+    // Jundiaí HM: 21.2 km at 4:39/km (279 s/km). ~46 is CORRECT — the same runner's
+    // 20:00 5k would be ~49.8, and a half run 40 s/km slower than 5k pace is a
+    // lower VDOT. The formula must not be tuned to flatter the longer race.
+    expect(vdotFromEffort(21200, 21.2 * 279)).toBeCloseTo(46.2, 0);
+  });
+
+  it("rises with speed at a fixed distance and falls as the same pace is held longer", () => {
+    expect(vdotFromEffort(5000, 19 * 60)).toBeGreaterThan(vdotFromEffort(5000, 20 * 60));
+    // 4:00/km for 10k is a harder effort than 4:00/km for 5k.
+    expect(vdotFromEffort(10000, 2400)).toBeGreaterThan(vdotFromEffort(5000, 1200));
+  });
+});
+
+describe("vdotTrend", () => {
+  const asOf = new Date(2026, 6, 24); // 24 Jul 2026, local
+
+  function vdotEffort(date: string, distanceM: number, timeS: number): VdotEffort {
+    return { date, distance_m: distanceM, moving_time_s: timeS };
+  }
+
+  it("reports the best VDOT of the trailing 90 days as current", () => {
+    const trend = vdotTrend(
+      [
+        vdotEffort("2026-07-20T07:00:00", 5000, 20 * 60), // ~49.8, recent
+        vdotEffort("2026-07-10T07:00:00", 5000, 22 * 60), // slower, also recent
+        vdotEffort("2026-01-05T07:00:00", 5000, 18 * 60), // faster but long past
+      ],
+      asOf
+    );
+    expect(trend.current).toBeCloseTo(49.8, 1);
+  });
+
+  it("ignores efforts shorter than the qualifying distance", () => {
+    // A 1 km segment in 3:00 is a far faster pace than any 5k, so if the distance
+    // gate leaked it would dominate both the current value and its month.
+    const trend = vdotTrend([vdotEffort("2026-07-20T07:00:00", 1000, 180)], asOf);
+    expect(trend.current).toBeNull();
+    expect(trend.months.every((m) => m.vdot === null)).toBe(true);
+  });
+
+  it("keeps the 1500 m boundary itself", () => {
+    const trend = vdotTrend([vdotEffort("2026-07-20T07:00:00", MIN_VDOT_DISTANCE_M, 300)], asOf);
+    expect(trend.current).not.toBeNull();
+  });
+
+  it("returns 12 months ending in the current one, oldest first", () => {
+    const { months } = vdotTrend([], asOf);
+    expect(months).toHaveLength(VDOT_TREND_MONTHS);
+    expect(months[0].month).toBe("2025-08");
+    expect(months[11].month).toBe("2026-07");
+    expect(months.every((m) => m.vdot === null)).toBe(true);
+    expect(vdotTrend([], asOf).current).toBeNull();
+  });
+
+  it("keeps each month's best and leaves months with no effort null", () => {
+    const { months } = vdotTrend(
+      [
+        vdotEffort("2026-07-20T07:00:00", 5000, 21 * 60),
+        vdotEffort("2026-07-02T07:00:00", 5000, 20 * 60), // the month's best
+        vdotEffort("2026-04-12T07:00:00", 10000, 44 * 60),
+      ],
+      asOf
+    );
+    const byMonth = new Map(months.map((m) => [m.month, m.vdot]));
+    expect(byMonth.get("2026-07")).toBeCloseTo(vdotFromEffort(5000, 1200), 6);
+    expect(byMonth.get("2026-04")).toBeCloseTo(vdotFromEffort(10000, 2640), 6);
+    // Sparse coverage is the norm, so the untouched months stay explicitly empty.
+    expect(byMonth.get("2026-05")).toBeNull();
+    expect(byMonth.get("2026-06")).toBeNull();
+  });
+
+  it("drops efforts outside the 12-month window and undated rows", () => {
+    const { months, current } = vdotTrend(
+      [
+        vdotEffort("2025-07-20T07:00:00", 5000, 18 * 60), // 13 months back
+        { date: null, distance_m: 5000, moving_time_s: 1080 },
+      ],
+      asOf
+    );
+    expect(months.every((m) => m.vdot === null)).toBe(true);
+    expect(current).toBeNull();
   });
 });
