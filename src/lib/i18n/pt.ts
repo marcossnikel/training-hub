@@ -151,6 +151,10 @@ export const pt: Dict = {
     noMatchBody: "Nada no diário corresponde a este filtro ainda.",
     showEverything: "Mostrar tudo",
     untitled: "Atividade sem nome",
+    formStrip: "Forma e condicionamento de hoje",
+    ctlTrend: "Tendência de condicionamento de 14 dias",
+    weekLoad: "Esta semana",
+    weekLoadAvg: "méd. {load}",
   },
   banner: {
     waiting: "Você tem {n} {noun} esperando revisão.",

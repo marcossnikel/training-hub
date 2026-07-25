@@ -1,8 +1,11 @@
 // Shared types for the AI-derived training zones, plus the presentation the five
-// zones share app-wide (palette and Z1–Z5 labels). Pure (no IO): the coach layer
-// produces a DerivedZones, the db layer stores it, and the UI renders it.
+// zones share app-wide (palette and Z1–Z5 labels) and the form-state palette.
+// Pure (no IO): the coach layer produces a DerivedZones, the db layer stores it,
+// and the UI renders it. Presentational constants live here rather than in a
+// component so server pages and client charts can share exactly one copy.
 
 import type { Dict } from "@/lib/i18n";
+import type { FormStateKey } from "@/lib/fitness";
 
 export type ZoneConfidence = "low" | "medium" | "high";
 
@@ -56,3 +59,17 @@ export const ZONE_COLORS = [
 export function zoneLabels(t: Dict): string[] {
   return ZONE_KEYS.map((key) => t.compare.zones[key]);
 }
+
+/**
+ * Text color for a form state, the source of truth for STATE-colored copy (the
+ * /fitness stat tiles, the PMC chart's TSB tooltip, the training log's form
+ * strip). The PMC chart's decorative TSB background bands are a separate
+ * palette; this one is for text.
+ */
+export const STATE_COLOR: Record<FormStateKey, string> = {
+  transition: "var(--wear-worn)",
+  fresh: "var(--positive)",
+  neutral: "var(--muted-foreground)",
+  productive: "var(--primary)",
+  fatigued: "var(--wear-critical)",
+};

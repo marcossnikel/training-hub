@@ -157,6 +157,10 @@ export const en = {
     noMatchBody: "Nothing in the log matches this filter yet.",
     showEverything: "Show everything",
     untitled: "Untitled activity",
+    formStrip: "Today's form and fitness",
+    ctlTrend: "14-day fitness trend",
+    weekLoad: "This week",
+    weekLoadAvg: "avg {load}",
   },
   banner: {
     waiting: "You have {n} {noun} waiting for review.",

@@ -10,12 +10,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import {
   PmcChart,
-  STATE_COLOR,
   type PmcMarker,
   type PmcProjection,
   type PmcSeriesPoint,
 } from "@/components/pmc-chart";
 import type { WeeklySportLoad } from "@/lib/fitness";
+import { STATE_COLOR } from "@/lib/zones";
 import type { WellnessLane } from "@/lib/health";
 
 afterEach(cleanup);

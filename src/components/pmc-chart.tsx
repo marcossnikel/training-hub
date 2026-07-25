@@ -7,6 +7,7 @@ import { fill } from "@/lib/i18n";
 import { fmtDayMonth, parseLocalDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { WellnessLane, WellnessMetric } from "@/lib/health";
+import { STATE_COLOR } from "@/lib/zones";
 import {
   formState,
   LOAD_SPORTS,
@@ -19,16 +20,6 @@ import {
   type LoadSport,
   type WeeklySportLoad,
 } from "@/lib/fitness";
-
-/** Text color for a form state, the source of truth for STATE-colored copy
- * (stat tiles on /fitness, this chart's TSB tooltip row). */
-export const STATE_COLOR: Record<FormStateKey, string> = {
-  transition: "var(--wear-worn)",
-  fresh: "var(--positive)",
-  neutral: "var(--muted-foreground)",
-  productive: "var(--primary)",
-  fatigued: "var(--wear-critical)",
-};
 
 // Decorative background bands for the TSB panel, one per form-state boundary
 // in fitness.ts. Colors/opacities here are a separate decorative palette from

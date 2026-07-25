@@ -12,6 +12,7 @@ import {
   paceZones,
   powerZones,
   projectPmc,
+  weekLoadVsTrailing,
   weeklyLoadTotal,
   weeklyMonotony,
   weeklySportLoad,
@@ -653,5 +654,74 @@ describe("easyHardPct", () => {
 
   it("returns null for an empty distribution", () => {
     expect(easyHardPct([0, 0, 0, 0, 0])).toBeNull();
+  });
+});
+
+describe("weekLoadVsTrailing", () => {
+  // Gap-filled series starting Monday 1 Jun 2026, one load per day.
+  const from = (start: string, loads: number[]) => {
+    const [y, m, d] = start.split("-").map(Number);
+    return loads.map((load, i) => {
+      const date = new Date(y, m - 1, d + i);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+        date.getDate()
+      ).padStart(2, "0")}`;
+      return { date: key, load };
+    });
+  };
+
+  it("compares this week's load-to-date with the four preceding full weeks", () => {
+    // 4 full weeks of 7 days at 10/20/30/40 TSS a day (70/140/210/280 totals),
+    // then Mon-Wed of the current week at 50 each.
+    const daily = from("2026-06-01", [
+      ...Array.from({ length: 7 }, () => 10),
+      ...Array.from({ length: 7 }, () => 20),
+      ...Array.from({ length: 7 }, () => 30),
+      ...Array.from({ length: 7 }, () => 40),
+      50,
+      50,
+      50,
+    ]);
+    expect(daily[daily.length - 1].date).toBe("2026-07-01"); // Wednesday
+    expect(weekLoadVsTrailing(daily)).toEqual({
+      thisWeek: 150,
+      trailingAvg: (70 + 140 + 210 + 280) / 4,
+    });
+  });
+
+  it("averages only the preceding weeks the series fully covers", () => {
+    // Series starts on the Monday two weeks back, so only those two count.
+    const daily = from("2026-06-15", [
+      ...Array.from({ length: 7 }, () => 10),
+      ...Array.from({ length: 7 }, () => 30),
+      60,
+    ]);
+    expect(weekLoadVsTrailing(daily)).toEqual({ thisWeek: 60, trailingAvg: (70 + 210) / 2 });
+  });
+
+  it("ignores a preceding week whose first days predate the series", () => {
+    // Starts on a Tuesday: that week is incomplete, so no week is averaged.
+    const daily = from("2026-06-23", [10, 10, 10, 10, 10, 10, 25]);
+    expect(weekLoadVsTrailing(daily)).toEqual({ thisWeek: 25, trailingAvg: null });
+  });
+
+  it("honours a custom window and counts rest days as zero", () => {
+    const daily = from("2026-06-08", [
+      ...Array.from({ length: 7 }, () => 20),
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      15,
+    ]);
+    expect(weekLoadVsTrailing(daily, 1)).toEqual({ thisWeek: 15, trailingAvg: 0 });
+    expect(weekLoadVsTrailing(daily, 2)).toEqual({ thisWeek: 15, trailingAvg: 70 });
+  });
+
+  it("is empty-safe", () => {
+    expect(weekLoadVsTrailing([])).toEqual({ thisWeek: 0, trailingAvg: null });
   });
 });

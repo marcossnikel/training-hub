@@ -4,7 +4,6 @@ import { EmptyState } from "@/components/empty-state";
 import { FilterPill } from "@/components/filter-pill";
 import {
   PmcChart,
-  STATE_COLOR,
   type PmcMarker,
   type PmcProjection,
   type PmcSeriesPoint,
@@ -36,6 +35,7 @@ import {
 } from "@/lib/fitness";
 import { localDateInputValue, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
+import { STATE_COLOR } from "@/lib/zones";
 
 export const metadata = { title: "Fitness" };
 

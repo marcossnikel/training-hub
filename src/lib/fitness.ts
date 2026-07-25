@@ -374,6 +374,56 @@ export function weeklyMonotony(daily: { date: string; load: number }[]): WeeklyM
   return { monotony, strain: load7d * monotony, load7d };
 }
 
+/** This week's training load so far, against the weeks that came before it. */
+export interface WeekLoadComparison {
+  /** Load from Monday of the series' last day through that day (a partial week). */
+  thisWeek: number;
+  /**
+   * Mean total load of the complete weeks immediately before this one; null when
+   * the series covers none of them.
+   */
+  trailingAvg: number | null;
+}
+
+const TRAILING_WEEKS = 4;
+const DAYS_PER_WEEK = 7;
+
+/** Shift a local YYYY-MM-DD day key by whole days. */
+function shiftDay(key: string, days: number): string {
+  const date = parseLocalDate(key);
+  date.setDate(date.getDate() + days);
+  return localDateInputValue(date);
+}
+
+/**
+ * This week's load-to-date against the mean of the preceding complete weeks (up
+ * to `weeks` of them), from gap-filled daily loads whose last entry is today.
+ * Weeks are Monday-keyed, the same grouping the training log uses. A preceding
+ * week only counts when the series covers all seven of its days, so a short
+ * history averages fewer weeks (or none) rather than being dragged down by days
+ * that were never recorded.
+ */
+export function weekLoadVsTrailing(
+  daily: { date: string; load: number }[],
+  weeks = TRAILING_WEEKS
+): WeekLoadComparison {
+  if (daily.length === 0) return { thisWeek: 0, trailingAvg: null };
+  const first = daily[0].date;
+  const last = daily[daily.length - 1].date;
+  const byDay = new Map(daily.map((d) => [d.date, d.load]));
+  const total = (from: string, to: string) =>
+    eachDay(from, to).reduce((sum, day) => sum + (byDay.get(day) ?? 0), 0);
+
+  const monday = localDateInputValue(mondayOf(parseLocalDate(last)));
+  const previous: number[] = [];
+  for (let k = 1; k <= weeks; k++) {
+    const start = shiftDay(monday, -DAYS_PER_WEEK * k);
+    if (start < first) break;
+    previous.push(total(start, shiftDay(start, DAYS_PER_WEEK - 1)));
+  }
+  return { thisWeek: total(monday, last), trailingAvg: mean(previous) };
+}
+
 export type FormStateKey = "transition" | "fresh" | "neutral" | "productive" | "fatigued";
 
 // Form (TSB) band edges: above +20 is transition (tapered too long / detraining
