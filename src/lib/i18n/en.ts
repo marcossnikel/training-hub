@@ -258,6 +258,7 @@ export const en = {
     normPower: "Normalized",
     maxPower: "Max power",
     cadence: "Cadence",
+    stride: "Stride",
     energy: "Energy",
     variability: "Variability",
     estimated: "estimated indoors",

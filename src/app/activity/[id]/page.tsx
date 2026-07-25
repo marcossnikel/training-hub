@@ -51,10 +51,12 @@ import {
   fmtKm,
   fmtPace,
   fmtStepRate,
+  fmtStride,
   fmtTime,
   localStartedAt,
 } from "@/lib/format";
 import { fillStr, type Dict } from "@/lib/i18n";
+import { runMetrics } from "@/lib/running";
 import { isRunSport } from "@/lib/validate";
 import { toGearOption } from "@/lib/gear";
 
@@ -385,6 +387,9 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const shoes = ride ? [] : (await listShoes()).map(toGearOption);
   const bikes = ride ? (await listBikes()).map(toGearOption) : [];
   const metrics = ride ? rideMetrics(activity) : null;
+  // Run form (T14): cadence and the stride it implies. Only runs — doubling a
+  // walk's or a row's cadence into steps per minute would invent a number.
+  const runStats = run ? runMetrics(activity) : null;
 
   const thresholds = await getAthleteThresholds();
 
@@ -605,6 +610,12 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
           ) : null}
           {detail?.calories ? (
             <Stat label={t.detail.calories} value={`${Math.round(detail.calories)} kcal`} />
+          ) : null}
+          {runStats?.avgCadence != null ? (
+            <Stat label={t.detail.cadence} value={fmtStepRate(runStats.avgCadence)} />
+          ) : null}
+          {runStats?.strideM != null ? (
+            <Stat label={t.detail.stride} value={fmtStride(runStats.strideM)} />
           ) : null}
         </dl>
       )}

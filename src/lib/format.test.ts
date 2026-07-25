@@ -9,6 +9,7 @@ import {
   fmtPace,
   fmtPaceShort,
   fmtStepRate,
+  fmtStride,
   fmtTime,
   localStartedAt,
   parsePace,
@@ -67,6 +68,18 @@ describe("fmtStepRate", () => {
   it("returns a placeholder without cadence", () => {
     expect(fmtStepRate(null)).toBe("–");
     expect(fmtStepRate(0)).toBe("–");
+  });
+});
+
+describe("fmtStride", () => {
+  it("formats stride length in metres with two decimals", () => {
+    expect(fmtStride(1.1587)).toBe("1.16 m");
+    expect(fmtStride(1)).toBe("1.00 m");
+  });
+
+  it("returns a placeholder without a stride", () => {
+    expect(fmtStride(null)).toBe("–");
+    expect(fmtStride(0)).toBe("–");
   });
 });
 

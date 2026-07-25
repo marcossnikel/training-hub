@@ -253,6 +253,7 @@ export const pt: Dict = {
     normPower: "Normalizada",
     maxPower: "Pot. máx",
     cadence: "Cadência",
+    stride: "Passada",
     energy: "Energia",
     variability: "Variabilidade",
     estimated: "estimada no rolo",

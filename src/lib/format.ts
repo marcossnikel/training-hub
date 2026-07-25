@@ -136,6 +136,15 @@ export function fmtStepRate(rpm: number | null | undefined): string {
   return `${Math.round(rpm * 2)} spm`;
 }
 
+/**
+ * Stride length in metres. A runner's stride sits around a metre, so two
+ * decimals are what separates one session from the next.
+ */
+export function fmtStride(metres: number | null | undefined): string {
+  if (!metres || metres <= 0) return "–";
+  return `${metres.toFixed(2)} m`;
+}
+
 // fmtDate/fmtDateLong/fmtTime/fmtDateWithYear format a STORED UTC instant
 // (Strava start_date, a Z-suffixed ISO). They read it with UTC getters so the
 // rendered day/weekday/time are stable across runtimes (server=UTC vs browser=
