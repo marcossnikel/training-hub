@@ -77,7 +77,7 @@ describe("PmcChart TSB form-zone bands (T01)", () => {
 
     // Last point has tsb = 24, which is above the +20 transition boundary.
     fireEvent.keyDown(svg, { key: "End" });
-    const tsbValue = screen.getByText("24");
+    const tsbValue = screen.getByText("+24");
     expect(tsbValue.style.color).toBe(STATE_COLOR.transition);
   });
 

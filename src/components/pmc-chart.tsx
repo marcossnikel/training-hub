@@ -984,7 +984,7 @@ export function PmcChart({
                   },
                   {
                     label: t.fitness.tsb,
-                    value: Math.round(hoverPoint.tsb),
+                    value: fmtTsb(hoverPoint.tsb),
                     color: STATE_COLOR[formState(hoverPoint.tsb).key],
                   },
                   ...(hoverPoint.rampRate != null
