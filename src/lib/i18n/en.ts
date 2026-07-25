@@ -159,8 +159,10 @@ export const en = {
     untitled: "Untitled activity",
     formStrip: "Today's form and fitness",
     ctlTrend: "14-day fitness trend",
-    weekLoad: "This week",
-    weekLoadAvg: "avg {load}",
+    weekLoad: "Week to date",
+    weekLoadAvg: "avg {load} ({weeks} wk)",
+    weekLoadHint:
+      "Load from Monday through today, against the mean of the {weeks} complete weeks before it. Rest days count as zero.",
   },
   banner: {
     waiting: "You have {n} {noun} waiting for review.",

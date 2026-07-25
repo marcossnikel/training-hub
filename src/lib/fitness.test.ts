@@ -6,6 +6,8 @@ import {
   computePmc,
   dailyLoadSeries,
   easyHardPct,
+  FORM_TREND_DAYS,
+  formSnapshot,
   formState,
   hrZones,
   loadSport,
@@ -685,7 +687,27 @@ describe("weekLoadVsTrailing", () => {
     expect(daily[daily.length - 1].date).toBe("2026-07-01"); // Wednesday
     expect(weekLoadVsTrailing(daily)).toEqual({
       thisWeek: 150,
-      trailingAvg: (70 + 140 + 210 + 280) / 4,
+      trailing: { avg: (70 + 140 + 210 + 280) / 4, weeks: 4 },
+    });
+  });
+
+  it("averages the four most recent complete weeks and no more", () => {
+    // Six complete weeks (10/20/30/40/50/60 a day) then Monday of this week, so
+    // the cap has to bite: averaging every covered week would give 245.
+    const daily = from("2026-05-18", [
+      ...Array.from({ length: 7 }, () => 10),
+      ...Array.from({ length: 7 }, () => 20),
+      ...Array.from({ length: 7 }, () => 30),
+      ...Array.from({ length: 7 }, () => 40),
+      ...Array.from({ length: 7 }, () => 50),
+      ...Array.from({ length: 7 }, () => 60),
+      5,
+    ]);
+    expect(daily[daily.length - 1].date).toBe("2026-06-29"); // Monday
+    expect(weekLoadVsTrailing(daily)).toEqual({
+      thisWeek: 5,
+      // Weeks at 30/40/50/60 a day; the 10 and 20 weeks are outside the window.
+      trailing: { avg: (210 + 280 + 350 + 420) / 4, weeks: 4 },
     });
   });
 
@@ -696,13 +718,16 @@ describe("weekLoadVsTrailing", () => {
       ...Array.from({ length: 7 }, () => 30),
       60,
     ]);
-    expect(weekLoadVsTrailing(daily)).toEqual({ thisWeek: 60, trailingAvg: (70 + 210) / 2 });
+    expect(weekLoadVsTrailing(daily)).toEqual({
+      thisWeek: 60,
+      trailing: { avg: (70 + 210) / 2, weeks: 2 },
+    });
   });
 
   it("ignores a preceding week whose first days predate the series", () => {
     // Starts on a Tuesday: that week is incomplete, so no week is averaged.
     const daily = from("2026-06-23", [10, 10, 10, 10, 10, 10, 25]);
-    expect(weekLoadVsTrailing(daily)).toEqual({ thisWeek: 25, trailingAvg: null });
+    expect(weekLoadVsTrailing(daily)).toEqual({ thisWeek: 25, trailing: null });
   });
 
   it("honours a custom window and counts rest days as zero", () => {
@@ -717,11 +742,43 @@ describe("weekLoadVsTrailing", () => {
       0,
       15,
     ]);
-    expect(weekLoadVsTrailing(daily, 1)).toEqual({ thisWeek: 15, trailingAvg: 0 });
-    expect(weekLoadVsTrailing(daily, 2)).toEqual({ thisWeek: 15, trailingAvg: 70 });
+    expect(weekLoadVsTrailing(daily, 1)).toEqual({ thisWeek: 15, trailing: { avg: 0, weeks: 1 } });
+    expect(weekLoadVsTrailing(daily, 2)).toEqual({ thisWeek: 15, trailing: { avg: 70, weeks: 2 } });
   });
 
   it("is empty-safe", () => {
-    expect(weekLoadVsTrailing([])).toEqual({ thisWeek: 0, trailingAvg: null });
+    expect(weekLoadVsTrailing([])).toEqual({ thisWeek: 0, trailing: null });
+  });
+});
+
+describe("formSnapshot", () => {
+  // Ascending daily load, so every day has a distinct CTL and an off-by-one in
+  // the selection cannot hide behind equal values.
+  const series = (days: number) =>
+    computePmc(
+      Array.from({ length: days }, (_, i) => ({
+        date: `2026-06-${String(i + 1).padStart(2, "0")}`,
+        load: 10 * (i + 1),
+      }))
+    );
+
+  it("reads the last PMC day plus its trailing CTL window, oldest first", () => {
+    const pmc = series(20);
+    const snapshot = formSnapshot(pmc);
+    expect(snapshot?.tsb).toBe(pmc[19].tsb);
+    expect(snapshot?.ctl).toBe(pmc[19].ctl);
+    expect(pmc[18].ctl).not.toBe(pmc[19].ctl);
+    expect(snapshot?.ctlTrend).toHaveLength(FORM_TREND_DAYS);
+    expect(snapshot?.ctlTrend[0]).toBe(pmc[20 - FORM_TREND_DAYS].ctl);
+    expect(snapshot?.ctlTrend[FORM_TREND_DAYS - 1]).toBe(pmc[19].ctl);
+  });
+
+  it("keeps the whole history when it is shorter than the window", () => {
+    const pmc = series(5);
+    expect(formSnapshot(pmc)?.ctlTrend).toEqual(pmc.map((point) => point.ctl));
+  });
+
+  it("is null for an empty PMC, so the log renders no strip at all", () => {
+    expect(formSnapshot([])).toBeNull();
   });
 });

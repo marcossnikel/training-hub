@@ -153,8 +153,10 @@ export const pt: Dict = {
     untitled: "Atividade sem nome",
     formStrip: "Forma e condicionamento de hoje",
     ctlTrend: "Tendência de condicionamento de 14 dias",
-    weekLoad: "Esta semana",
-    weekLoadAvg: "méd. {load}",
+    weekLoad: "Semana até agora",
+    weekLoadAvg: "méd. {load} ({weeks} sem.)",
+    weekLoadHint:
+      "Carga de segunda até hoje, comparada com a média das {weeks} semanas completas anteriores. Dias de descanso contam como zero.",
   },
   banner: {
     waiting: "Você tem {n} {noun} esperando revisão.",

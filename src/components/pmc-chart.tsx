@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { extent } from "@/components/activity-chart-series";
 import { fill } from "@/lib/i18n";
-import { fmtDayMonth, parseLocalDate } from "@/lib/format";
+import { fmtDayMonth, fmtTsb, parseLocalDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { WellnessLane, WellnessMetric } from "@/lib/health";
 import { STATE_COLOR } from "@/lib/zones";
@@ -148,11 +148,6 @@ const PROJECTED_DASH = "4 3";
 /** Wellness lane values read to one decimal: 62 ms, 47 bpm, 7.4 h. */
 function laneValue(value: number): string {
   return String(Math.round(value * 10) / 10);
-}
-
-/** TSB reads as a signed number: +12, -8, 0. */
-function signedTsb(value: number): string {
-  return `${value > 0 ? "+" : ""}${value}`;
 }
 
 /**
@@ -1056,7 +1051,7 @@ export function PmcChart({
                   className="font-mono font-medium"
                   style={{ color: STATE_COLOR[formState(projection.raceDay.restTsb).key] }}
                 >
-                  {signedTsb(projection.raceDay.restTsb)}
+                  {fmtTsb(projection.raceDay.restTsb)}
                 </span>
               ),
               steady: (
@@ -1064,7 +1059,7 @@ export function PmcChart({
                   className="font-mono font-medium"
                   style={{ color: STATE_COLOR[formState(projection.raceDay.steadyTsb).key] }}
                 >
-                  {signedTsb(projection.raceDay.steadyTsb)}
+                  {fmtTsb(projection.raceDay.steadyTsb)}
                 </span>
               ),
             })}

@@ -128,6 +128,16 @@ export function fmtElev(m: number | null | undefined): string {
 }
 
 /**
+ * Form (TSB) as a whole signed number: +12, -8, 0. Every surface that prints a
+ * TSB goes through this, so the log's form strip, the /fitness tile and the
+ * chart's race-day readout can never disagree on presentation.
+ */
+export function fmtTsb(tsb: number): string {
+  const rounded = Math.round(tsb);
+  return `${rounded > 0 ? "+" : ""}${rounded}`;
+}
+
+/**
  * Running step rate in spm. Strava reports run cadence as one-leg revolutions
  * per minute (the same field as bike rpm), so the step rate is double.
  */

@@ -379,10 +379,12 @@ export interface WeekLoadComparison {
   /** Load from Monday of the series' last day through that day (a partial week). */
   thisWeek: number;
   /**
-   * Mean total load of the complete weeks immediately before this one; null when
-   * the series covers none of them.
+   * Mean total load of the complete weeks immediately before this one, together
+   * with how many of them it covers (at most `weeks`); null when the series
+   * covers none. The two travel as one value so a caller can never label an
+   * average with a week count it was not computed from.
    */
-  trailingAvg: number | null;
+  trailing: { avg: number; weeks: number } | null;
 }
 
 const TRAILING_WEEKS = 4;
@@ -396,18 +398,19 @@ function shiftDay(key: string, days: number): string {
 }
 
 /**
- * This week's load-to-date against the mean of the preceding complete weeks (up
- * to `weeks` of them), from gap-filled daily loads whose last entry is today.
- * Weeks are Monday-keyed, the same grouping the training log uses. A preceding
- * week only counts when the series covers all seven of its days, so a short
- * history averages fewer weeks (or none) rather than being dragged down by days
- * that were never recorded.
+ * This week's load-to-date against the mean of the preceding complete weeks (the
+ * `weeks` most recent of them at most), from gap-filled daily loads whose last
+ * entry is today. Weeks are Monday-keyed, the same grouping the training log
+ * uses. A preceding week only counts when the series covers all seven of its
+ * days, so a short history averages fewer weeks (or none) rather than being
+ * dragged down by days that were never recorded. Rest days inside a covered week
+ * count as the zero load they are.
  */
 export function weekLoadVsTrailing(
   daily: { date: string; load: number }[],
   weeks = TRAILING_WEEKS
 ): WeekLoadComparison {
-  if (daily.length === 0) return { thisWeek: 0, trailingAvg: null };
+  if (daily.length === 0) return { thisWeek: 0, trailing: null };
   const first = daily[0].date;
   const last = daily[daily.length - 1].date;
   const byDay = new Map(daily.map((d) => [d.date, d.load]));
@@ -421,7 +424,38 @@ export function weekLoadVsTrailing(
     if (start < first) break;
     previous.push(total(start, shiftDay(start, DAYS_PER_WEEK - 1)));
   }
-  return { thisWeek: total(monday, last), trailingAvg: mean(previous) };
+  const avg = mean(previous);
+  return {
+    thisWeek: total(monday, last),
+    trailing: avg == null ? null : { avg, weeks: previous.length },
+  };
+}
+
+/** Days of trailing CTL the training log's form-strip sparkline covers. */
+export const FORM_TREND_DAYS = 14;
+
+/** Today's form and fitness, as the training log's form strip renders them. */
+export interface FormSnapshot {
+  /** Today's form (TSB) and fitness (CTL), raw. */
+  tsb: number;
+  ctl: number;
+  /** Trailing CTL values, oldest first, up to `trendDays` of them. */
+  ctlTrend: number[];
+}
+
+/**
+ * The last day of a PMC plus its trailing CTL window, so the selection the form
+ * strip depends on is unit-tested instead of inlined in the page. Null for an
+ * empty PMC, which is the page's signal to render no strip at all.
+ */
+export function formSnapshot(pmc: PmcPoint[], trendDays = FORM_TREND_DAYS): FormSnapshot | null {
+  const today = pmc[pmc.length - 1];
+  if (!today) return null;
+  return {
+    tsb: today.tsb,
+    ctl: today.ctl,
+    ctlTrend: pmc.slice(-trendDays).map((point) => point.ctl),
+  };
 }
 
 export type FormStateKey = "transition" | "fresh" | "neutral" | "productive" | "fatigued";

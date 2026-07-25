@@ -16,7 +16,7 @@ import { ReviewBanner } from "@/components/review-banner";
 import { SportIcon } from "@/components/sport-icon";
 import { buildPmc } from "@/lib/action-helpers";
 import { countPending, listConfirmedActivities } from "@/lib/db";
-import { weekLoadVsTrailing } from "@/lib/fitness";
+import { formSnapshot, weekLoadVsTrailing } from "@/lib/fitness";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected, stravaConfigured } from "@/lib/strava";
 import {
@@ -37,9 +37,6 @@ import { isRunSport } from "@/lib/validate";
 import type { ActivityWithSplits } from "@/lib/types";
 
 export const metadata = { title: "Training log" };
-
-/** Days of CTL the form strip's sparkline covers. */
-const TREND_DAYS = 14;
 
 interface WeekGroup {
   key: string;
@@ -180,8 +177,9 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
 export default async function TrainingLogPage({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
   const { lang, t } = await getDict();
-  // The form strip's PMC query is independent of the log's own reads, so it runs
-  // alongside them and costs the page no extra round trip.
+  // The form strip's PMC query is independent of the log's own reads, so it is
+  // an extra round trip run concurrently with the existing ones rather than
+  // after them.
   const [pending, activities, connected, pmc] = await Promise.all([
     countPending(),
     listConfirmedActivities(),
@@ -192,7 +190,7 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
 
   // Form strip (T19): whole-history PMC, so today's TSB/CTL match the /fitness
   // tiles exactly, plus this week's load against the trailing 4-week average.
-  const today = pmc[pmc.length - 1];
+  const form = formSnapshot(pmc);
   const weekLoad = weekLoadVsTrailing(pmc);
 
   const counts = new Map<SportCategory, number>();
@@ -249,15 +247,7 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
         </div>
       </div>
 
-      {today ? (
-        <FormStrip
-          tsb={today.tsb}
-          ctl={today.ctl}
-          ctlTrend={pmc.slice(-TREND_DAYS).map((point) => point.ctl)}
-          week={weekLoad}
-          t={t}
-        />
-      ) : null}
+      {form ? <FormStrip {...form} week={weekLoad} t={t} /> : null}
 
       {pending > 0 ? (
         <div className="mt-5">

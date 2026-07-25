@@ -33,7 +33,7 @@ import {
   weeklySportLoad,
   type LoadSport,
 } from "@/lib/fitness";
-import { localDateInputValue, parseLocalDate } from "@/lib/format";
+import { fmtTsb, localDateInputValue, parseLocalDate } from "@/lib/format";
 import { timeWindows } from "@/lib/windows";
 import { STATE_COLOR } from "@/lib/zones";
 
@@ -282,7 +282,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
       <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 rounded-xl border bg-card p-5 sm:grid-cols-5">
         <StatTile
           label={t.fitness.form}
-          value={String(Math.round(latest.tsb))}
+          value={fmtTsb(latest.tsb)}
           sub={t.fitness.states[state.key]}
           color={STATE_COLOR[state.key]}
         />

@@ -6,16 +6,18 @@
 export interface Sparkline {
   /** `points` for an SVG <polyline>: "x,y x,y ...". */
   points: string;
-  /** The final point, for the end-of-line dot. */
+  /** The final point, for the end-of-line dot; rounded like `points`. */
   last: { x: number; y: number };
 }
 
 /**
  * Maps `values` evenly across `width` and scales them to `height`, with the
- * series minimum at the bottom and its maximum at the top. Everything is inset
- * by `inset` on both axes so neither a rounded stroke nor an end-of-line dot is
- * clipped by the viewBox. A flat series (or a single value) draws along the
- * vertical middle. Null when there is nothing to draw.
+ * series minimum at the bottom and its maximum at the top. Every coordinate
+ * stays at least `inset` from each edge, so nothing drawn at a vertex is clipped
+ * by the viewBox as long as the caller passes its own outer radius: half a
+ * stroke width for the polyline, radius plus half the stroke for an end dot. The
+ * default clears a hairline stroke only. A flat series (or a single value) draws
+ * along the vertical middle. Null when there is nothing to draw.
  */
 export function sparkline(
   values: number[],
@@ -34,9 +36,9 @@ export function sparkline(
     x: n === 1 ? width / 2 : inset + (i / (n - 1)) * plotW,
     y: span === 0 ? height / 2 : inset + (1 - (value - lo) / span) * plotH,
   });
-  const points = values.map(point);
+  const points = values.map(point).map((p) => ({ x: round2(p.x), y: round2(p.y) }));
   return {
-    points: points.map((p) => `${round2(p.x)},${round2(p.y)}`).join(" "),
+    points: points.map((p) => `${p.x},${p.y}`).join(" "),
     last: points[n - 1],
   };
 }
