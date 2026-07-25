@@ -2,6 +2,7 @@ import type { ActivityStreams } from "@/lib/streams";
 import type { Dict } from "@/lib/i18n";
 import { fmtHr, fmtPace, fmtPaceShort } from "@/lib/format";
 import { fmtCadence, fmtPower } from "@/lib/cycling";
+import { hrZones, paceZones, type AthleteThresholds, type Zone } from "@/lib/fitness";
 
 export type SeriesKey = "heartRate" | "pace" | "power" | "cadence" | "elevation";
 export type XMode = "distance" | "time";
@@ -16,6 +17,12 @@ export interface SeriesDef {
   area: boolean; // elevation renders as a filled area
   fmt: (v: number) => string;
   tick: (v: number) => string;
+  /**
+   * The four inner training-zone boundaries, in zone order, when this series can
+   * be classified against the athlete's thresholds. Absent means no zone shading
+   * and no zone in the tooltip.
+   */
+  zoneBounds?: number[];
 }
 
 type SeriesCandidate = Omit<SeriesDef, "data"> & { data: (number | null)[] | null };
@@ -74,10 +81,43 @@ export function extent(data: (number | null)[]): [number, number] | null {
 }
 
 /**
+ * The four inner boundaries of a five-zone set, in zone order: entry i is the
+ * value where zone i+1 ends and zone i+2 begins. Read off the `Zone` bound that
+ * faces the next higher zone, which is `max` where a bigger number is a higher
+ * zone (heart rate) and `min` on an inverted series (pace, in s/km). So the list
+ * ascends for heart rate and descends for pace, and in both cases a later entry
+ * always plots higher in a panel that honours the series' `invert`.
+ */
+function zoneBoundsOf(zones: Zone[], invert: boolean): number[] {
+  return zones
+    .slice(0, -1)
+    .map((z) => (invert ? z.min : z.max))
+    .filter((v): v is number => v != null);
+}
+
+/**
+ * Zone index (0–4) of a value against a series' `zoneBounds`, matching
+ * `zoneIndexOf`'s min-inclusive / max-exclusive rule: count the boundaries the
+ * value has passed, upwards for a plain series and downwards for an inverted one.
+ */
+export function zoneOfBounds(value: number, bounds: number[], invert: boolean): number {
+  return bounds.filter((b) => (invert ? value < b : value >= b)).length;
+}
+
+/**
  * Every candidate series with its fixed color slot; only the ones whose stream
  * is present (data != null) survive the filter and become togglable.
+ *
+ * Thresholds decide which series carry zone bounds: heart rate for any sport
+ * that recorded a trace, pace for runs only (the pace zones are built from a
+ * running threshold pace). An unset threshold leaves the bounds off.
  */
-export function buildSeries(streams: ActivityStreams, t: Dict, isRun: boolean): SeriesDef[] {
+export function buildSeries(
+  streams: ActivityStreams,
+  t: Dict,
+  isRun: boolean,
+  thresholds: AthleteThresholds
+): SeriesDef[] {
   const defs: SeriesCandidate[] = [
     {
       key: "heartRate",
@@ -89,6 +129,7 @@ export function buildSeries(streams: ActivityStreams, t: Dict, isRun: boolean): 
       area: false,
       fmt: (v) => fmtHr(v),
       tick: round,
+      zoneBounds: thresholds.lthr > 0 ? zoneBoundsOf(hrZones(thresholds), false) : undefined,
     },
     {
       key: "pace",
@@ -100,6 +141,10 @@ export function buildSeries(streams: ActivityStreams, t: Dict, isRun: boolean): 
       area: false,
       fmt: (v) => fmtPace(v),
       tick: fmtPaceShort,
+      zoneBounds:
+        isRun && thresholds.thresholdPaceSPerKm > 0
+          ? zoneBoundsOf(paceZones(thresholds), true)
+          : undefined,
     },
     {
       key: "power",

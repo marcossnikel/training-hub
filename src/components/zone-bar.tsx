@@ -6,7 +6,9 @@
 import { fmtDuration } from "@/lib/format";
 
 // The app's only five-colour chart palette, reused for the five training zones.
-const ZONE_COLORS = [
+// Exported so every zone-coloured surface (this bar, the stream chart's zone
+// bands) tints Z1–Z5 identically.
+export const ZONE_COLORS = [
   "var(--primary)",
   "var(--chart-2)",
   "var(--chart-3)",

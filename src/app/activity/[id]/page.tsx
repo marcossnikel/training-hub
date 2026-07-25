@@ -684,7 +684,13 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             <CardTitle>{t.chart.analysis}</CardTitle>
           </CardHeader>
           <CardContent>
-            <ActivityChart activityId={activity.id} streams={streams} isRun={run} isRide={ride} />
+            <ActivityChart
+              activityId={activity.id}
+              streams={streams}
+              isRun={run}
+              isRide={ride}
+              thresholds={thresholds}
+            />
           </CardContent>
         </Card>
       ) : null}

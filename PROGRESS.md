@@ -103,3 +103,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T13 Execution card for races and long runs: done 2026-07-25, PR #16
 - ICU-T14 Run cadence and stride tiles: done 2026-07-25, committed direct to main
 - ICU-T15 Approximate GAP on km splits: done 2026-07-25, committed direct to main
+- ICU-T16 Zone band shading in HR and pace chart panels: done 2026-07-25, committed direct to main
