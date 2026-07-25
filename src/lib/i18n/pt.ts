@@ -300,6 +300,7 @@ export const pt: Dict = {
     distance: "Distância",
     time: "Tempo",
     analysis: "Análise",
+    lapSpan: "Volta {lap}, {duration} decorridos",
   },
   coach: {
     title: "Treinador de IA",

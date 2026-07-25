@@ -12,6 +12,7 @@ import {
   PANEL_H,
   PLOT_W,
   TOP,
+  VBW,
 } from "@/components/activity-chart-series";
 import type { LapWindow } from "@/lib/laps";
 import { paceZones, zoneSeconds, type AthleteThresholds } from "@/lib/fitness";
@@ -259,6 +260,16 @@ const stripOf = (container: HTMLElement) =>
 
 const highlightOf = (container: HTMLElement) => container.querySelector("rect[data-lap-highlight]");
 
+/** The lap the tooltip header names, or null when it names none. */
+const tooltipLap = (container: HTMLElement) =>
+  container.querySelector("div.font-mono.font-medium > span")?.textContent ?? null;
+
+/** Puts the SVG at one client px per viewBox unit, so a clientX IS a viewBox x. */
+const atUnitScale = (svg: Element) => {
+  svg.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, right: VBW, bottom: 200, width: VBW, height: 200 }) as DOMRect;
+};
+
 describe("ActivityChart lap strip", () => {
   // A run whose distance does NOT advance linearly with time (slow first half,
   // fast second), so the two x-axes map the same lap to different spans.
@@ -326,11 +337,8 @@ describe("ActivityChart lap strip", () => {
     expect(byTime[0].w).toBeCloseTo(PLOT_W / 2, 1);
   });
 
-  it("highlights the hovered lap across every panel and names it in the tooltip", () => {
+  it("highlights the hovered lap across every panel", () => {
     const { container } = render(chart({ laps }));
-    const svg = screen.getByRole("img", { name: "Analysis" });
-    // A hovered sample, so the tooltip is up (keyboard cursor, as the zone test).
-    fireEvent.keyDown(svg, { key: "ArrowRight" });
     expect(highlightOf(container)).toBeNull();
 
     const second = container.querySelectorAll("rect[data-lap-strip]")[1];
@@ -342,12 +350,32 @@ describe("ActivityChart lap strip", () => {
     const plotTop = TOP + LAP_STRIP_H + LAP_STRIP_GAP;
     expect(Number(highlight.getAttribute("y"))).toBeCloseTo(plotTop, 1);
     expect(Number(highlight.getAttribute("height"))).toBeCloseTo(PANEL_H, 1);
-    // And the hovered lap leads the tooltip header.
-    expect(screen.getByText("Lap 2")).toBeTruthy();
 
     // Leaving the strip drops the highlight again.
     fireEvent.pointerOut(second);
     expect(highlightOf(container)).toBeNull();
+  });
+
+  it("heads the tooltip with the lap the crosshair is in, not the pinned one", () => {
+    const { container } = render(chart({ laps }));
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    atUnitScale(svg);
+
+    // Pin lap 2 (600–900 s) the way a reader inspecting it does.
+    fireEvent.click(container.querySelectorAll("rect[data-lap-strip]")[1]);
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+
+    // Crosshair on the first sample, 0 s, which lap 1 contains. The pin keeps its
+    // highlight, but the header has to name where the crosshair actually sits: it
+    // used to read "Lap 2" over a sample ten minutes outside lap 2.
+    fireEvent.pointerMove(svg, { clientX: PAD_L });
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+    expect(tooltipLap(container)).toBe("Lap 1");
+
+    // And on the last sample, 1200 s, which is past lap 3's end: no lap to name.
+    fireEvent.pointerMove(svg, { clientX: PAD_L + PLOT_W });
+    expect(tooltipLap(container)).toBeNull();
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
   });
 
   it("pins a lap on click, keeps it after the pointer leaves, and clears it on Escape", () => {
@@ -365,6 +393,135 @@ describe("ActivityChart lap strip", () => {
 
     fireEvent.click(third);
     fireEvent.keyDown(svg, { key: "Escape" });
+    expect(highlightOf(container)).toBeNull();
+  });
+
+  it("clears a pin from Escape pressed while a strip rect holds focus", () => {
+    const { container } = render(chart({ laps }));
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    const third = container.querySelectorAll("rect[data-lap-strip]")[2];
+    fireEvent.click(third);
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("3");
+    // Clicking a rect hands focus to the chart, which is what makes the key path
+    // work in browsers that do not focus what the mouse pressed (Safari).
+    expect(document.activeElement).toBe(svg);
+
+    // The key starts at the rect the click left focused, so it has to reach the
+    // chart's handler by bubbling. Depending on the SVG itself being focused made
+    // Escape browser-dependent, and a pin unclearable when it was not.
+    fireEvent.keyDown(third, { key: "Escape" });
+    expect(highlightOf(container)).toBeNull();
+  });
+
+  it("surfaces the lap under the arrow-key cursor and pins it with Enter", () => {
+    const { container } = render(chart({ laps }));
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    const rects = () => container.querySelectorAll("rect[data-lap-strip]");
+
+    // One step right lands on the 300 s sample, inside lap 1.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("1");
+    // The next lands on 600 s, lap 2's first second.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+    expect(tooltipLap(container)).toBe("Lap 2");
+
+    // Enter pins whatever the cursor surfaced, and unpins it on the second press.
+    fireEvent.keyDown(svg, { key: "Enter" });
+    expect(rects()[1].getAttribute("aria-pressed")).toBe("true");
+    fireEvent.keyDown(svg, { key: "Enter" });
+    expect(rects()[1].getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("names each segment with its own elapsed span", () => {
+    // Activity 1245's first two laps: lap 2 is 513 s elapsed against the 364 s of
+    // moving time its table row shows, so the rect is 8:33 of the axis wide while
+    // the row reads 6:04. The name is where that difference is explained.
+    const { container } = render(
+      chart({
+        laps: [
+          { label: "1", startS: 0, endS: 338 },
+          { label: "2", startS: 338, endS: 851 },
+        ],
+      })
+    );
+    const second = container.querySelectorAll("rect[data-lap-strip]")[1];
+    expect(second.getAttribute("aria-label")).toBe("Lap 2, 8:33 elapsed");
+    expect(second.querySelector("title")?.textContent).toBe("Lap 2, 8:33 elapsed");
+    expect(second.getAttribute("role")).toBe("button");
+  });
+
+  it("clamps a lap window ending past the stream's last sample to the plot edge", () => {
+    // Every cached activity's laps overrun their stream by a second or two, so
+    // the last window's end maps outside the plot on both axes.
+    const overrun: LapWindow[] = [
+      { label: "1", startS: 0, endS: 600 },
+      { label: "2", startS: 600, endS: 1205 },
+    ];
+    const { container } = render(chart({ laps: overrun }));
+    const rightEdge = () => {
+      const bars = stripOf(container);
+      const last = bars[bars.length - 1];
+      return last.x + last.w;
+    };
+    expect(rightEdge()).toBeCloseTo(PAD_L + PLOT_W, 1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Time" }));
+    // 1205 s of a 1200 s stream maps 5/1200 of the plot past its right edge.
+    expect(rightEdge()).toBeCloseTo(PAD_L + PLOT_W, 1);
+  });
+
+  it("reserves no strip band when not one lap window maps onto the axis", () => {
+    // Distances but no times: the distance axis cannot place any window (every
+    // edge interpolates to null), so nothing renders — and nothing may shift down
+    // for a strip that is not there.
+    const { container } = render(
+      <ActivityChart
+        activityId={1}
+        streams={makeStreams({
+          timeS: Array.from({ length: N }, () => null),
+          heartrate: [120, 150, 160, 166, 180],
+        })}
+        isRun={true}
+        isRide={false}
+        thresholds={thresholds}
+        laps={laps}
+      />
+    );
+    expect(stripOf(container)).toHaveLength(0);
+    const bands = bandsOf(container);
+    expect(bands[bands.length - 1].y).toBeCloseTo(TOP, 0);
+  });
+
+  it("drops a pin whose lap stops rendering on the other axis", () => {
+    // A distance stream that stalls through lap 2 (1 km at both 600 s and 900 s):
+    // the lap has a span on the time axis and none on the distance one.
+    const stalled = makeStreams({
+      distanceKm: [0, 0.5, 1, 1, 4],
+      timeS: [0, 300, 600, 900, 1200],
+      heartrate: [120, 150, 160, 166, 180],
+    });
+    const { container } = render(
+      <ActivityChart
+        activityId={1}
+        streams={stalled}
+        isRun={true}
+        isRide={false}
+        thresholds={thresholds}
+        laps={laps}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Time" }));
+    fireEvent.click(container.querySelectorAll("rect[data-lap-strip]")[1]);
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+
+    // The distance axis draws no rect for lap 2, so the pin goes with it...
+    fireEvent.click(screen.getByRole("button", { name: "Distance" }));
+    expect(stripOf(container).map((r) => r.label)).toEqual(["1", "3"]);
+    expect(highlightOf(container)).toBeNull();
+
+    // ...and does not reappear when the axis that could draw it comes back.
+    fireEvent.click(screen.getByRole("button", { name: "Time" }));
     expect(highlightOf(container)).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import type { ActivityStreams } from "@/lib/streams";
 import { zoneBoundsOf, zoneIndexOf, type AthleteThresholds } from "@/lib/fitness";
 import { ZONE_COLORS, zoneLabels } from "@/lib/zones";
 import { fmtDuration, fmtKm } from "@/lib/format";
+import { fillStr } from "@/lib/i18n";
 import { distanceAtTime, type LapWindow } from "@/lib/laps";
 import {
   AXIS_H,
@@ -122,12 +123,6 @@ export function ActivityChart({
   }, [xs]);
 
   const shown = allSeries.filter((s) => active.has(s.key));
-  // The strip takes its band off the top, so the panels start lower only when
-  // there are laps to draw; without them the geometry is unchanged.
-  const hasStrip = (laps?.length ?? 0) > 0;
-  const plotTop = TOP + (hasStrip ? LAP_STRIP_H + LAP_STRIP_GAP : 0);
-  const axisY = plotTop + shown.length * PANEL_H + Math.max(0, shown.length - 1) * GAP;
-  const height = axisY + AXIS_H;
 
   const xPx = (v: number) =>
     xExtent ? PAD_L + ((v - xExtent[0]) / (xExtent[1] - xExtent[0])) * PLOT_W : PAD_L;
@@ -153,9 +148,35 @@ export function ActivityChart({
         })
       : [];
 
-  // The pointer wins over the pin, so hovering another lap reads that one.
+  // The strip takes its band off the top, so the panels start lower only when
+  // there are rects to draw. Reserving it from the `laps` prop instead pushed
+  // every panel down and grew the axis for an activity whose windows all map to
+  // nothing — a cached stream carrying distances but no times, in distance mode.
+  const hasStrip = lapBars.length > 0;
+  const plotTop = TOP + (hasStrip ? LAP_STRIP_H + LAP_STRIP_GAP : 0);
+  const axisY = plotTop + shown.length * PANEL_H + Math.max(0, shown.length - 1) * GAP;
+  const height = axisY + AXIS_H;
+
+  // A lap only stays surfaced while it still renders. Switching to an axis where
+  // it has no span (a lap the distance stream never advances through) would
+  // otherwise leave the pin set with no highlight to see and no rect to click,
+  // making it unclearable except through Escape.
+  if (pinnedLap != null && !lapBars.some((bar) => bar.i === pinnedLap)) setPinnedLap(null);
+  if (hoverLap != null && !lapBars.some((bar) => bar.i === hoverLap)) setHoverLap(null);
+
+  // The pointer (or the keyboard cursor) wins over the pin, so surfacing another
+  // lap reads that one.
   const activeLap = hoverLap ?? pinnedLap;
   const activeBar = lapBars.find((bar) => bar.i === activeLap) ?? null;
+
+  /** The rendered lap whose window contains a stream time, if any. */
+  const barAtTime = (s: number | null | undefined) =>
+    s == null ? null : (lapBars.find(({ lap }) => s >= lap.startS && s < lap.endS) ?? null);
+
+  // The lap the CROSSHAIR sits in, which is the only lap the tooltip may name. A
+  // pinned (or hovered) strip rect can be half an hour from the hovered sample,
+  // and heading that sample's readout with it simply misreports where it is.
+  const hoverBar = barAtTime(hover != null ? streams.timeS[hover] : null);
 
   const validIdx = useMemo(
     () => xs.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0),
@@ -188,26 +209,48 @@ export function ActivityChart({
     setHover(best);
   };
 
+  /** Pins the lap, or unpins it when it is already the pinned one. */
+  const togglePin = (i: number) => setPinnedLap((prev) => (prev === i ? null : i));
+
+  // Moves the keyboard cursor and surfaces the lap the sample it lands on falls
+  // in, so the arrow keys reach the strip the way the pointer does.
+  const moveCursor = (i: number) => {
+    setHover(i);
+    setHoverLap(barAtTime(streams.timeS[i])?.i ?? null);
+  };
+
   const onKey = (e: React.KeyboardEvent<SVGSVGElement>) => {
-    // Escape drops the lap highlight (pinned or hovered) whatever the x-axis holds.
+    // Escape drops the lap highlight (pinned or hovered) whatever the x-axis
+    // holds. Clicking a strip rect focuses this SVG, so the key lands here
+    // however the browser treats focus on the rect itself.
     if (e.key === "Escape") {
       setHoverLap(null);
       setPinnedLap(null);
       return;
     }
+    // Enter / Space pin and unpin the surfaced lap: the keyboard twin of a click
+    // on its rect, reachable from the arrow-key cursor alone.
+    if (e.key === "Enter" || e.key === " ") {
+      const target = hoverLap ?? hoverBar?.i;
+      if (target != null) {
+        togglePin(target);
+        e.preventDefault();
+      }
+      return;
+    }
     if (validIdx.length === 0) return;
     const pos = hover == null ? 0 : validIdx.indexOf(hover);
     if (e.key === "ArrowRight") {
-      setHover(validIdx[Math.min(validIdx.length - 1, (pos < 0 ? -1 : pos) + 1)]);
+      moveCursor(validIdx[Math.min(validIdx.length - 1, (pos < 0 ? -1 : pos) + 1)]);
       e.preventDefault();
     } else if (e.key === "ArrowLeft") {
-      setHover(validIdx[Math.max(0, (pos < 0 ? 1 : pos) - 1)]);
+      moveCursor(validIdx[Math.max(0, (pos < 0 ? 1 : pos) - 1)]);
       e.preventDefault();
     } else if (e.key === "Home") {
-      setHover(validIdx[0]);
+      moveCursor(validIdx[0]);
       e.preventDefault();
     } else if (e.key === "End") {
-      setHover(validIdx[validIdx.length - 1]);
+      moveCursor(validIdx[validIdx.length - 1]);
       e.preventDefault();
     }
   };
@@ -496,22 +539,52 @@ export function ActivityChart({
             })}
 
             {/* Lap strip: one rect per lap, alternating so the boundaries read. */}
-            {lapBars.map(({ lap, i, x, w }) => (
-              <rect
-                key={`${lap.label}-${i}`}
-                data-lap-strip={lap.label}
-                x={x.toFixed(1)}
-                y={TOP}
-                width={w.toFixed(1)}
-                height={LAP_STRIP_H}
-                fill="var(--chart-4)"
-                opacity={activeLap === i ? LAP_ACTIVE_OPACITY : LAP_OPACITY[i % LAP_OPACITY.length]}
-                className="cursor-pointer"
-                onPointerEnter={() => setHoverLap(i)}
-                onPointerLeave={() => setHoverLap((prev) => (prev === i ? null : prev))}
-                onClick={() => setPinnedLap((prev) => (prev === i ? null : i))}
-              />
-            ))}
+            {lapBars.map(({ lap, i, x, w }) => {
+              // A rect spans the lap's ELAPSED time, which is the clock this
+              // chart plots against, while the laps table's Time column reports
+              // moving time. On the 20 cached laps with real stopped time the two
+              // differ visibly (activity 1245's lap 2 is 8:33 elapsed against the
+              // 6:04 its row shows), so the segment states its elapsed span and
+              // the differing width has an explanation on the spot.
+              const name = fillStr(t.chart.lapSpan, {
+                lap: lap.label,
+                duration: fmtDuration(lap.endS - lap.startS),
+              });
+              return (
+                <rect
+                  key={`${lap.label}-${i}`}
+                  data-lap-strip={lap.label}
+                  x={x.toFixed(1)}
+                  y={TOP}
+                  width={w.toFixed(1)}
+                  height={LAP_STRIP_H}
+                  fill="var(--chart-4)"
+                  opacity={
+                    activeLap === i ? LAP_ACTIVE_OPACITY : LAP_OPACITY[i % LAP_OPACITY.length]
+                  }
+                  className="cursor-pointer"
+                  role="button"
+                  // Not a tab stop of its own (an interval session has 20+ of
+                  // them): the chart's own tab stop plus the arrow keys surface
+                  // laps, and Enter pins them. Focusable so a click has somewhere
+                  // to land, and the click hands focus to the SVG regardless,
+                  // because Safari does not focus what a mouse presses.
+                  tabIndex={-1}
+                  aria-label={name}
+                  aria-pressed={pinnedLap === i}
+                  onPointerEnter={() => setHoverLap(i)}
+                  onPointerLeave={() => setHoverLap((prev) => (prev === i ? null : prev))}
+                  onFocus={() => setHoverLap(i)}
+                  onClick={() => {
+                    togglePin(i);
+                    svgRef.current?.focus();
+                  }}
+                >
+                  {/* Native hover affordance, same words as the accessible name. */}
+                  <title>{name}</title>
+                </rect>
+              );
+            })}
 
             {/* shared crosshair */}
             {hoverX != null ? (
@@ -538,9 +611,9 @@ export function ActivityChart({
               }}
             >
               <div className="mb-1 font-mono font-medium text-foreground">
-                {activeBar ? (
+                {hoverBar ? (
                   <span className="mr-1.5 text-muted-foreground">
-                    {`${t.detail.lap} ${activeBar.lap.label}`}
+                    {`${t.detail.lap} ${hoverBar.lap.label}`}
                   </span>
                 ) : null}
                 {xLabel(xs[hover]!)}

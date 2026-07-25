@@ -32,23 +32,50 @@ function startedAt(lap: StravaLap | undefined): number | null {
 }
 
 /**
+ * The epoch second the stream's clock reads zero at, taken from the first lap
+ * that carries a usable date and rolled back past the durations of the laps
+ * before it.
+ *
+ * Reading the base off `laps[0]` alone meant a single missing or unparseable
+ * `start_date` at the head of the list silently disabled date-based placement
+ * for the whole activity, reinstating exactly the drift documented below even
+ * though every later lap was dated.
+ */
+function clockBase(laps: StravaLap[]): number | null {
+  let before = 0;
+  for (const lap of laps) {
+    const started = startedAt(lap);
+    if (started != null) return started - before;
+    // A lap with no duration is dropped from the windows as well, so this
+    // cursor stays in step with the one `lapWindows` walks the laps with.
+    before += durationOf(lap) ?? 0;
+  }
+  return null;
+}
+
+/**
  * Lap windows on the stream's clock, in lap order, dropping any lap whose
  * duration Strava never reported.
  *
- * A lap's start is its `start_date` offset from the first lap's whenever both
- * dates parse, and only otherwise the sum of the durations before it. That order
- * is deliberate: the gaps between consecutive laps (device auto-pause) belong to
- * neither lap's elapsed time, so accumulating durations alone drifts earlier and
- * earlier against the stream. Measured on the live cache, accumulation ends 15 s
- * short of a 52-minute run's last sample (3123 s vs 3138 s) while the date
- * offsets land within a second of it — enough drift to visibly shift the last
- * laps of an interval session away from the intervals they mark.
+ * A lap's start is its `start_date` offset from the clock base whenever the date
+ * parses, and only otherwise the sum of the durations before it. That order is
+ * deliberate: consecutive laps do not quite abut in the source fields, because
+ * Strava truncates `start_date` and `elapsed_time` to whole seconds
+ * independently, so lap i's start plus its elapsed time usually lands a second
+ * short of lap i+1's start. Measured across all 248 cached laps, 217 of the 227
+ * inter-lap gaps are 0 to 2 s and only one is a genuine device pause (61 s, on
+ * activity 17) — the everyday gap is rounding, not auto-pause. It still
+ * accumulates at roughly a second a lap: on activity 1246 the summed durations
+ * end 15 s short of the 52-minute session's last sample (3123 s vs 3138 s) while
+ * the date offsets land within a second of it — enough drift to visibly shift
+ * the last laps of an interval session away from the intervals they mark.
  *
  * Starts are forced to run forward: a lap can never begin before the previous
- * one ended, so the windows never overlap however rounded the source dates are.
+ * one ended, so the windows never overlap however rounded the source dates are
+ * (5 of those 227 gaps are negative).
  */
 export function lapWindows(laps: StravaLap[]): LapWindow[] {
-  const base = startedAt(laps[0]);
+  const base = clockBase(laps);
   const windows: LapWindow[] = [];
   let cursor = 0;
   for (let i = 0; i < laps.length; i++) {

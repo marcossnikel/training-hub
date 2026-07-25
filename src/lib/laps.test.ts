@@ -27,12 +27,46 @@ describe("lapWindows", () => {
     ]);
   });
 
-  it("keeps the pause between two laps out of both windows", () => {
-    // A 20 s auto-pause between laps belongs to neither lap's elapsed time. The
-    // start dates place lap 2 after it, so lap 2 still lines up with the stream.
-    expect(lapWindows(paced([300, 120], 20))).toEqual([
+  it("keeps the second-truncation gap between two laps out of both windows", () => {
+    // Strava truncates start_date and elapsed_time to whole seconds separately,
+    // so lap 2 typically starts a second past where lap 1's elapsed time ran out
+    // (0 to 2 s across every cached lap). The start dates place lap 2 after that
+    // second instead of sliding it earlier, which is what keeps the last laps of
+    // a long session on the stream's clock.
+    expect(lapWindows(paced([300, 120], 1))).toEqual([
       { label: "1", startS: 0, endS: 300 },
-      { label: "2", startS: 320, endS: 440 },
+      { label: "2", startS: 301, endS: 421 },
+    ]);
+  });
+
+  it("still places the dated laps when the FIRST lap has no start date", () => {
+    // The clock base is lap 2's date rolled back past lap 1's 300 s, so lap 2
+    // lands at 300 s and lap 3 keeps the second of truncation gap that separates
+    // them on the device (421 s, not 420 s). Basing the clock on laps[0] alone
+    // dropped all three onto accumulated durations, losing that second.
+    const base = Date.parse("2026-07-21T10:00:00Z");
+    const at = (s: number) => new Date(base + s * 1000).toISOString();
+    const laps = [
+      lap({ lap_index: 1, elapsed_time: 300 }),
+      lap({ lap_index: 2, elapsed_time: 120, start_date: at(301) }),
+      lap({ lap_index: 3, elapsed_time: 240, start_date: at(422) }),
+    ];
+    expect(lapWindows(laps)).toEqual([
+      { label: "1", startS: 0, endS: 300 },
+      { label: "2", startS: 300, endS: 420 },
+      { label: "3", startS: 421, endS: 661 },
+    ]);
+  });
+
+  it("ignores an unparseable start date instead of placing the lap at NaN", () => {
+    const laps = [
+      lap({ lap_index: 1, elapsed_time: 300, start_date: "not a date" }),
+      lap({ lap_index: 2, elapsed_time: 120, start_date: "not a date either" }),
+    ];
+    // No date parses, so the windows fall back to accumulated durations.
+    expect(lapWindows(laps)).toEqual([
+      { label: "1", startS: 0, endS: 300 },
+      { label: "2", startS: 300, endS: 420 },
     ]);
   });
 

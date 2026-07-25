@@ -305,6 +305,7 @@ export const en = {
     distance: "Distance",
     time: "Time",
     analysis: "Analysis",
+    lapSpan: "Lap {lap}, {duration} elapsed",
   },
   coach: {
     title: "AI coach",
