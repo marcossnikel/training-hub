@@ -1,6 +1,7 @@
 // Pure race/summary performance-benchmark engine. From whole-activity RUNNING
 // summaries (no per-second streams) it derives:
-//   - best times at each standard run distance,
+//   - best times at each standard run distance, merged with the true sub-segment
+//     efforts Strava stores per run (`bestEffortRecords`),
 //   - a 2-parameter Critical Speed model (CS + D') and the threshold pace it
 //     implies,
 //   - Riegel race-time predictions.
@@ -11,6 +12,7 @@
 // genuinely needs per-second power streams — the average/normalized power held
 // over maximal windows — which are not kept as summaries, so cycling power is
 // intentionally OUT OF SCOPE in this engine.
+import type { StoredBestEffort } from "./best-efforts";
 import { raceCategory, type RaceCategory } from "./races";
 
 /** A whole-activity running summary the benchmark engine reads. */
@@ -156,6 +158,111 @@ export function bestEffortsByDistance(efforts: RunEffort[]): BestEffort[] {
         name: effort.name,
         date: effort.date,
       });
+    }
+  }
+  return STANDARD_DISTANCE_ORDER.filter((d) => best.has(d)).map((d) => best.get(d)!);
+}
+
+// Strava's best-effort names mapped to our standard distances, keyed uppercase so
+// the lookup survives casing drift. Deliberately PARTIAL: Strava also cuts "400m",
+// "1/2 mile", "1K", "1 mile", "2 mile", "10 mile" and "20K" segments, and none of
+// those is a standard road distance in this engine. "20K" in particular must never
+// map to `half`: 20 km is 1097 m SHORT of a half marathon, so its time would read
+// as a falsely fast half. Our "12k" has no Strava equivalent, so it always comes
+// from the whole-activity ladder.
+const SEGMENT_DISTANCE_BY_NAME: Record<string, StandardDistance> = {
+  "5K": "5k",
+  "10K": "10k",
+  "15K": "15k",
+  "HALF-MARATHON": "half",
+  "30K": "30k",
+  MARATHON: "marathon",
+};
+
+// Strava cuts a best-effort segment at EXACTLY the named distance, so a stored
+// length may differ from the canonical one only by its own rounding (the half
+// marathon is stored as 21097 m, not 21097.5). 0.1% allows that and nothing more:
+// a wider band would let a shorter segment stand in for a longer distance, which
+// is the one error that silently manufactures a faster time.
+export const SEGMENT_DISTANCE_TOLERANCE = 0.001;
+
+/** The standard distance a stored segment effort is, or null if it is not one. */
+function segmentDistanceOf(stored: StoredBestEffort): StandardDistance | null {
+  if (!(stored.distance_m > 0) || !(stored.moving_time_s > 0)) return null;
+  const distance = SEGMENT_DISTANCE_BY_NAME[stored.name.trim().toUpperCase()];
+  if (!distance) return null;
+  const canonical = STANDARD_DISTANCE_M[distance];
+  if (Math.abs(stored.distance_m - canonical) > canonical * SEGMENT_DISTANCE_TOLERANCE) return null;
+  return distance;
+}
+
+/** Where a displayed best effort was measured. */
+export type BestEffortSource = "segment" | "activity";
+
+/** A best effort with the kind of measurement it came from, for the UI to label. */
+export interface BestEffortRecord extends BestEffort {
+  source: BestEffortSource;
+}
+
+/**
+ * The best time at each standard distance from BOTH sources: the true sub-segments
+ * Strava cut out of individual runs (`activity_best_efforts`, passed in as stored
+ * rows) and the whole-activity ladder above.
+ *
+ * A segment is the better measurement — it is a real 5 km inside the run rather
+ * than a whole activity that merely happened to be about 5 km long — so it WINS
+ * TIES and is preferred wherever it exists. But it is not preferred blindly: only
+ * a fraction of runs have a cached detail payload, so the fastest stored 5K may
+ * come from an easy run while the whole-activity ladder holds a 5 km race. Taking
+ * the faster of the two is what makes this strictly an improvement: the displayed
+ * effort can only get faster, never slower, than the whole-activity value alone.
+ *
+ * "Faster" is compared by PACE, the same key `bestEffortsByDistance` ranks with,
+ * because a whole-activity effort may be up to the ±10% band shorter or longer
+ * than the canonical distance while a segment is exactly it; comparing raw times
+ * across different lengths would favour whichever effort was shortest. So the
+ * displayed TIME can rise in one narrow case: when the whole-activity row it
+ * replaces was under-distance. Live example at the time of writing — 10k went from
+ * 45:12 over 9.86 km (4:35/km, never actually a 10 km) to 45:35 over a true
+ * 10.00 km segment (4:34/km). The row got faster per kilometre AND honest about
+ * the distance; keeping the 9.86 km time only because the number was smaller would
+ * be the dishonest option.
+ *
+ * pr_rank is deliberately IGNORED here. Strava's rank is frozen at the moment an
+ * activity's detail was first fetched (`saveActivityDetail` only writes when
+ * `detail_json` is empty), so stored ranks go stale: the live table currently has
+ * two different activities both claiming pr_rank = 1 at 10K, 15K, 20K and the half.
+ * Deriving the fastest row from the TIMES is self-consistent and cannot present a
+ * stale rank as current truth.
+ */
+export function bestEffortRecords(
+  efforts: RunEffort[],
+  stored: readonly StoredBestEffort[]
+): BestEffortRecord[] {
+  const best = new Map<StandardDistance, BestEffortRecord>();
+  for (const row of stored) {
+    const distance = segmentDistanceOf(row);
+    if (!distance) continue;
+    const distanceKm = row.distance_m / METERS_PER_KM;
+    const record: BestEffortRecord = {
+      distance,
+      distanceKm,
+      movingTimeS: row.moving_time_s,
+      paceSPerKm: row.moving_time_s / distanceKm,
+      isRace: row.is_race,
+      // The run the segment was cut from, so the row still names its activity.
+      name: row.activity_name,
+      date: row.date,
+      source: "segment",
+    };
+    const current = best.get(distance);
+    if (!current || record.paceSPerKm < current.paceSPerKm) best.set(distance, record);
+  }
+  for (const whole of bestEffortsByDistance(efforts)) {
+    const current = best.get(whole.distance);
+    // Strict `<`: an equal-pace segment keeps its place, being the truer measurement.
+    if (!current || whole.paceSPerKm < current.paceSPerKm) {
+      best.set(whole.distance, { ...whole, source: "activity" });
     }
   }
   return STANDARD_DISTANCE_ORDER.filter((d) => best.has(d)).map((d) => best.get(d)!);

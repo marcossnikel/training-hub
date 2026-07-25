@@ -19,8 +19,10 @@ import {
   getAthleteThresholds,
   listActivityChat,
   listBikes,
+  listFastestBestEfforts,
   listShoes,
 } from "@/lib/db";
+import { effortTimeS, prBadgeEffortNames } from "@/lib/best-efforts";
 import { computeDecoupling, computeEf, splitGap, type EfBasis } from "@/lib/analysis";
 import { analyzeRace } from "@/lib/blocks";
 import { isCoachConfigured } from "@/lib/coach";
@@ -228,12 +230,16 @@ function LapsTable({
  */
 const PR_OPACITY: Record<number, number> = { 1: 1, 2: 0.7, 3: 0.45 };
 
-/** Strava reports both times identically for best efforts; prefer moving time. */
-function effortTime(effort: StravaBestEffort): number {
-  return effort.moving_time || effort.elapsed_time;
-}
-
-function BestEffortChips({ efforts, t }: { efforts: StravaBestEffort[]; t: Dict }) {
+function BestEffortChips({
+  efforts,
+  prNames,
+  t,
+}: {
+  efforts: StravaBestEffort[];
+  /** Effort names whose record claim still holds — see `prBadgeEffortNames`. */
+  prNames: Set<string>;
+  t: Dict;
+}) {
   return (
     <ul className="flex flex-wrap gap-1.5">
       {efforts.map((effort, index) => {
@@ -252,7 +258,17 @@ function BestEffortChips({ efforts, t }: { efforts: StravaBestEffort[]; t: Dict 
             title={effort.pr_rank ? `${t.detail.prRank}: ${effort.pr_rank}` : undefined}
           >
             <span>{effort.name}</span>
-            <span className="font-medium">{fmtDuration(effortTime(effort))}</span>
+            <span className="font-medium">{fmtDuration(effortTimeS(effort))}</span>
+            {prNames.has(effort.name) ? (
+              // No colour of its own: the badge only appears on a rank-1 chip, which
+              // already carries the podium colour, so it inherits currentColor.
+              <span
+                className="rounded-sm border px-1 text-[10px] leading-tight font-semibold"
+                title={t.detail.prBadgeTitle}
+              >
+                {t.detail.prBadge}
+              </span>
+            ) : null}
           </li>
         );
       })}
@@ -437,8 +453,15 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // Strava only computes best efforts for runs; guard on the sport anyway so a
   // stray payload never puts a run-shaped chip row on a ride.
   const bestEfforts = run
-    ? (detail?.best_efforts ?? []).filter((effort) => effort?.name && effortTime(effort) > 0)
+    ? (detail?.best_efforts ?? []).filter((effort) => effort?.name && effortTimeS(effort) > 0)
     : [];
+  // `ensureActivityDetail` has already mirrored this activity's efforts into
+  // `activity_best_efforts`, so the stored ladder is what tells a live record from a
+  // pr_rank frozen at first fetch. Read only when there are chips to badge.
+  const prNames =
+    bestEfforts.length > 0
+      ? prBadgeEffortNames(bestEfforts, await listFastestBestEfforts())
+      : new Set<string>();
   // Devices auto-lap every km; only show laps when they carry real structure.
   const structuredLaps =
     laps.length > 1 && laps.some((lap) => Math.abs((lap.distance ?? 0) - 1000) > 150);
@@ -651,7 +674,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             <CardTitle>{t.detail.bestEfforts}</CardTitle>
           </CardHeader>
           <CardContent>
-            <BestEffortChips efforts={bestEfforts} t={t} />
+            <BestEffortChips efforts={bestEfforts} prNames={prNames} t={t} />
           </CardContent>
         </Card>
       ) : null}

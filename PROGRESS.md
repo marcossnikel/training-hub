@@ -110,3 +110,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T20 Totals table with period deltas: done 2026-07-25, committed direct to main
 - ICU-T21 Consistency heatmap: done 2026-07-25, committed direct to main
 - ICU-T22a activity_best_efforts table and backfill (22a data half only; 22b UI card and PR badge still pending): done 2026-07-25, committed direct to main
+- ICU-T22b Best-efforts card prefers stored segment efforts, PR badge on activity chips: done 2026-07-25, committed direct to main

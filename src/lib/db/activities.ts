@@ -2,7 +2,7 @@ import { cache } from "react";
 import { batchWrite, exec, many, one, sqliteBool } from "./helpers";
 import { client } from "./client";
 import { ensureMigrated } from "./migrations";
-import type { BestEffortRow } from "../best-efforts";
+import type { BestEffortRow, StoredBestEffort } from "../best-efforts";
 import type { BlockActivity } from "../blocks";
 import type { SessionStart } from "../consistency";
 import type { TotalsActivity } from "../totals";
@@ -323,6 +323,41 @@ export async function listBestEffortCounts(activityId?: number): Promise<BestEff
      ORDER BY activity_id ASC`,
     activityId === undefined ? [] : [activityId]
   );
+}
+
+/**
+ * The fastest stored effort at each distance name ("5K", "Half-Marathon", …), one row
+ * per name, with the confirmed activity it came from. This is what both readers of
+ * `activity_best_efforts` need: /performance ranks the distance ladder from it and the
+ * activity page uses it to demote a stale `pr_rank = 1` that a later run has beaten.
+ *
+ * Aggregated in SQL rather than by reading every row: ~103 rows exist today, but
+ * T24's fetch-history pass would push that into the thousands while the answer stays
+ * one row per name. ROW_NUMBER (not a bare-column MIN) so the winning row's own
+ * columns come back and ties break deterministically on the lower activity id.
+ */
+export async function listFastestBestEfforts(): Promise<StoredBestEffort[]> {
+  interface Row extends Omit<StoredBestEffort, "is_race"> {
+    is_race: number;
+  }
+  const rows = await many<Row>(
+    `SELECT name, distance_m, elapsed_time_s, moving_time_s, pr_rank,
+            activity_name, is_race, date
+     FROM (
+       SELECT e.name, e.distance_m, e.elapsed_time_s, e.moving_time_s, e.pr_rank,
+              a.name AS activity_name, a.is_race AS is_race,
+              COALESCE(a.started_at_local, a.started_at) AS date,
+              ROW_NUMBER() OVER (
+                PARTITION BY e.name ORDER BY e.moving_time_s ASC, e.activity_id ASC
+              ) AS rn
+       FROM activity_best_efforts e
+       JOIN activities a ON a.id = e.activity_id
+       WHERE a.status = 'confirmed' AND e.moving_time_s > 0 AND e.distance_m > 0
+     )
+     WHERE rn = 1
+     ORDER BY distance_m ASC`
+  );
+  return rows.map((row) => ({ ...row, is_race: sqliteBool(row.is_race) }));
 }
 
 /** An activity's cached Strava detail payload, as the local backfill re-reads it. */

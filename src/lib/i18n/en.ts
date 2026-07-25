@@ -250,6 +250,8 @@ export const en = {
     },
     bestEfforts: "Best efforts",
     prRank: "All-time rank",
+    prBadge: "PR",
+    prBadgeTitle: "Your record at this distance: Strava ranked it first and no later run beat it.",
     lap: "Lap",
     hr: "HR",
     maxShort: "Max",
@@ -528,14 +530,17 @@ export const en = {
     empty: "No runs to analyze yet",
     emptyBody: "Confirm some runs and your best efforts and race predictions build here.",
     summaryNote:
-      "All from activity summaries — whole-activity best times, not segments inside a run. Cycling power (FTP) needs per-second streams and is not covered here.",
+      "The threshold estimate and the predictions come from activity summaries — whole-activity times, not segments inside a run. Cycling power (FTP) needs per-second streams and is not covered here.",
     bestEfforts: "Best efforts by distance",
-    bestEffortsBody: "The fastest whole-activity time at each standard distance.",
+    bestEffortsBody:
+      "The fastest time at each standard distance: a true segment inside a run where Strava recorded one, otherwise the fastest whole activity.",
     distance: "Distance",
     time: "Time",
     pace: "Pace",
     date: "Date",
     raceTag: "race",
+    segmentTag: "segment",
+    segmentTagTitle: "A stretch of exactly this distance inside a longer run.",
     criticalSpeed: "Critical speed estimate",
     criticalSpeedBody:
       "A 2-parameter model fit to your maximal race efforts. The threshold pace it implies is a suggestion — it is not applied automatically.",

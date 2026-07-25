@@ -245,6 +245,9 @@ export const pt: Dict = {
     },
     bestEfforts: "Melhores esforços",
     prRank: "Posição geral",
+    prBadge: "RP",
+    prBadgeTitle:
+      "Seu recorde nesta distância: o Strava classificou em primeiro e nenhuma corrida posterior superou.",
     lap: "Volta",
     hr: "FC",
     maxShort: "Máx",
@@ -524,14 +527,17 @@ export const pt: Dict = {
     empty: "Nenhuma corrida para analisar ainda",
     emptyBody: "Confirme algumas corridas e seus melhores tempos e previsões aparecem aqui.",
     summaryNote:
-      "Tudo a partir dos resumos das atividades — melhores tempos da atividade inteira, não trechos dentro de uma corrida. A potência do ciclismo (FTP) exige streams por segundo e não é coberta aqui.",
+      "A estimativa de limiar e as previsões vêm dos resumos das atividades — tempos de atividade inteira, não trechos dentro de uma corrida. A potência do ciclismo (FTP) exige streams por segundo e não é coberta aqui.",
     bestEfforts: "Melhores tempos por distância",
-    bestEffortsBody: "O tempo mais rápido de atividade inteira em cada distância padrão.",
+    bestEffortsBody:
+      "O tempo mais rápido em cada distância padrão: um trecho real dentro de uma corrida quando o Strava registrou um, senão a atividade inteira mais rápida.",
     distance: "Distância",
     time: "Tempo",
     pace: "Ritmo",
     date: "Data",
     raceTag: "prova",
+    segmentTag: "trecho",
+    segmentTagTitle: "Um trecho de exatamente esta distância dentro de uma corrida mais longa.",
     criticalSpeed: "Estimativa de velocidade crítica",
     criticalSpeedBody:
       "Um modelo de 2 parâmetros ajustado aos seus esforços máximos em provas. O ritmo de limiar que ele indica é uma sugestão — não é aplicado automaticamente.",

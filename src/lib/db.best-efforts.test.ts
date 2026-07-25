@@ -81,3 +81,75 @@ describe("activity_best_efforts", () => {
     expect(await storedRows()).toEqual([]);
   });
 });
+
+describe("listFastestBestEfforts", () => {
+  async function insertActivity(
+    name: string,
+    startedAt: string,
+    status: string,
+    isRace: number
+  ): Promise<number> {
+    const inserted = await db.client.execute({
+      sql: `INSERT INTO activities (name, sport_type, started_at, started_at_local, distance_km, status, is_race)
+            VALUES (?, 'Run', ?, ?, 21, ?, ?)`,
+      args: [name, startedAt, startedAt, status, isRace],
+    });
+    return Number(inserted.lastInsertRowid);
+  }
+
+  it("returns the fastest confirmed row per name, shortest distance first", async () => {
+    const race = await insertActivity("Half marathon", "2026-04-12T08:30:00Z", "confirmed", 1);
+    const easy = await insertActivity("Easy run", "2026-07-18T11:22:00Z", "confirmed", 0);
+    const pending = await insertActivity("Unreviewed", "2026-07-20T11:00:00Z", "pending_review", 0);
+    await db.upsertActivityBestEfforts(race, [
+      { name: "5K", distance_m: 5000, elapsed_time_s: 1351, moving_time_s: 1351, pr_rank: null },
+      { name: "10K", distance_m: 10000, elapsed_time_s: 2740, moving_time_s: 2735, pr_rank: 1 },
+    ]);
+    await db.upsertActivityBestEfforts(easy, [
+      { name: "5K", distance_m: 5000, elapsed_time_s: 1680, moving_time_s: 1675, pr_rank: null },
+    ]);
+    // A faster row on an unconfirmed activity must not win — /performance only counts
+    // confirmed activities, so both of its sources must read the same population.
+    await db.upsertActivityBestEfforts(pending, [
+      { name: "5K", distance_m: 5000, elapsed_time_s: 1200, moving_time_s: 1200, pr_rank: null },
+    ]);
+
+    expect(await db.listFastestBestEfforts()).toEqual([
+      {
+        name: "5K",
+        distance_m: 5000,
+        elapsed_time_s: 1351,
+        moving_time_s: 1351,
+        pr_rank: null,
+        activity_name: "Half marathon",
+        is_race: true,
+        date: "2026-04-12T08:30:00Z",
+      },
+      {
+        name: "10K",
+        distance_m: 10000,
+        elapsed_time_s: 2740,
+        moving_time_s: 2735,
+        pr_rank: 1,
+        activity_name: "Half marathon",
+        is_race: true,
+        date: "2026-04-12T08:30:00Z",
+      },
+    ]);
+  });
+
+  it("breaks an exact tie on the lower activity id", async () => {
+    const first = await insertActivity("First", "2026-01-01T10:00:00Z", "confirmed", 0);
+    const second = await insertActivity("Second", "2026-02-01T10:00:00Z", "confirmed", 0);
+    await db.upsertActivityBestEfforts(second, [
+      { name: "1 mile", distance_m: 1609, elapsed_time_s: 412, moving_time_s: 412, pr_rank: null },
+    ]);
+    await db.upsertActivityBestEfforts(first, [
+      { name: "1 mile", distance_m: 1609, elapsed_time_s: 412, moving_time_s: 412, pr_rank: null },
+    ]);
+    expect(first).toBeLessThan(second);
+
+    const mile = (await db.listFastestBestEfforts()).find((row) => row.name === "1 mile");
+    expect(mile?.activity_name).toBe("First");
+  });
+});

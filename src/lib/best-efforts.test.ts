@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bestEffortRows, type StravaBestEffort } from "@/lib/best-efforts";
+import {
+  bestEffortRows,
+  effortTimeS,
+  prBadgeEffortNames,
+  type StravaBestEffort,
+} from "@/lib/best-efforts";
 
 function effort(overrides: Partial<StravaBestEffort> = {}): StravaBestEffort {
   return {
@@ -126,5 +131,73 @@ describe("bestEffortRows", () => {
       moving_time_s: 280,
       pr_rank: 1,
     });
+  });
+});
+
+describe("effortTimeS", () => {
+  it("prefers moving time and falls back to elapsed", () => {
+    expect(effortTimeS(effort({ moving_time: 1190, elapsed_time: 1200 }))).toBe(1190);
+    expect(effortTimeS(effort({ moving_time: 0, elapsed_time: 1200 }))).toBe(1200);
+    expect(effortTimeS(effort({ moving_time: 0, elapsed_time: 0 }))).toBe(0);
+  });
+});
+
+describe("prBadgeEffortNames", () => {
+  it("badges a rank-1 effort that no stored row beats", () => {
+    const names = prBadgeEffortNames(
+      [effort({ name: "10K", distance: 10000, moving_time: 2735, pr_rank: 1 })],
+      [{ name: "10K", moving_time_s: 2735 }]
+    );
+    expect([...names]).toEqual(["10K"]);
+  });
+
+  it("demotes a rank-1 effort a later run has beaten", () => {
+    // The real staleness case: pr_rank is frozen when detail is first fetched, so an
+    // old "1 mile" #1 of 581 s survives in the payload even though 412 s is stored.
+    const names = prBadgeEffortNames(
+      [effort({ name: "1 mile", distance: 1609, moving_time: 581, pr_rank: 1 })],
+      [{ name: "1 mile", moving_time_s: 412 }]
+    );
+    expect(names.size).toBe(0);
+  });
+
+  it("badges only the fastest of two activities both claiming rank 1", () => {
+    // Both the 2735 s and the 2809 s 10K carry pr_rank = 1 in the live table.
+    const fastest = [{ name: "10K", moving_time_s: 2735 }];
+    expect(
+      prBadgeEffortNames([effort({ name: "10K", moving_time: 2809, pr_rank: 1 })], fastest).size
+    ).toBe(0);
+    expect(
+      prBadgeEffortNames([effort({ name: "10K", moving_time: 2735, pr_rank: 1 })], fastest).size
+    ).toBe(1);
+  });
+
+  it("ignores ranks other than 1", () => {
+    const fastest = [{ name: "5K", moving_time_s: 1351 }];
+    expect(prBadgeEffortNames([effort({ moving_time: 1351, pr_rank: 2 })], fastest).size).toBe(0);
+    expect(prBadgeEffortNames([effort({ moving_time: 1351, pr_rank: null })], fastest).size).toBe(
+      0
+    );
+  });
+
+  it("withholds the badge when nothing is stored to check against", () => {
+    expect(prBadgeEffortNames([effort({ pr_rank: 1 })], []).size).toBe(0);
+    expect(
+      prBadgeEffortNames(
+        [effort({ name: "5K", pr_rank: 1 })],
+        [{ name: "10K", moving_time_s: 2735 }]
+      ).size
+    ).toBe(0);
+  });
+
+  it("keeps the fastest stored time when handed several rows per name", () => {
+    const names = prBadgeEffortNames(
+      [effort({ moving_time: 1351, pr_rank: 1 })],
+      [
+        { name: "5K", moving_time_s: 1400 },
+        { name: "5K", moving_time_s: 1351 },
+      ]
+    );
+    expect([...names]).toEqual(["5K"]);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bestEffortRecords,
   bestEffortsByDistance,
   estimateCriticalSpeed,
   pickReferenceEffort,
@@ -7,6 +8,7 @@ import {
   RIEGEL_FATIGUE_EXPONENT,
   type RunEffort,
 } from "@/lib/benchmarks";
+import type { StoredBestEffort } from "@/lib/best-efforts";
 
 function effort(overrides: Partial<RunEffort> = {}): RunEffort {
   return {
@@ -16,6 +18,20 @@ function effort(overrides: Partial<RunEffort> = {}): RunEffort {
     name: null,
     sportType: "Run",
     date: null,
+    ...overrides,
+  };
+}
+
+function stored(overrides: Partial<StoredBestEffort> = {}): StoredBestEffort {
+  return {
+    name: "5K",
+    distance_m: 5000,
+    moving_time_s: 1200,
+    elapsed_time_s: 1200,
+    pr_rank: null,
+    activity_name: "Interval session",
+    is_race: false,
+    date: "2026-07-01T10:00:00Z",
     ...overrides,
   };
 }
@@ -72,6 +88,125 @@ describe("bestEffortsByDistance", () => {
       bestEffortsByDistance([effort({ distanceKm: 4.5, movingTimeS: 1200 })]).map((b) => b.distance)
     ).toEqual(["5k"]);
     expect(bestEffortsByDistance([effort({ distanceKm: 4.49, movingTimeS: 1200 })])).toEqual([]);
+  });
+});
+
+describe("bestEffortRecords", () => {
+  it("prefers a faster stored segment over the whole-activity effort", () => {
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 5, movingTimeS: 1300 })],
+      [stored({ moving_time_s: 1250, activity_name: "Tempo run" })]
+    );
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      distance: "5k",
+      movingTimeS: 1250,
+      distanceKm: 5,
+      source: "segment",
+      name: "Tempo run",
+    });
+  });
+
+  it("keeps the whole-activity effort when the fastest stored segment is slower", () => {
+    // The acceptance property: the card can only get faster, never slower. Only a
+    // fraction of runs have a cached payload, so the stored 5K may come from an easy
+    // run while the whole-activity ladder holds a 5 km race.
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 5, movingTimeS: 1140, isRace: true, name: "City 5k" })],
+      [stored({ moving_time_s: 1500 })]
+    );
+    expect(records[0]).toMatchObject({ movingTimeS: 1140, source: "activity", name: "City 5k" });
+  });
+
+  it("takes an exact segment over an UNDER-DISTANCE whole activity with a smaller time", () => {
+    // The live 10k case: 45:12 over 9.86 km is inside the ±10% band but was never a
+    // 10 km, so a true 10.00 km segment in 45:35 is both faster per km and honest.
+    // Pace is the ranking key precisely so the shorter run cannot win on raw time.
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 9.86, movingTimeS: 2712 })],
+      [stored({ name: "10K", distance_m: 10000, moving_time_s: 2735 })]
+    );
+    expect(records[0]).toMatchObject({ movingTimeS: 2735, distanceKm: 10, source: "segment" });
+    expect(records[0].paceSPerKm).toBeLessThan(2712 / 9.86);
+  });
+
+  it("falls back to the whole-activity ladder for distances with no stored row", () => {
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 5, movingTimeS: 1300 }), effort({ distanceKm: 10, movingTimeS: 2700 })],
+      [stored({ moving_time_s: 1250 })]
+    );
+    expect(records.map((r) => [r.distance, r.source])).toEqual([
+      ["5k", "segment"],
+      ["10k", "activity"],
+    ]);
+  });
+
+  it("reports a stored segment at a distance never run as a whole activity", () => {
+    const records = bestEffortRecords([], [stored({ name: "Half-Marathon", distance_m: 21097 })]);
+    expect(records.map((r) => r.distance)).toEqual(["half"]);
+  });
+
+  it("keeps the segment on an exact pace tie, being the truer measurement", () => {
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 5, movingTimeS: 1200 })],
+      [stored({ moving_time_s: 1200 })]
+    );
+    expect(records[0].source).toBe("segment");
+  });
+
+  it("ignores stored names that are not standard distances", () => {
+    // 20K is 1097 m short of a half marathon: mapping it would manufacture a
+    // falsely fast half. 1K/1 mile/10 mile are not distances the ladder reports.
+    const records = bestEffortRecords(
+      [],
+      [
+        stored({ name: "20K", distance_m: 20000, moving_time_s: 5000 }),
+        stored({ name: "10 mile", distance_m: 16090, moving_time_s: 4000 }),
+        stored({ name: "1K", distance_m: 1000, moving_time_s: 200 }),
+        stored({ name: "400m", distance_m: 400, moving_time_s: 70 }),
+      ]
+    );
+    expect(records).toEqual([]);
+  });
+
+  it("matches names case-insensitively but rejects a length that is not the distance", () => {
+    expect(bestEffortRecords([], [stored({ name: "half-marathon", distance_m: 21097.5 })])).toEqual(
+      [expect.objectContaining({ distance: "half" })]
+    );
+    // Only Strava's own rounding slack is allowed: 4900 m is not a 5K segment.
+    expect(bestEffortRecords([], [stored({ distance_m: 4900 })])).toEqual([]);
+  });
+
+  it("drops stored rows with no usable distance or time", () => {
+    expect(bestEffortRecords([], [stored({ moving_time_s: 0 })])).toEqual([]);
+    expect(bestEffortRecords([], [stored({ distance_m: 0 })])).toEqual([]);
+  });
+
+  it("ranks stored rows by pace and carries the activity's race flag and date", () => {
+    const records = bestEffortRecords(
+      [],
+      [
+        stored({ moving_time_s: 1400, is_race: false, date: "2026-01-01T10:00:00Z" }),
+        stored({ moving_time_s: 1320, is_race: true, date: "2026-02-02T10:00:00Z" }),
+      ]
+    );
+    expect(records[0]).toMatchObject({
+      movingTimeS: 1320,
+      isRace: true,
+      date: "2026-02-02T10:00:00Z",
+      paceSPerKm: 264,
+    });
+  });
+
+  it("returns records shortest to longest", () => {
+    const records = bestEffortRecords(
+      [effort({ distanceKm: 10, movingTimeS: 2700 })],
+      [
+        stored({ name: "30K", distance_m: 30000, moving_time_s: 9000 }),
+        stored({ name: "5K", moving_time_s: 1250 }),
+      ]
+    );
+    expect(records.map((r) => r.distance)).toEqual(["5k", "10k", "30k"]);
   });
 });
 

@@ -3,11 +3,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/empty-state";
 import { ApplyThresholdPaceButton } from "@/components/apply-threshold-pace";
 import { ZonesPanel } from "@/components/zones-panel";
-import { getAthleteThresholds, getTrainingZones, listRunEfforts } from "@/lib/db";
+import {
+  getAthleteThresholds,
+  getTrainingZones,
+  listFastestBestEfforts,
+  listRunEfforts,
+} from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
 import {
-  bestEffortsByDistance,
+  bestEffortRecords,
   estimateCriticalSpeed,
   pickReferenceEffort,
   predictRaceTimes,
@@ -46,11 +51,16 @@ export default async function PerformancePage() {
   const tp = t.performance;
 
   const efforts = await listRunEfforts();
+  const storedEfforts = await listFastestBestEfforts();
   const thresholds = await getAthleteThresholds();
   const trainingZones = await getTrainingZones();
   const coachConfigured = isCoachConfigured();
 
-  const best = bestEffortsByDistance(efforts);
+  // Best times come from the true sub-segments Strava cut out of runs where we have
+  // them, and from whole-activity summaries everywhere else. The critical-speed fit
+  // and the Riegel anchor stay on whole activities: both want a maximal RACE effort,
+  // and a fast segment inside a training run is not one.
+  const best = bestEffortRecords(efforts, storedEfforts);
   const criticalSpeed = estimateCriticalSpeed(efforts);
   const reference = pickReferenceEffort(efforts);
   const predictions = reference ? predictRaceTimes(reference) : [];
@@ -106,6 +116,14 @@ export default async function PerformancePage() {
                         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                           <MedalIcon className="size-2.5" aria-hidden />
                           {tp.raceTag}
+                        </span>
+                      ) : null}
+                      {effort.source === "segment" ? (
+                        <span
+                          className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                          title={tp.segmentTagTitle}
+                        >
+                          {tp.segmentTag}
                         </span>
                       ) : null}
                     </div>
