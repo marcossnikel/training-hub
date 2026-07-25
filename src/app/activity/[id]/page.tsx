@@ -20,6 +20,7 @@ import {
   listBikes,
   listShoes,
 } from "@/lib/db";
+import { computeDecoupling, computeEf, type EfBasis } from "@/lib/analysis";
 import { isCoachConfigured } from "@/lib/coach";
 import {
   computeLoad,
@@ -391,6 +392,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const computedLoad = storedLoad ? null : computeLoad(activity, thresholds);
   const loadTss = storedLoad?.tss ?? computedLoad?.tss ?? null;
   const loadMethod = storedLoad?.method ?? computedLoad?.method ?? null;
+  const loadIntensity = storedLoad?.intensity_factor ?? computedLoad?.intensityFactor ?? null;
   const loadSource: "auto" | "manual" | "computed" = storedLoad
     ? storedLoad.source === "manual"
       ? "manual"
@@ -420,6 +422,34 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
     : run
       ? { by: "pace", zones: paceZones(thresholds) }
       : null;
+  // Aerobic quality (T12): rides read watts against HR, but only from a real
+  // power meter; runs read speed against HR. Every other sport (and a ride with
+  // estimated wattage) gets no basis, so its EF and decoupling tiles stay hidden.
+  const efBasis: EfBasis | null = ride
+    ? metrics?.hasRealPower
+      ? "power"
+      : null
+    : run
+      ? "speed"
+      : null;
+  const ef =
+    efBasis === "power"
+      ? computeEf({
+          basis: "power",
+          watts: metrics?.normalizedPower ?? metrics?.avgPower ?? null,
+          avgHr: activity.avg_hr,
+        })
+      : efBasis === "speed"
+        ? computeEf({
+            basis: "speed",
+            distanceKm: activity.distance_km,
+            movingTimeS: activity.moving_time_s,
+            avgHr: activity.avg_hr,
+          })
+        : null;
+  const decoupling = efBasis
+    ? computeDecoupling({ streams, basis: efBasis, movingTimeS: activity.moving_time_s })
+    : null;
   // Time in zone, integrated from the cached stream: heart rate for any sport
   // that recorded a trace, pace for runs. A bar is dropped when the threshold it
   // needs is unset or no sample landed in a zone.
@@ -586,6 +616,9 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
           tss={loadTss}
           method={loadMethod}
           source={loadSource}
+          intensityFactor={loadIntensity}
+          ef={ef}
+          decoupling={decoupling}
         />
       ) : null}
 

@@ -262,6 +262,17 @@ export const pt: Dict = {
     goalPacePlaceholder: "mm:ss",
     goalPaceHint: "Opcional. Usado para comparar blocos de treino depois.",
     load: "Carga",
+    loadTooltip:
+      "Training stress score: quanto esta sessão custou, duração vezes intensidade ao quadrado. Uma hora no limiar = 100.",
+    intensityFactor: "IF",
+    intensityFactorTooltip:
+      "Fator de intensidade: a intensidade média da sessão em relação ao seu limiar. 1,0 é uma hora inteira no limiar.",
+    ef: "EF",
+    efTooltip:
+      "Fator de eficiência: produção por batimento (watts/bpm na bike, metros por minuto/bpm na corrida). Subir com o mesmo esforço significa ganho aeróbico.",
+    decoupling: "Desacoplamento",
+    decouplingTooltip:
+      "Quanto a eficiência caiu da primeira para a segunda metade, sem o aquecimento. Abaixo de 5% o esforço foi bem sustentado; acima de 10% o ritmo ou o calor passaram da sua resistência.",
     loadMethod: "Método",
     editLoad: "Editar carga",
     resetLoad: "Voltar ao automático",

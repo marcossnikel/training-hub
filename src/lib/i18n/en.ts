@@ -267,6 +267,17 @@ export const en = {
     goalPacePlaceholder: "mm:ss",
     goalPaceHint: "Optional. Used to compare training blocks later.",
     load: "Load",
+    loadTooltip:
+      "Training stress score: how much this session cost, duration times intensity squared. One hour at threshold = 100.",
+    intensityFactor: "IF",
+    intensityFactorTooltip:
+      "Intensity factor: the session's average intensity relative to your threshold. 1.0 is an hour-long threshold effort.",
+    ef: "EF",
+    efTooltip:
+      "Efficiency factor: output per heartbeat (watts/bpm on a ride, metres per minute/bpm on a run). Rising at the same effort means aerobic fitness improving.",
+    decoupling: "Decoupling",
+    decouplingTooltip:
+      "How much efficiency fell from the first half to the second, warm-up excluded. Under 5% is well supported aerobically, above 10% means the pace or the heat outran your endurance.",
     loadMethod: "Method",
     editLoad: "Edit load",
     resetLoad: "Reset to auto",
