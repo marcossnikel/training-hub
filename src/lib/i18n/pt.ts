@@ -230,6 +230,13 @@ export const pt: Dict = {
     kmSplits: "Parciais",
     zones: "Zonas",
     easyHard: "{easy}% leve · {hard}% forte",
+    execution: "Execução",
+    vsGoal: {
+      title: "Em relação ao ritmo alvo",
+      at: "No alvo",
+      faster: "Mais rápido",
+      slower: "Mais lento",
+    },
     bestEfforts: "Melhores esforços",
     prRank: "Posição geral",
     lap: "Volta",
