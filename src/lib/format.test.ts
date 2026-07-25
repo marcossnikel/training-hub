@@ -12,6 +12,7 @@ import {
   fmtStride,
   fmtTime,
   localStartedAt,
+  monthLabel,
   parsePace,
   round2,
 } from "@/lib/format";
@@ -107,6 +108,14 @@ describe("date formatting", () => {
 
   it("formats a wall-clock time from a UTC instant", () => {
     expect(fmtTime("2026-05-15T08:05:00Z")).toBe("08:05");
+  });
+
+  it("names a month, adding the year only outside the current one", () => {
+    const now = new Date(2026, 6, 25);
+    expect(monthLabel(new Date(2026, 6, 1), "en", now)).toBe("Jul");
+    expect(monthLabel(new Date(2026, 6, 1), "pt", now)).toBe("Jul");
+    expect(monthLabel(new Date(2025, 11, 1), "en", now)).toBe("Dec 2025");
+    expect(monthLabel(new Date(2025, 11, 1), "pt", now)).toBe("Dez 2025");
   });
 });
 

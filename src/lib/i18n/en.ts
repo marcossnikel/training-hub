@@ -596,6 +596,17 @@ export const en = {
       "90d" | "6m" | "1y" | "all",
       string
     >,
+    totals: {
+      title: "Totals",
+      subtitle: "Volume by period, each against the one before it.",
+      period: "Period",
+      hours: "Hours",
+      distance: "Distance",
+      elevation: "Elevation",
+      sessions: "Sessions",
+      weeks: "Weeks",
+      months: "Months",
+    },
     empty: "No training load yet",
     emptyBody:
       "Confirm activities with heart rate, pace, power or RPE and your fitness curve builds here.",

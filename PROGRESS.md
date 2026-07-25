@@ -107,3 +107,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T17 Lap strip above the stream chart: done 2026-07-25, committed direct to main
 - ICU-T18 Drag-selection with instant range metrics: done 2026-07-25, committed direct to main
 - ICU-T19 Form strip on the training log: done 2026-07-25, committed direct to main
+- ICU-T20 Totals table with period deltas: done 2026-07-25, committed direct to main

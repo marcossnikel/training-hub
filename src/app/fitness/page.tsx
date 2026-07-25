@@ -8,6 +8,7 @@ import {
   type PmcProjection,
   type PmcSeriesPoint,
 } from "@/components/pmc-chart";
+import { TotalsTable } from "@/components/totals-table";
 import { WeeklyDigest } from "@/components/weekly-digest";
 import {
   getAthleteThresholds,
@@ -16,6 +17,7 @@ import {
   listActivityLoadsForPmc,
   listGoals,
   listRaceMarkers,
+  listTotalsActivities,
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { buildWellnessLane, WELLNESS_METRICS } from "@/lib/health";
@@ -34,12 +36,14 @@ import {
   type LoadSport,
 } from "@/lib/fitness";
 import { fmtTsb, localDateInputValue, parseLocalDate } from "@/lib/format";
+import { periodTotals, totalsFrom, TOTALS_PERIODS, type TotalsPeriod } from "@/lib/totals";
 import { timeWindows } from "@/lib/windows";
 import { STATE_COLOR } from "@/lib/zones";
 
 export const metadata = { title: "Fitness" };
 
 const WINDOWS = timeWindows(["90d", "6m", "1y", "all"]);
+const DEFAULT_WINDOW = "6m";
 
 // Projection horizon (T05): 28 days by default, stretched to reach the next
 // goal race when it lands within 56 days (further out and the closed-form
@@ -54,11 +58,24 @@ function daysBetween(from: string, to: string): number {
   return Math.round((parseLocalDate(to).getTime() - parseLocalDate(from).getTime()) / DAY_MS);
 }
 
-/** Shareable /fitness URL carrying both filters; defaults are left implicit. */
-function fitnessHref(window: string, sport: LoadSport | "all"): string {
+/** Everything the URL selects on this page. */
+interface FitnessFilters {
+  window: string;
+  sport: LoadSport | "all";
+  period: TotalsPeriod;
+}
+
+/**
+ * Shareable /fitness URL carrying every filter, with one of them overridden.
+ * Each group of pills therefore preserves the others, and defaults are left
+ * implicit so the plain /fitness URL stays clean.
+ */
+function fitnessHref(current: FitnessFilters, override: Partial<FitnessFilters>): string {
+  const { window, sport, period } = { ...current, ...override };
   const query = new URLSearchParams();
-  if (window !== "6m") query.set("window", window);
+  if (window !== DEFAULT_WINDOW) query.set("window", window);
   if (sport !== "all") query.set("sport", sport);
+  if (period !== TOTALS_PERIODS[0]) query.set("period", period);
   const qs = query.toString();
   return qs ? `/fitness?${qs}` : "/fitness";
 }
@@ -145,14 +162,17 @@ function QuietTile({
 
 export default async function FitnessPage({ searchParams }: PageProps<"/fitness">) {
   const params = await searchParams;
-  const { t } = await getDict();
+  const { lang, t } = await getDict();
   // Thresholds are what the persisted loads were computed from; ensure the row
   // exists (seeded on first migration) before reading the curve.
   await getAthleteThresholds();
   const loads = await listActivityLoadsForPmc();
 
-  const rawWindow = typeof params.window === "string" ? params.window : "6m";
+  const rawWindow = typeof params.window === "string" ? params.window : DEFAULT_WINDOW;
   const win = WINDOWS.find((w) => w.key === rawWindow) ?? WINDOWS[1];
+
+  // Totals period (T20): weeks unless the URL asks for months.
+  const period: TotalsPeriod = params.period === "months" ? "months" : "weeks";
 
   // Sport filter (T07): per-sport CTL/ATL/TSB, the whole page recomputed from
   // the filtered rows. Only sports that actually carry positive load get a pill,
@@ -164,6 +184,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
     : "all";
   const sportLoads =
     sport === "all" ? loads : loads.filter((r) => loadSport(r.sport_type) === sport);
+  const filters: FitnessFilters = { window: win.key, sport, period };
 
   // PMC runs over the whole history (gap-filled to today) so CTL/ATL carry the
   // full accumulation; the window only slices what the chart shows.
@@ -196,7 +217,11 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   // goals, restricted to the dates actually shown so a narrower window shows
   // fewer markers. Race dates use the same started_at -> local-day conversion
   // dailyLoadSeries uses, so they land on the same point as their load.
-  const [races, goals] = await Promise.all([listRaceMarkers(), listGoals()]);
+  const [races, goals, totalsActivities] = await Promise.all([
+    listRaceMarkers(),
+    listGoals(),
+    listTotalsActivities(totalsFrom(period)),
+  ]);
   const windowStart = windowPoints[0]?.date;
   const windowEnd = windowPoints[windowPoints.length - 1]?.date;
   const inWindow = (date: string) =>
@@ -271,6 +296,10 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
     .filter((s) => s.points.length > 0)
     .map((s) => buildWellnessLane(s.metric, dates, s.points));
 
+  // Totals (T20): weekly or monthly volume with each period's change from the
+  // one before, bucketed by local calendar day like every other series here.
+  const totals = periodTotals(totalsActivities, period);
+
   const digest = await getWeeklyDigest();
   const coachConfigured = isCoachConfigured();
 
@@ -336,7 +365,7 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
         {WINDOWS.map((w) => (
           <FilterPill
             key={w.key}
-            href={fitnessHref(w.key, sport)}
+            href={fitnessHref(filters, { window: w.key })}
             active={win.key === w.key}
             label={t.fitness.windows[w.key]}
           />
@@ -348,14 +377,14 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
       {availableSports.length > 0 ? (
         <nav aria-label="Filter by sport" className="mt-2 flex flex-wrap items-center gap-1.5">
           <FilterPill
-            href={fitnessHref(win.key, "all")}
+            href={fitnessHref(filters, { sport: "all" })}
             active={sport === "all"}
             label={t.log.all}
           />
           {availableSports.map((s) => (
             <FilterPill
               key={s}
-              href={fitnessHref(win.key, s)}
+              href={fitnessHref(filters, { sport: s })}
               active={sport === s}
               label={t.sports[s]}
             />
@@ -372,6 +401,29 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
             projection={projection}
             wellness={wellness}
           />
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>{t.fitness.totals.title}</CardTitle>
+          <CardDescription>{t.fitness.totals.subtitle}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <nav
+            aria-label={t.fitness.totals.period}
+            className="mb-3 flex flex-wrap items-center gap-1.5"
+          >
+            {TOTALS_PERIODS.map((p) => (
+              <FilterPill
+                key={p}
+                href={fitnessHref(filters, { period: p })}
+                active={period === p}
+                label={t.fitness.totals[p]}
+              />
+            ))}
+          </nav>
+          <TotalsTable rows={totals} period={period} lang={lang} t={t} />
         </CardContent>
       </Card>
 

@@ -590,6 +590,17 @@ export const pt: Dict = {
     weeklyTotal: "Total",
     window: "Período",
     windows: { "90d": "90 dias", "6m": "6 meses", "1y": "1 ano", all: "Tudo" },
+    totals: {
+      title: "Totais",
+      subtitle: "Volume por período, cada um comparado ao anterior.",
+      period: "Período",
+      hours: "Horas",
+      distance: "Distância",
+      elevation: "Elevação",
+      sessions: "Sessões",
+      weeks: "Semanas",
+      months: "Meses",
+    },
     empty: "Ainda sem carga de treino",
     emptyBody:
       "Confirme atividades com frequência cardíaca, ritmo, potência ou RPE e sua curva de condicionamento aparece aqui.",

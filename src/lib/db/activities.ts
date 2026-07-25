@@ -2,7 +2,9 @@ import { cache } from "react";
 import { batchWrite, exec, many, one, sqliteBool } from "./helpers";
 import { client } from "./client";
 import { ensureMigrated } from "./migrations";
+import { parseLocalDate } from "../format";
 import type { BlockActivity } from "../blocks";
+import type { TotalsActivity } from "../totals";
 import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
 
 // The activities table stores `is_race` as 0/1; SELECT hands it back as a number.
@@ -103,6 +105,26 @@ export async function listBlockActivities(
      WHERE status = 'confirmed' AND started_at >= ? AND started_at < ?
      ORDER BY started_at ASC`,
     [fromIso, toIso]
+  );
+}
+
+/**
+ * Confirmed activities from a local calendar day onwards, with their persisted
+ * load, for the /fitness totals table. Rows come back per activity and ungrouped
+ * on purpose: every week/month bucket is built in JS from the local day of
+ * `started_at` (see `periodTotals`), because grouping with SQL strftime would
+ * bucket by UTC and drift each period boundary by the athlete's tz offset.
+ */
+export async function listTotalsActivities(fromDay: string): Promise<TotalsActivity[]> {
+  return many<TotalsActivity>(
+    `SELECT a.started_at, l.tss, a.moving_time_s, a.distance_km, a.elevation_gain_m
+     FROM activities a
+     LEFT JOIN activity_load l ON l.activity_id = a.id
+     WHERE a.status = 'confirmed' AND a.started_at IS NOT NULL AND a.started_at >= ?
+     ORDER BY a.started_at ASC`,
+    // The local day's midnight as a UTC instant: the exact boundary the JS
+    // local-day bucketing uses, so no row is fetched or missed by an offset.
+    [parseLocalDate(fromDay).toISOString()]
   );
 }
 

@@ -232,6 +232,15 @@ export function eachDay(from: string, to: string): string[] {
   return out;
 }
 
+/**
+ * A month from a local wall-clock Date: "Jul" inside the current year, "Jul 2025"
+ * before it. The month sibling of weekLabel, for the totals table's period column.
+ */
+export function monthLabel(d: Date, lang: Lang = "en", now = new Date()): string {
+  const year = d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`;
+  return `${MONTHS[lang][d.getMonth()]}${year}`;
+}
+
 export function weekLabel(monday: Date, lang: Lang = "en", now = new Date()): string {
   const thisMonday = mondayOf(now);
   const diffDays = Math.round((thisMonday.getTime() - monday.getTime()) / 86400000);
