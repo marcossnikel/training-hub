@@ -263,7 +263,7 @@ export const pt: Dict = {
     goalPaceHint: "Opcional. Usado para comparar blocos de treino depois.",
     load: "Carga",
     loadTooltip:
-      "Training stress score: quanto esta sessão custou, duração vezes intensidade ao quadrado. Uma hora no limiar = 100.",
+      "Pontuação de estresse de treino (TSS): quanto esta sessão custou, duração vezes intensidade ao quadrado. Uma hora no limiar = 100.",
     intensityFactor: "IF",
     intensityFactorTooltip:
       "Fator de intensidade: a intensidade média da sessão em relação ao seu limiar. 1,0 é uma hora inteira no limiar.",
