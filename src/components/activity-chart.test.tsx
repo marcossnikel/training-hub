@@ -576,8 +576,8 @@ describe("ActivityChart drag selection", () => {
     expect(bandOf(container)).toBeNull();
     expect(metricsOf(container)).toBeNull();
 
-    // Samples 0 to 2: 600 s, 2 km, HR 120 then 140 for 300 s each, pace 5:00 flat,
-    // and a 10 m rise followed by a 5 m drop.
+    // Samples 0 to 2: 600 s and 2 km of clock and ground, HR 120 / 140 / 160,
+    // pace 300 / 300 / 240 s/km, and a 10 m rise followed by a 5 m drop.
     drag(svg, PAD_L, PAD_L + PLOT_W / 2);
 
     const band = bandOf(container)!;
@@ -591,9 +591,14 @@ describe("ActivityChart drag selection", () => {
     const metrics = metricsOf(container)!;
     expect(metrics).toContain("10:00"); // duration
     expect(metrics).toContain("2.00 km");
-    expect(metrics).toContain("130 bpm"); // time-weighted avg HR
+    // Two 300 s intervals at the mean of their ends: (130 + 150) / 2 = 140 bpm.
+    // The old left-endpoint weighting read 130, leaving the range's own last
+    // sample out of its average.
+    expect(metrics).toContain("140 bpm");
     expect(metrics).toContain("160 bpm"); // max HR
-    expect(metrics).toContain("5:00 /km");
+    // Moving pace: 300 s at 300 s/km then 300 s at the mean of 300 and 240,
+    // so 600 s over 1 + 300/270 km = 284 s/km.
+    expect(metrics).toContain("4:44 /km");
     expect(metrics).toContain("10 m"); // positive altitude deltas only
     expect(metrics).not.toContain("W");
   });
@@ -613,7 +618,7 @@ describe("ActivityChart drag selection", () => {
     atUnitScale(svg);
     drag(svg, PAD_L, PAD_L + PLOT_W / 2);
     const metrics = document.querySelector("[data-selection-metrics]")!.textContent!;
-    expect(metrics).toContain("150 W"); // (100*300 + 200*300) / 600
+    expect(metrics).toContain("200 W"); // (150*300 + 250*300) / 600
     expect(metrics).not.toContain("/km");
   });
 
@@ -656,6 +661,106 @@ describe("ActivityChart drag selection", () => {
     expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("1-2");
   });
 
+  it("bands a drag that runs right to left the same as one running left to right", () => {
+    const { container, svg } = setup();
+    drag(svg, PAD_L + PLOT_W, PAD_L + PLOT_W / 2);
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("2-4");
+    // The band is drawn from the lower sample regardless of which end was pressed.
+    expect(Number(bandOf(container)!.getAttribute("x"))).toBeCloseTo(PAD_L + PLOT_W / 2, 1);
+    expect(Number(bandOf(container)!.getAttribute("width"))).toBeCloseTo(PLOT_W / 2, 1);
+    expect(metricsOf(container)).toContain("10:00"); // samples 2 to 4 = 600 s
+  });
+
+  it("a plain cursor key drops the band and re-anchors, as a plain press does", () => {
+    const { container, svg } = setup();
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    fireEvent.keyDown(svg, { key: "ArrowRight", shiftKey: true });
+    fireEvent.keyDown(svg, { key: "ArrowRight", shiftKey: true });
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("1-3");
+
+    // An unshifted key used to leave the band behind while the crosshair walked
+    // on, so band and cursor drifted apart and the next Shift+Arrow reused the
+    // abandoned anchor. It clears, like the pointer path.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(bandOf(container)).toBeNull();
+    expect(metricsOf(container)).toBeNull();
+
+    // And the next range gesture anchors where the cursor now stands (sample 4),
+    // not on the anchor the reader left behind: 3-4, never 1-3.
+    fireEvent.keyDown(svg, { key: "ArrowLeft", shiftKey: true });
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("3-4");
+  });
+
+  it("selects nothing when a range gesture lands on one sample", () => {
+    const { container, svg } = setup();
+    // End then Shift+ArrowRight clamps to the same last sample. A 1-unit band
+    // reporting that sample's instantaneous values as range averages is a lie;
+    // there is simply no range yet.
+    fireEvent.keyDown(svg, { key: "End" });
+    fireEvent.keyDown(svg, { key: "ArrowRight", shiftKey: true });
+    expect(bandOf(container)).toBeNull();
+    expect(edgesOf(container)).toHaveLength(0);
+    expect(metricsOf(container)).toBeNull();
+
+    // Reaching a second sample is what makes it a range.
+    fireEvent.keyDown(svg, { key: "ArrowLeft", shiftKey: true });
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("3-4");
+  });
+
+  it("Escape peels the band on screen, never an anchor with no band", () => {
+    const laps: LapWindow[] = [
+      { label: "1", startS: 0, endS: 600 },
+      { label: "2", startS: 600, endS: 1200 },
+    ];
+    const { container, svg } = setup({ laps });
+    fireEvent.click(container.querySelectorAll("rect[data-lap-strip]")[1]);
+    // A range gesture that clamped onto one sample leaves an anchor and no band.
+    fireEvent.keyDown(svg, { key: "End" });
+    fireEvent.keyDown(svg, { key: "ArrowRight", shiftKey: true });
+    expect(bandOf(container)).toBeNull();
+
+    // So the first Escape has the pinned lap to clear, and clears it.
+    fireEvent.keyDown(svg, { key: "Escape" });
+    expect(highlightOf(container)).toBeNull();
+  });
+
+  it("hides the readout with the chart when every series is switched off", () => {
+    const { container, svg } = setup();
+    drag(svg, PAD_L, PAD_L + PLOT_W / 2);
+    expect(metricsOf(container)).toBeTruthy();
+
+    // Selecting a range and THEN hiding every panel unmounted the SVG but left the
+    // readout on screen with no band, no crosshair and nothing to press Escape on.
+    for (const name of ["Heart rate", "Pace", "Elevation"])
+      fireEvent.click(screen.getByRole("button", { name }));
+    expect(screen.queryByRole("img", { name: "Analysis" })).toBeNull();
+    expect(metricsOf(container)).toBeNull();
+
+    // And the range does not come back with the panels; the reader starts over.
+    fireEvent.click(screen.getByRole("button", { name: "Heart rate" }));
+    expect(screen.getByRole("img", { name: "Analysis" })).toBeTruthy();
+    expect(metricsOf(container)).toBeNull();
+    expect(bandOf(container)).toBeNull();
+  });
+
+  it("measures the drag threshold in client pixels, not viewBox units", () => {
+    const { container, svg } = setup();
+    // A phone-width column: 380 client px across a 760-unit viewBox, so one px is
+    // two units and the old 6-unit threshold fired after 3 px of thumb jitter.
+    svg.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 380, bottom: 200, width: 380, height: 200 }) as DOMRect;
+
+    // 5 px of travel, which is 10 viewBox units and crosses onto another sample.
+    fireEvent.pointerDown(svg, { clientX: 150 });
+    fireEvent.pointerMove(svg, { clientX: 155 });
+    expect(bandOf(container)).toBeNull();
+
+    // 10 px is a drag at any rendered width.
+    fireEvent.pointerMove(svg, { clientX: 160 });
+    fireEvent.pointerUp(svg, { clientX: 160 });
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("1-2");
+  });
+
   it("Escape clears the selection before the pinned lap", () => {
     const laps: LapWindow[] = [
       { label: "1", startS: 0, endS: 600 },
@@ -692,6 +797,72 @@ describe("ActivityChart drag selection", () => {
     fireEvent.click(second);
     expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
     expect(bandOf(container)).toBeNull();
+  });
+
+  it("does not also pin the lap a drag started and ended inside", () => {
+    const laps: LapWindow[] = [
+      { label: "1", startS: 0, endS: 600 },
+      { label: "2", startS: 600, endS: 1200 },
+    ];
+    const { container } = setup({ laps });
+    const second = container.querySelectorAll("rect[data-lap-strip]")[1];
+    // A browser fires `click` on the common ancestor of pointer-down and pointer-up,
+    // so a drag from 55% to 95% of the plot — both inside lap 2's rect — dispatches
+    // the rect's click as well and used to select AND pin in one gesture. On touch
+    // it is the normal case: implicit pointer capture keeps events on the rect.
+    fireEvent.pointerDown(second, { clientX: PAD_L + PLOT_W * 0.55 });
+    fireEvent.pointerMove(second, { clientX: PAD_L + PLOT_W * 0.95 });
+    fireEvent.pointerUp(second, { clientX: PAD_L + PLOT_W * 0.95 });
+    fireEvent.click(second);
+
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("2-4");
+    expect(highlightOf(container)).toBeNull();
+    expect(second.getAttribute("aria-pressed")).toBe("false");
+
+    // The very next genuine click still pins, so T17's gesture is intact.
+    fireEvent.click(second);
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+  });
+
+  it("prints no distance and no pace for a range the athlete stood still in", () => {
+    // Activity 1245 samples 103 to 107: a lab treadmill pinned at 1.164 km for 165 s
+    // of clock with the velocity stream reading zero throughout. Dividing the range's
+    // duration by its distance printed nothing here and 1408:20 /km one sample wider.
+    const stalled = makeStreams({
+      n: 6,
+      timeS: [428, 432, 585, 589, 593, 597],
+      distanceKm: [1.164, 1.164, 1.164, 1.164, 1.164, 1.166],
+      paceSPerKm: [null, null, null, null, null, 2778],
+      heartrate: [126, 123, 120, 118, 118, 118],
+    });
+    const { container } = render(
+      <ActivityChart
+        activityId={1}
+        streams={stalled}
+        isRun={true}
+        isRide={false}
+        thresholds={thresholds}
+      />
+    );
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    atUnitScale(svg);
+    // The time axis, the only one that spreads these samples out.
+    fireEvent.click(screen.getByRole("button", { name: "Time" }));
+    drag(svg, PAD_L, PAD_L + (165 / 169) * PLOT_W);
+
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("0-4");
+    const metrics = metricsOf(container)!;
+    expect(metrics).toContain("2:45"); // 165 s of clock, which did pass
+    expect(metrics).toContain("121 bpm"); // (4*124.5 + 153*121.5 + 4*119 + 4*118) / 165
+    // No distance entry printing "0.00 km" beside a duration, and no pace at all.
+    expect(metrics).not.toContain("km");
+
+    // One sample wider the stream creeps 2 m, which is a span that advanced but
+    // not by enough to print: same readout, not "Distance 0.00 km".
+    drag(svg, PAD_L, PAD_L + PLOT_W);
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("0-5");
+    expect(metricsOf(container)).toContain("2:49");
+    expect(metricsOf(container)).not.toContain("km");
   });
 
   it("drops a band whose edge stops plotting on the other axis", () => {
