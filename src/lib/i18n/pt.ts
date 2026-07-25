@@ -590,6 +590,15 @@ export const pt: Dict = {
     weeklyTotal: "Total",
     window: "Período",
     windows: { "90d": "90 dias", "6m": "6 meses", "1y": "1 ano", all: "Tudo" },
+    heatmap: {
+      title: "Consistência",
+      streak: "Sequência {n} d",
+      streakNone: "Sem sequência",
+      activeDays: "{n} dias ativos/sem",
+      session: "1 sessão",
+      sessions: "{n} sessões",
+      rest: "dia de descanso",
+    },
     totals: {
       title: "Totais",
       subtitle: "Volume por período, cada um comparado ao anterior.",

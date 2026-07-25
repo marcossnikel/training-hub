@@ -596,6 +596,15 @@ export const en = {
       "90d" | "6m" | "1y" | "all",
       string
     >,
+    heatmap: {
+      title: "Consistency",
+      streak: "Streak {n} d",
+      streakNone: "No streak",
+      activeDays: "{n} active days/wk",
+      session: "1 session",
+      sessions: "{n} sessions",
+      rest: "rest day",
+    },
     totals: {
       title: "Totals",
       subtitle: "Volume by period, each against the one before it.",

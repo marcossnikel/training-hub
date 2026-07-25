@@ -3,6 +3,7 @@ import { batchWrite, exec, many, one, sqliteBool } from "./helpers";
 import { client } from "./client";
 import { ensureMigrated } from "./migrations";
 import type { BlockActivity } from "../blocks";
+import type { SessionStart } from "../consistency";
 import type { TotalsActivity } from "../totals";
 import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
 
@@ -127,6 +128,25 @@ export async function listTotalsActivities(fromDay: string): Promise<TotalsActiv
     // Midnight of the first local day, compared against the very stamp the JS
     // bucketing takes its day key from, so no row is fetched or missed by an
     // offset. Both stamps are Z-suffixed ISO, which sorts lexicographically.
+    [`${fromDay}T00:00:00Z`]
+  );
+}
+
+/**
+ * Every confirmed session's start from `fromDay` onwards, for the consistency
+ * heatmap's per-day session counts. Ungrouped on purpose: the counts must land on
+ * exactly the day key `dailyLoadSeries` gives the same cell's load (the UTC
+ * instant read in the process timezone — see the header of src/lib/consistency.ts),
+ * and no SQL grouping produces that key. `heatmapFrom` hands over a day of slack
+ * ahead of the grid so no process timezone can miss its first day; the JS
+ * bucketing drops whatever falls outside the grid.
+ */
+export async function listSessionStarts(fromDay: string): Promise<SessionStart[]> {
+  return many<SessionStart>(
+    `SELECT started_at, sport_type
+     FROM activities
+     WHERE status = 'confirmed' AND started_at IS NOT NULL AND started_at >= ?
+     ORDER BY started_at ASC`,
     [`${fromDay}T00:00:00Z`]
   );
 }

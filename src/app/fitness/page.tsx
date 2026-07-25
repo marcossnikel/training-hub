@@ -1,5 +1,6 @@
 import { GaugeIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConsistencyHeatmapCard } from "@/components/consistency-heatmap";
 import { EmptyState } from "@/components/empty-state";
 import { FilterPill } from "@/components/filter-pill";
 import {
@@ -17,9 +18,11 @@ import {
   listActivityLoadsForPmc,
   listGoals,
   listRaceMarkers,
+  listSessionStarts,
   listTotalsActivities,
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
+import { consistencyHeatmap, heatmapFrom, sessionCountsByDay } from "@/lib/consistency";
 import { buildWellnessLane, WELLNESS_METRICS } from "@/lib/health";
 import { getDict } from "@/lib/lang";
 import { fillStr } from "@/lib/i18n";
@@ -225,10 +228,11 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   // goals, restricted to the dates actually shown so a narrower window shows
   // fewer markers. Race dates use the same started_at -> local-day conversion
   // dailyLoadSeries uses, so they land on the same point as their load.
-  const [races, goals, totalsActivities] = await Promise.all([
+  const [races, goals, totalsActivities, sessionStarts] = await Promise.all([
     listRaceMarkers(),
     listGoals(),
     listTotalsActivities(totalsFrom(period)),
+    listSessionStarts(heatmapFrom()),
   ]);
   const windowStart = windowPoints[0]?.date;
   const windowEnd = windowPoints[windowPoints.length - 1]?.date;
@@ -310,6 +314,18 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
   // bars stack, so the card cannot contradict the chart above it.
   const totals = periodTotals(filterBySport(totalsActivities, sport), period);
 
+  // Consistency heatmap (T21): the trailing year of daily load, one cell per day.
+  // The loads are the `daily` series computed above, and the session rows are
+  // bucketed by that very same day key (see the header of src/lib/consistency.ts),
+  // so a cell's count and its load can never describe different days. An active
+  // sport filter narrows the sessions through the same loadSport buckets that
+  // produced sportLoads, so the card agrees with the curve above it.
+  const heatmapSessions =
+    sport === "all"
+      ? sessionStarts
+      : sessionStarts.filter((row) => loadSport(row.sport_type) === sport);
+  const heatmap = consistencyHeatmap(daily, sessionCountsByDay(heatmapSessions));
+
   const digest = await getWeeklyDigest();
   const coachConfigured = isCoachConfigured();
 
@@ -317,6 +333,8 @@ export default async function FitnessPage({ searchParams }: PageProps<"/fitness"
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <h1 className="font-display text-4xl font-bold uppercase">{t.fitness.title}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{t.fitness.subtitle}</p>
+
+      <ConsistencyHeatmapCard heatmap={heatmap} lang={lang} t={t} />
 
       <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 rounded-xl border bg-card p-5 sm:grid-cols-5">
         <StatTile

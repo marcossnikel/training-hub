@@ -190,6 +190,15 @@ export function fmtDayMonth(d: Date, lang: Lang = "en"): string {
   return `${d.getDate()} ${MONTHS[lang][d.getMonth()]}`;
 }
 
+/**
+ * A month's short name from its 0-based index, for an axis labeled by month
+ * rather than by date (the consistency heatmap's top band). The single home of
+ * the month names stays here, so no component keeps its own copy.
+ */
+export function monthShort(month: number, lang: Lang = "en"): string {
+  return MONTHS[lang][month];
+}
+
 export function fmtDateWithYear(iso: string | null | undefined, lang: Lang = "en"): string {
   if (!iso) return "–";
   const d = new Date(iso);
