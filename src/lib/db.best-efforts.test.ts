@@ -45,24 +45,33 @@ async function storedRows() {
 }
 
 describe("activity_best_efforts", () => {
+  // Elapsed and moving are deliberately DIFFERENT in every fixture row: equal values
+  // would let the two columns be transposed in the upsert without a test noticing.
   it("upserts on (activity_id, name): re-running rewrites in place", async () => {
     await db.upsertActivityBestEfforts(activityId, [
-      { name: "1K", distance_m: 1000, elapsed_time_s: 291, moving_time_s: 291, pr_rank: null },
-      { name: "5K", distance_m: 5000, elapsed_time_s: 1200, moving_time_s: 1200, pr_rank: 2 },
+      { name: "1K", distance_m: 1000, elapsed_time_s: 293, moving_time_s: 291, pr_rank: null },
+      { name: "5K", distance_m: 5000, elapsed_time_s: 1207, moving_time_s: 1200, pr_rank: 2 },
     ]);
     expect(await storedRows()).toEqual([
-      { name: "1K", distance_m: 1000, elapsed_time_s: 291, moving_time_s: 291, pr_rank: null },
-      { name: "5K", distance_m: 5000, elapsed_time_s: 1200, moving_time_s: 1200, pr_rank: 2 },
+      { name: "1K", distance_m: 1000, elapsed_time_s: 293, moving_time_s: 291, pr_rank: null },
+      { name: "5K", distance_m: 5000, elapsed_time_s: 1207, moving_time_s: 1200, pr_rank: 2 },
     ]);
 
     // Same names, one changed rank: two rows, not four.
     await db.upsertActivityBestEfforts(activityId, [
-      { name: "1K", distance_m: 1000, elapsed_time_s: 291, moving_time_s: 291, pr_rank: null },
-      { name: "5K", distance_m: 5000, elapsed_time_s: 1200, moving_time_s: 1200, pr_rank: 1 },
+      { name: "1K", distance_m: 1000, elapsed_time_s: 293, moving_time_s: 291, pr_rank: null },
+      { name: "5K", distance_m: 5000, elapsed_time_s: 1207, moving_time_s: 1200, pr_rank: 1 },
     ]);
     const rows = await storedRows();
     expect(rows).toHaveLength(2);
-    expect(rows[1]).toMatchObject({ name: "5K", pr_rank: 1 });
+    // The rewritten row keeps both durations in their own columns, unswapped.
+    expect(rows[1]).toEqual({
+      name: "5K",
+      distance_m: 5000,
+      elapsed_time_s: 1207,
+      moving_time_s: 1200,
+      pr_rank: 1,
+    });
 
     expect(await db.listBestEffortCounts()).toEqual([{ activity_id: activityId, n: 2 }]);
   });

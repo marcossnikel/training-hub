@@ -182,3 +182,36 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("best efforts are mirrored once, not on every view", () => {
+  it("writes on the first cached-path view and skips the write on the next one", async () => {
+    const detailJson = JSON.stringify({
+      best_efforts: [
+        { name: "400m", distance: 400, moving_time: 105, elapsed_time: 106, pr_rank: null },
+        { name: "1K", distance: 1000, moving_time: 291, elapsed_time: 293, pr_rank: 2 },
+      ],
+    });
+    const inserted = await db.client.execute({
+      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, detail_json)
+            VALUES ('Cached detail', 'Run', '2026-01-03T12:00:00Z', 10, 'confirmed', ?)`,
+      args: [detailJson],
+    });
+    const activityId = Number(inserted.lastInsertRowid);
+    const activity = { id: activityId, strava_id: null, detail_json: detailJson };
+
+    // A view is a read path: any write it issues goes through client.batch, so
+    // counting batches counts write transactions.
+    const batchSpy = vi.spyOn(db.client, "batch");
+
+    await strava.ensureActivityDetail(activity);
+    expect(batchSpy).toHaveBeenCalledTimes(1);
+    expect(await db.listBestEffortCounts(activityId)).toEqual([{ activity_id: activityId, n: 2 }]);
+
+    await strava.ensureActivityDetail(activity);
+    await strava.ensureActivityDetail(activity);
+
+    // Still one write across three views: the stored rows were detected and left alone.
+    expect(batchSpy).toHaveBeenCalledTimes(1);
+    expect(await db.listBestEffortCounts(activityId)).toEqual([{ activity_id: activityId, n: 2 }]);
+  });
+});

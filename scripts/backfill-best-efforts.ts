@@ -26,37 +26,28 @@ import {
 } from "../src/lib/db";
 import { bestEffortRows, type BestEffortRow } from "../src/lib/best-efforts";
 import { parseActivityDetail } from "../src/lib/strava";
+import { assertLocalDb } from "./lib/assert-local-db";
 
 /** Sample rows printed so the writer can eyeball the shape before committing. */
 const SAMPLE_ROWS = 3;
 
 /**
- * Guard against backfilling a remote (shared/prod Turso) database. Resolves the DB
- * URL exactly like src/lib/db/client.ts (TURSO_DATABASE_URL → DATABASE_URL → local
- * file). A file: URL (local dev) runs normally; a remote URL refuses unless the
- * writer explicitly opts in with ALLOW_REMOTE_DB=1.
+ * Activities read per round trip. A detail payload is a full Strava activity JSON,
+ * so the scan is paged instead of loading every payload at once (~21 carry one
+ * today, ~1230 once T24's fetch-history pass lands).
  */
-function assertLocalDb(): void {
-  const url = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || "file:data/app.db";
-  if (url.startsWith("file:")) return;
-  if (process.env.ALLOW_REMOTE_DB === "1") return;
-  let host = url;
-  try {
-    host = new URL(url).host || url;
-  } catch {
-    // Not a parseable URL; fall back to showing the raw value.
-  }
-  console.error(
-    `Refusing to backfill a remote database (${host}). This protects the shared/prod DB. ` +
-      `Re-run with ALLOW_REMOTE_DB=1 to override.`
-  );
-  process.exit(1);
-}
+const PAGE_SIZE = 200;
 
 /** One activity's parsed rows, awaiting (or skipped by) the write pass. */
 interface PendingActivity {
   activityId: number;
   rows: BestEffortRow[];
+}
+
+/** One printable sample: an effort row plus the activity it came from. */
+interface Sample {
+  activityId: number;
+  row: BestEffortRow;
 }
 
 function formatRow(activityId: number, row: BestEffortRow): string {
@@ -67,24 +58,65 @@ function formatRow(activityId: number, row: BestEffortRow): string {
   );
 }
 
+/**
+ * The SAMPLE_ROWS lines an operator can actually validate the dry run with: one row
+ * per activity (rather than three rows of the same run), and a PR-ranked row first
+ * whenever the run parsed any — otherwise every sample shows `pr —` and `pr_rank`,
+ * the one column the summary claims but nothing else displays, goes unchecked.
+ */
+function sampleLines(items: PendingActivity[]): string[] {
+  const all: Sample[] = items.flatMap((item) =>
+    item.rows.map((row) => ({ activityId: item.activityId, row }))
+  );
+  const withPr = all.find((sample) => sample.row.pr_rank !== null);
+  const onePerActivity = items.map((item) => ({ activityId: item.activityId, row: item.rows[0] }));
+  const picked = withPr
+    ? [withPr, ...onePerActivity.filter((sample) => sample.row !== withPr.row)]
+    : onePerActivity;
+  return picked.slice(0, SAMPLE_ROWS).map((sample) => formatRow(sample.activityId, sample.row));
+}
+
+/** Every activity carrying a cached detail payload, one bounded page at a time. */
+async function* eachActivityWithDetail() {
+  let afterId = 0;
+  for (;;) {
+    const page = await listActivitiesWithDetailJson({ afterId, limit: PAGE_SIZE });
+    if (page.length === 0) return;
+    for (const activity of page) yield activity;
+    afterId = page[page.length - 1].id;
+  }
+}
+
 async function main() {
   const write = process.argv.includes("--write");
+  // --force is deliberately NOT accepted here: the real run is gated by --write, and
+  // ALLOW_REMOTE_DB=1 stays the only way to reach a remote database.
   assertLocalDb();
   await ensureMigrated();
 
-  const activities = await listActivitiesWithDetailJson();
   const stored = new Map(
     (await listBestEffortCounts()).map((row): [number, number] => [row.activity_id, row.n])
   );
 
   const pending: PendingActivity[] = [];
   const skipped: PendingActivity[] = [];
+  let scanned = 0;
+  let unparseable = 0;
   let parsedRows = 0;
   let prRows = 0;
 
-  for (const activity of activities) {
+  for await (const activity of eachActivityWithDetail()) {
+    scanned += 1;
     const detail = parseActivityDetail(activity.detail_json);
-    const rows = bestEffortRows(detail?.best_efforts);
+    // A stored payload that does not parse into an object is a damaged cache entry,
+    // NOT an effort-free activity. Skipping it is right (one bad row must not abort
+    // the run), but it is counted and reported so it cannot hide inside "no efforts".
+    if (detail === null) {
+      unparseable += 1;
+      console.error(`  unparseable detail_json on activity ${activity.id}, skipped`);
+      continue;
+    }
+    const rows = bestEffortRows(detail.best_efforts);
     if (rows.length === 0) continue;
     parsedRows += rows.length;
     prRows += rows.filter((row) => row.pr_rank !== null).length;
@@ -98,7 +130,8 @@ async function main() {
   const pendingRows = pending.reduce((sum, item) => sum + item.rows.length, 0);
 
   console.log(write ? "Best-effort backfill (WRITE)." : "Best-effort backfill (dry run).");
-  console.log(`  activities with a cached detail payload: ${activities.length}`);
+  console.log(`  activities with a cached detail payload: ${scanned}`);
+  console.log(`  of those, unparseable payload (skipped): ${unparseable}`);
   console.log(`  of those, with best efforts:            ${activitiesWithEfforts}`);
   console.log(`  effort rows parsed:                     ${parsedRows} (${prRows} with a PR rank)`);
   console.log(`  already stored, skipping:               ${skipped.length} activities`);
@@ -107,12 +140,11 @@ async function main() {
   );
 
   const samplesFrom = pending.length > 0 ? pending : skipped;
-  const samples = samplesFrom.flatMap((item) =>
-    item.rows.map((row) => formatRow(item.activityId, row))
-  );
+  const totalRows = samplesFrom.reduce((sum, item) => sum + item.rows.length, 0);
+  const samples = sampleLines(samplesFrom);
   if (samples.length > 0) {
-    console.log(`Sample rows (${Math.min(SAMPLE_ROWS, samples.length)} of ${samples.length}):`);
-    for (const line of samples.slice(0, SAMPLE_ROWS)) console.log(line);
+    console.log(`Sample rows (${samples.length} of ${totalRows}):`);
+    for (const line of samples) console.log(line);
   }
 
   if (!write) {

@@ -84,7 +84,34 @@ describe("bestEffortRows", () => {
     expect(ranks).toEqual([1, 3, null, null, null, null]);
   });
 
-  it("collapses a duplicated name to the fastest of them, keeping its position", () => {
+  // Both duplicate orders are covered on purpose: with only the faster duplicate
+  // last, "keep the fastest" and "keep whichever came last" are indistinguishable.
+  it("collapses a duplicated name to the fastest of them when the SLOWER one comes last", () => {
+    const rows = bestEffortRows([
+      effort({ name: "1K", distance: 1000, moving_time: 280, elapsed_time: 282, pr_rank: 1 }),
+      effort({ name: "5K", distance: 5000, moving_time: 1200, elapsed_time: 1200 }),
+      effort({ name: "1K", distance: 1000, moving_time: 300, elapsed_time: 300, pr_rank: 3 }),
+      effort({ name: "5K", distance: 5000, moving_time: 1260, elapsed_time: 1260, pr_rank: 2 }),
+    ]);
+
+    expect(rows.map((row) => row.name)).toEqual(["1K", "5K"]);
+    expect(rows[0]).toEqual({
+      name: "1K",
+      distance_m: 1000,
+      elapsed_time_s: 282,
+      moving_time_s: 280,
+      pr_rank: 1,
+    });
+    expect(rows[1]).toEqual({
+      name: "5K",
+      distance_m: 5000,
+      elapsed_time_s: 1200,
+      moving_time_s: 1200,
+      pr_rank: null,
+    });
+  });
+
+  it("collapses a duplicated name to the fastest of them when the FASTER one comes last", () => {
     const rows = bestEffortRows([
       effort({ name: "1K", distance: 1000, moving_time: 300, elapsed_time: 300, pr_rank: 3 }),
       effort({ name: "5K", distance: 5000, moving_time: 1200, elapsed_time: 1200 }),

@@ -306,15 +306,22 @@ export interface BestEffortCount {
 }
 
 /**
- * Stored best-effort row counts per activity, so the backfill can report and skip
- * what is already populated (that is what makes it resumable).
+ * Stored best-effort row counts per activity, so a caller can tell what is already
+ * populated and skip it — that is what makes the backfill resumable, and what keeps
+ * the view path (`cacheBestEfforts`) from re-writing rows it already wrote.
+ *
+ * Pass `activityId` for the single-activity form (one indexed lookup on the
+ * UNIQUE(activity_id, name) index, returning zero or one row); omit it for every
+ * activity at once, which is what a whole-table pass wants.
  */
-export async function listBestEffortCounts(): Promise<BestEffortCount[]> {
+export async function listBestEffortCounts(activityId?: number): Promise<BestEffortCount[]> {
   return many<BestEffortCount>(
     `SELECT activity_id, COUNT(*) AS n
      FROM activity_best_efforts
+     ${activityId === undefined ? "" : "WHERE activity_id = ?"}
      GROUP BY activity_id
-     ORDER BY activity_id ASC`
+     ORDER BY activity_id ASC`,
+    activityId === undefined ? [] : [activityId]
   );
 }
 
@@ -325,16 +332,27 @@ export interface ActivityDetailRow {
 }
 
 /**
- * Every activity carrying a cached Strava detail payload, oldest id first, for the
- * local best-effort backfill. Read-only re-parse: no Strava call is involved, and
- * only ~21 activities have a payload today.
+ * One page of activities carrying a cached Strava detail payload, oldest id first,
+ * for the local best-effort backfill. Read-only re-parse: no Strava call is involved.
+ *
+ * Paged by id cursor rather than returning everything, because a detail payload is a
+ * full Strava activity JSON: only ~21 activities carry one today, but T24's
+ * fetch-history pass fills ~1230 of them, and an unbounded SELECT would then pull
+ * every payload into memory in a single round trip. Pass `afterId: 0` for the first
+ * page and the last returned id for each next one; a short page means the end.
  */
-export async function listActivitiesWithDetailJson(): Promise<ActivityDetailRow[]> {
+export async function listActivitiesWithDetailJson(page: {
+  afterId: number;
+  limit: number;
+}): Promise<ActivityDetailRow[]> {
   return many<ActivityDetailRow>(
     `SELECT id, detail_json
      FROM activities
      WHERE detail_json IS NOT NULL
-     ORDER BY id ASC`
+       AND id > ?
+     ORDER BY id ASC
+     LIMIT ?`,
+    [page.afterId, page.limit]
   );
 }
 

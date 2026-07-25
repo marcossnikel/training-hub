@@ -8,6 +8,7 @@ import {
   getStravaAuth,
   insertSyncedActivity,
   latestSyncedStartEpoch,
+  listBestEffortCounts,
   saveActivityDetail,
   saveActivityStreams,
   saveStravaAuth,
@@ -307,8 +308,14 @@ export function parseActivityDetail(json: string | null): StravaActivityDetail |
  * Mirrors a detail payload's best efforts into `activity_best_efforts` so the rows
  * accumulate organically as activities are viewed, without waiting for a backfill.
  * A no-op for anything Strava reports no efforts for (every non-run). Persisting is
- * a side effect of viewing, so a write failure is logged and swallowed rather than
- * taking the activity page down with it.
+ * a side effect of viewing, so a failure is logged and swallowed rather than taking
+ * the activity page down with it.
+ *
+ * Already-stored activities are skipped on a single indexed count read, so the
+ * common case (every re-view of an already-mirrored activity) costs one cheap SELECT
+ * instead of a multi-statement write transaction the render would block on. Same
+ * heuristic the backfill resumes on: `detail_json` is an immutable cache, so a
+ * matching stored count means this activity is done.
  */
 async function cacheBestEfforts(
   activityId: number,
@@ -317,6 +324,8 @@ async function cacheBestEfforts(
   const rows = bestEffortRows(detail?.best_efforts);
   if (rows.length === 0) return;
   try {
+    const [stored] = await listBestEffortCounts(activityId);
+    if ((stored?.n ?? 0) >= rows.length) return;
     await upsertActivityBestEfforts(activityId, rows);
   } catch (error) {
     logger.error("strava.cacheBestEfforts", { error, activityId });
@@ -330,7 +339,7 @@ async function cacheBestEfforts(
  * fetch fails (the page then simply omits the detail sections).
  *
  * Either way — freshly fetched or already cached — the payload's best efforts are
- * upserted into `activity_best_efforts` on the way out.
+ * mirrored into `activity_best_efforts` on the way out, once per activity.
  */
 export async function ensureActivityDetail(
   activity: Pick<Activity, "id" | "strava_id" | "detail_json">
