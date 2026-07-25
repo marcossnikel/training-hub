@@ -5,7 +5,15 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ActivityChart } from "@/components/activity-chart";
-import { PANEL_H, TOP } from "@/components/activity-chart-series";
+import {
+  LAP_STRIP_GAP,
+  LAP_STRIP_H,
+  PAD_L,
+  PANEL_H,
+  PLOT_W,
+  TOP,
+} from "@/components/activity-chart-series";
+import type { LapWindow } from "@/lib/laps";
 import { paceZones, zoneSeconds, type AthleteThresholds } from "@/lib/fitness";
 import type { ActivityStreams } from "@/lib/streams";
 
@@ -234,6 +242,130 @@ describe("ActivityChart zone bands", () => {
     // Keyboard cursor to the second sample (150 bpm => Z2, 143–157).
     fireEvent.keyDown(screen.getByRole("img", { name: "Analysis" }), { key: "ArrowRight" });
     expect(screen.getByText("Z2")).toBeTruthy();
+  });
+});
+
+// The lap strip's rects carry their lap label, so they stay selectable apart
+// from the zone bands sharing the same SVG.
+const stripOf = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll("rect[data-lap-strip]")).map((r) => ({
+    label: r.getAttribute("data-lap-strip"),
+    x: Number(r.getAttribute("x")),
+    w: Number(r.getAttribute("width")),
+    y: Number(r.getAttribute("y")),
+    h: Number(r.getAttribute("height")),
+    opacity: Number(r.getAttribute("opacity")),
+  }));
+
+const highlightOf = (container: HTMLElement) => container.querySelector("rect[data-lap-highlight]");
+
+describe("ActivityChart lap strip", () => {
+  // A run whose distance does NOT advance linearly with time (slow first half,
+  // fast second), so the two x-axes map the same lap to different spans.
+  const streams = makeStreams({
+    distanceKm: [0, 0.5, 1, 3, 4],
+    timeS: [0, 300, 600, 900, 1200],
+    heartrate: [120, 150, 160, 166, 180],
+  });
+  const laps: LapWindow[] = [
+    { label: "1", startS: 0, endS: 600 },
+    { label: "2", startS: 600, endS: 900 },
+    { label: "3", startS: 900, endS: 1200 },
+  ];
+
+  const chart = (props: { laps?: LapWindow[] }) => (
+    <ActivityChart
+      activityId={1}
+      streams={streams}
+      isRun={true}
+      isRide={false}
+      thresholds={thresholds}
+      {...props}
+    />
+  );
+
+  it("draws one alternating rect per lap and pushes the panels below the strip", () => {
+    const { container } = render(chart({ laps }));
+    const strip = stripOf(container);
+    expect(strip.map((r) => r.label)).toEqual(["1", "2", "3"]);
+    // Adjacent laps tile the axis without gaps, inside the plot area.
+    expect(strip[0].x).toBeCloseTo(PAD_L, 1);
+    expect(strip[2].x + strip[2].w).toBeCloseTo(PAD_L + PLOT_W, 1);
+    for (let i = 1; i < strip.length; i++) {
+      expect(strip[i].x).toBeCloseTo(strip[i - 1].x + strip[i - 1].w, 1);
+    }
+    // Alternating tints, all on the strip's own band above the panels.
+    expect(strip.map((r) => r.opacity)).toEqual([0.15, 0.3, 0.15]);
+    for (const r of strip) {
+      expect(r.y).toBe(TOP);
+      expect(r.h).toBe(LAP_STRIP_H);
+    }
+    // The first panel now starts below the strip: its top zone band moved down.
+    const plotTop = TOP + LAP_STRIP_H + LAP_STRIP_GAP;
+    const bands = bandsOf(container);
+    expect(bands[bands.length - 1].y).toBeCloseTo(plotTop, 0);
+  });
+
+  it("draws no strip and leaves the geometry alone without laps", () => {
+    const { container } = render(chart({}));
+    expect(stripOf(container)).toHaveLength(0);
+    const bands = bandsOf(container);
+    expect(bands[bands.length - 1].y).toBeCloseTo(TOP, 0);
+  });
+
+  it("maps lap windows through each x-axis: seconds directly, distance interpolated", () => {
+    // Distance is the default axis here. Lap 1 covers 0–600 s, which the stream
+    // says is 0–1 km of the 4 km total: a quarter of the plot, not the half its
+    // 600 of 1200 seconds would take on the time axis.
+    const { container } = render(chart({ laps }));
+    const byDistance = stripOf(container);
+    expect(byDistance[0].w).toBeCloseTo(PLOT_W / 4, 1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Time" }));
+    const byTime = stripOf(container);
+    expect(byTime[0].w).toBeCloseTo(PLOT_W / 2, 1);
+  });
+
+  it("highlights the hovered lap across every panel and names it in the tooltip", () => {
+    const { container } = render(chart({ laps }));
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    // A hovered sample, so the tooltip is up (keyboard cursor, as the zone test).
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(highlightOf(container)).toBeNull();
+
+    const second = container.querySelectorAll("rect[data-lap-strip]")[1];
+    fireEvent.pointerOver(second);
+    const highlight = highlightOf(container)!;
+    expect(highlight.getAttribute("data-lap-highlight")).toBe("2");
+    // Spans the panels' full stack, from their top down to the x-axis. Only heart
+    // rate is present in this stream, so that stack is one panel tall.
+    const plotTop = TOP + LAP_STRIP_H + LAP_STRIP_GAP;
+    expect(Number(highlight.getAttribute("y"))).toBeCloseTo(plotTop, 1);
+    expect(Number(highlight.getAttribute("height"))).toBeCloseTo(PANEL_H, 1);
+    // And the hovered lap leads the tooltip header.
+    expect(screen.getByText("Lap 2")).toBeTruthy();
+
+    // Leaving the strip drops the highlight again.
+    fireEvent.pointerOut(second);
+    expect(highlightOf(container)).toBeNull();
+  });
+
+  it("pins a lap on click, keeps it after the pointer leaves, and clears it on Escape", () => {
+    const { container } = render(chart({ laps }));
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    const third = container.querySelectorAll("rect[data-lap-strip]")[2];
+
+    fireEvent.click(third);
+    fireEvent.pointerOut(third);
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("3");
+
+    // Clicking the pinned lap again unpins it.
+    fireEvent.click(third);
+    expect(highlightOf(container)).toBeNull();
+
+    fireEvent.click(third);
+    fireEvent.keyDown(svg, { key: "Escape" });
+    expect(highlightOf(container)).toBeNull();
   });
 });
 

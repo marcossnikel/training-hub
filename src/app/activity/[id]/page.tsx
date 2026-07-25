@@ -35,6 +35,7 @@ import {
   type Zone,
 } from "@/lib/fitness";
 import { getDict } from "@/lib/lang";
+import { lapWindows } from "@/lib/laps";
 import { ZONE_COLORS, zoneLabels } from "@/lib/zones";
 import {
   ensureActivityDetail,
@@ -441,6 +442,9 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // Devices auto-lap every km; only show laps when they carry real structure.
   const structuredLaps =
     laps.length > 1 && laps.some((lap) => Math.abs((lap.distance ?? 0) - 1000) > 150);
+  // The same structured laps placed on the stream's clock, so the chart can draw
+  // the strip that ties its trace to the laps table below it.
+  const lapStrip = structuredLaps ? lapWindows(laps) : [];
   // Lap tint: runs by pace, rides by watts (real power meters only — Strava's
   // estimated wattage would tint by guesswork).
   const lapZoning: LapZoning | null = ride
@@ -676,6 +680,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
               isRun={run}
               isRide={ride}
               thresholds={thresholds}
+              laps={lapStrip.length > 0 ? lapStrip : undefined}
             />
           </CardContent>
         </Card>

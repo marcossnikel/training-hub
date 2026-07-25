@@ -44,6 +44,9 @@ export const TOP = 8;
 export const PANEL_H = 68;
 export const GAP = 16;
 export const AXIS_H = 26;
+/** The lap strip and its breathing room, added above the first panel only when laps exist. */
+export const LAP_STRIP_H = 10;
+export const LAP_STRIP_GAP = 6;
 
 const round = (v: number) => String(Math.round(v));
 

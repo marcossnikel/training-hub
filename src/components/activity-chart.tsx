@@ -6,9 +6,12 @@ import type { ActivityStreams } from "@/lib/streams";
 import { zoneBoundsOf, zoneIndexOf, type AthleteThresholds } from "@/lib/fitness";
 import { ZONE_COLORS, zoneLabels } from "@/lib/zones";
 import { fmtDuration, fmtKm } from "@/lib/format";
+import { distanceAtTime, type LapWindow } from "@/lib/laps";
 import {
   AXIS_H,
   GAP,
+  LAP_STRIP_GAP,
+  LAP_STRIP_H,
   PAD_L,
   PAD_R,
   PANEL_H,
@@ -28,18 +31,27 @@ import {
 /** Faint enough to read a zone at a glance without competing with the trace. */
 const ZONE_BAND_OPACITY = 0.06;
 
+/** Alternating lap tints, then the one the pointer (or a pin) has hold of. */
+const LAP_OPACITY = [0.15, 0.3];
+const LAP_ACTIVE_OPACITY = 0.5;
+/** The active lap's span behind every panel: readable, still transparent to the trace. */
+const LAP_HIGHLIGHT_OPACITY = 0.12;
+
 export function ActivityChart({
   activityId,
   streams,
   isRun,
   isRide,
   thresholds,
+  laps,
 }: {
   activityId: number;
   streams: ActivityStreams;
   isRun: boolean;
   isRide: boolean;
   thresholds: AthleteThresholds;
+  /** Lap windows on the stream's clock; absent when the activity has no structured laps. */
+  laps?: LapWindow[];
 }) {
   const { t } = useI18n();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -77,6 +89,10 @@ export function ActivityChart({
   const [active, setActive] = useState<Set<SeriesKey>>(defaultActive);
   const [xMode, setXMode] = useState<XMode>(defaultXMode);
   const [hover, setHover] = useState<number | null>(null);
+  // Which lap the strip has hold of: the pointer's, else the clicked (pinned)
+  // one. Both are indices into `laps`, both local to this chart.
+  const [hoverLap, setHoverLap] = useState<number | null>(null);
+  const [pinnedLap, setPinnedLap] = useState<number | null>(null);
 
   // Client-side navigation between two /activity/[id] pages can reuse this same
   // component instance, so per-activity view state would otherwise persist and
@@ -88,8 +104,12 @@ export function ActivityChart({
     setActive(defaultActive);
     setXMode(defaultXMode);
     setHover(null);
+    setHoverLap(null);
+    setPinnedLap(null);
   }
-  const xs = xMode === "time" && timeAvailable ? streams.timeS : streams.distanceKm;
+  // The active x-axis, and so the domain lap windows have to be mapped into.
+  const xIsTime = xMode === "time" && timeAvailable;
+  const xs = xIsTime ? streams.timeS : streams.distanceKm;
   const xExtent = useMemo(() => {
     let min = Infinity;
     let max = -Infinity;
@@ -102,10 +122,40 @@ export function ActivityChart({
   }, [xs]);
 
   const shown = allSeries.filter((s) => active.has(s.key));
-  const height = TOP + shown.length * PANEL_H + Math.max(0, shown.length - 1) * GAP + AXIS_H;
+  // The strip takes its band off the top, so the panels start lower only when
+  // there are laps to draw; without them the geometry is unchanged.
+  const hasStrip = (laps?.length ?? 0) > 0;
+  const plotTop = TOP + (hasStrip ? LAP_STRIP_H + LAP_STRIP_GAP : 0);
+  const axisY = plotTop + shown.length * PANEL_H + Math.max(0, shown.length - 1) * GAP;
+  const height = axisY + AXIS_H;
 
   const xPx = (v: number) =>
     xExtent ? PAD_L + ((v - xExtent[0]) / (xExtent[1] - xExtent[0])) * PLOT_W : PAD_L;
+
+  /** Keeps a lap's edge inside the plot: its clock can run a hair past the stream's. */
+  const clampX = (x: number) => Math.min(Math.max(x, PAD_L), PAD_L + PLOT_W);
+
+  // Lap windows mapped onto whichever axis is showing: seconds plot directly on
+  // the time axis, and interpolate through the stream to km on the distance one.
+  // A handful of laps against the 400-sample paths this chart already rebuilds
+  // every render, so it is not worth memoizing.
+  const lapDomain = (s: number) =>
+    xIsTime ? s : distanceAtTime(streams.timeS, streams.distanceKm, s);
+  const lapBars =
+    laps && xExtent
+      ? laps.flatMap((lap, i) => {
+          const from = lapDomain(lap.startS);
+          const to = lapDomain(lap.endS);
+          if (from == null || to == null) return [];
+          const x = clampX(xPx(from));
+          const w = clampX(xPx(to)) - x;
+          return w > 0 ? [{ lap, i, x, w }] : [];
+        })
+      : [];
+
+  // The pointer wins over the pin, so hovering another lap reads that one.
+  const activeLap = hoverLap ?? pinnedLap;
+  const activeBar = lapBars.find((bar) => bar.i === activeLap) ?? null;
 
   const validIdx = useMemo(
     () => xs.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0),
@@ -139,6 +189,12 @@ export function ActivityChart({
   };
 
   const onKey = (e: React.KeyboardEvent<SVGSVGElement>) => {
+    // Escape drops the lap highlight (pinned or hovered) whatever the x-axis holds.
+    if (e.key === "Escape") {
+      setHoverLap(null);
+      setPinnedLap(null);
+      return;
+    }
     if (validIdx.length === 0) return;
     const pos = hover == null ? 0 : validIdx.indexOf(hover);
     if (e.key === "ArrowRight") {
@@ -242,12 +298,29 @@ export function ActivityChart({
             aria-label={t.chart.analysis}
             onPointerMove={onMove}
             onPointerDown={onMove}
-            onPointerLeave={() => setHover(null)}
+            onPointerLeave={() => {
+              setHover(null);
+              setHoverLap(null);
+            }}
             onKeyDown={onKey}
             className="outline-none"
           >
+            {/* Active lap's span, behind every panel so the traces stay readable. */}
+            {activeBar ? (
+              <rect
+                data-lap-highlight={activeBar.lap.label}
+                x={activeBar.x.toFixed(1)}
+                y={plotTop}
+                width={activeBar.w.toFixed(1)}
+                height={(axisY - plotTop).toFixed(1)}
+                fill="var(--chart-4)"
+                opacity={LAP_HIGHLIGHT_OPACITY}
+                pointerEvents="none"
+              />
+            ) : null}
+
             {shown.map((s, i) => {
-              const top = TOP + i * (PANEL_H + GAP);
+              const top = plotTop + i * (PANEL_H + GAP);
               const bottom = top + PANEL_H;
               const ext = panelExtent(s);
               if (!ext) return null;
@@ -397,12 +470,11 @@ export function ActivityChart({
             {/* x-axis ticks + labels along the shared bottom axis */}
             {xTicks.map((v, i) => {
               const x = xPx(v);
-              const axisY = TOP + shown.length * PANEL_H + Math.max(0, shown.length - 1) * GAP;
               return (
                 <g key={i}>
                   <line
                     x1={x}
-                    y1={TOP}
+                    y1={plotTop}
                     x2={x}
                     y2={axisY}
                     stroke="var(--border)"
@@ -423,13 +495,31 @@ export function ActivityChart({
               );
             })}
 
+            {/* Lap strip: one rect per lap, alternating so the boundaries read. */}
+            {lapBars.map(({ lap, i, x, w }) => (
+              <rect
+                key={`${lap.label}-${i}`}
+                data-lap-strip={lap.label}
+                x={x.toFixed(1)}
+                y={TOP}
+                width={w.toFixed(1)}
+                height={LAP_STRIP_H}
+                fill="var(--chart-4)"
+                opacity={activeLap === i ? LAP_ACTIVE_OPACITY : LAP_OPACITY[i % LAP_OPACITY.length]}
+                className="cursor-pointer"
+                onPointerEnter={() => setHoverLap(i)}
+                onPointerLeave={() => setHoverLap((prev) => (prev === i ? null : prev))}
+                onClick={() => setPinnedLap((prev) => (prev === i ? null : i))}
+              />
+            ))}
+
             {/* shared crosshair */}
             {hoverX != null ? (
               <line
                 x1={hoverX}
-                y1={TOP}
+                y1={plotTop}
                 x2={hoverX}
-                y2={TOP + shown.length * PANEL_H + Math.max(0, shown.length - 1) * GAP}
+                y2={axisY}
                 stroke="var(--foreground)"
                 strokeWidth={1}
                 opacity={0.35}
@@ -447,7 +537,14 @@ export function ActivityChart({
                 transform: `translateX(${hoverX > VBW / 2 ? "-100%" : "0"}) translateX(${hoverX > VBW / 2 ? "-8px" : "8px"})`,
               }}
             >
-              <div className="mb-1 font-mono font-medium text-foreground">{xLabel(xs[hover]!)}</div>
+              <div className="mb-1 font-mono font-medium text-foreground">
+                {activeBar ? (
+                  <span className="mr-1.5 text-muted-foreground">
+                    {`${t.detail.lap} ${activeBar.lap.label}`}
+                  </span>
+                ) : null}
+                {xLabel(xs[hover]!)}
+              </div>
               <div className="space-y-0.5">
                 {shown.map((s) => {
                   const v = s.data[hover];
