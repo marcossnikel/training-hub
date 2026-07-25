@@ -98,3 +98,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T08 Wellness overlay lanes under the PMC: done 2026-07-24, PR #11
 - ICU-T09 Richer laps table (power, cadence, elevation, zone tint): done 2026-07-24, PR #12
 - ICU-T10 Best-effort chips on run activities: done 2026-07-24, PR #13
+- ICU-T11 Per-activity time-in-zone card: done 2026-07-24, PR #14

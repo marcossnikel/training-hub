@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { MedalIcon } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { Card, CardContent } from "@/components/ui/card";
+import { ZoneBar } from "@/components/zone-bar";
 import { cn } from "@/lib/utils";
 import { fillStr, type Dict, type Lang } from "@/lib/i18n";
 import type { BlockSummary, RaceAnalysis } from "@/lib/blocks";
@@ -25,14 +26,6 @@ export interface CompareSide {
 
 const COLOR_A = "var(--primary)";
 const COLOR_B = "var(--chart-3)";
-// The app's only five-colour chart palette, reused for the five HR zones.
-const ZONE_COLORS = [
-  "var(--primary)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
 
 // Overlay chart geometry (unitless viewBox; the SVG scales to its container).
 const VBW = 760;
@@ -179,46 +172,6 @@ function OverlayChart({
           </text>
         ))}
       </svg>
-    </div>
-  );
-}
-
-function ZoneBar({ zoneSec, labels }: { zoneSec: number[]; labels: string[] }) {
-  const total = zoneSec.reduce((s, v) => s + v, 0);
-  return (
-    <div>
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-        {zoneSec.map((v, i) => {
-          const pct = total > 0 ? (v / total) * 100 : 0;
-          if (pct <= 0) return null;
-          return (
-            <div
-              key={i}
-              style={{ width: `${pct}%`, backgroundColor: ZONE_COLORS[i] }}
-              title={`${labels[i]} · ${Math.round(pct)}%`}
-            />
-          );
-        })}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-        {zoneSec.map((v, i) => {
-          const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-          return (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
-            >
-              <span
-                className="size-2 rounded-full"
-                style={{ backgroundColor: ZONE_COLORS[i] }}
-                aria-hidden
-              />
-              {labels[i]}
-              <span className="font-mono tabular-nums">{pct}%</span>
-            </span>
-          );
-        })}
-      </div>
     </div>
   );
 }

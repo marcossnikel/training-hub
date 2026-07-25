@@ -5,6 +5,7 @@ import {
   computeLoad,
   computePmc,
   dailyLoadSeries,
+  easyHardPct,
   formState,
   hrZones,
   loadSport,
@@ -15,6 +16,7 @@ import {
   weeklyMonotony,
   weeklySportLoad,
   zoneIndexOf,
+  zoneSeconds,
   type AthleteThresholds,
   type LoadActivity,
 } from "@/lib/fitness";
@@ -570,5 +572,50 @@ describe("zoneIndexOf", () => {
 
   it("returns -1 when no zone matches", () => {
     expect(zoneIndexOf(150, [{ zone: 1, min: 200, max: 220 }])).toBe(-1);
+  });
+});
+
+describe("zoneSeconds", () => {
+  it("attributes each interval to the zone of its leading sample", () => {
+    // 3 minutes: one in Z1, one in Z2, one in Z4. The final sample opens no
+    // interval, so its zone (Z5) gets nothing.
+    const zoneSec = zoneSeconds([0, 60, 120, 180], [130, 150, 170, 200], hrZones(thresholds));
+    expect(zoneSec).toEqual([60, 60, 0, 60, 0]);
+  });
+
+  it("sums to the elapsed span the samples cover", () => {
+    const zoneSec = zoneSeconds([0, 10, 20, 30], [150, 150, 150, 150], hrZones(thresholds));
+    expect(zoneSec?.reduce((a, b) => a + b, 0)).toBe(30);
+  });
+
+  it("skips null samples, null timestamps and non-advancing time", () => {
+    const zoneSec = zoneSeconds(
+      [0, 30, 60, 60, 90, null, 150],
+      [400, null, 260, 260, 260, 260, 260],
+      paceZones(thresholds)
+    );
+    // 30 s of jogging (Z1), then 30 s faster than threshold (Z5). The null pace,
+    // the zero-length interval and the null timestamp contribute nothing.
+    expect(zoneSec).toEqual([30, 0, 0, 0, 30]);
+  });
+
+  it("returns null when no sample could be classified", () => {
+    expect(zoneSeconds([0, 60, 120], [null, null, null], hrZones(thresholds))).toBeNull();
+    expect(zoneSeconds([], [], hrZones(thresholds))).toBeNull();
+  });
+});
+
+describe("easyHardPct", () => {
+  it("splits Z1-2 from Z3-5", () => {
+    expect(easyHardPct([600, 1800, 400, 200, 0])).toEqual({ easyPct: 80, hardPct: 20 });
+  });
+
+  it("always sums to 100 despite rounding", () => {
+    const split = easyHardPct([1, 1, 1, 0, 0]);
+    expect(split).toEqual({ easyPct: 67, hardPct: 33 });
+  });
+
+  it("returns null for an empty distribution", () => {
+    expect(easyHardPct([0, 0, 0, 0, 0])).toBeNull();
   });
 });

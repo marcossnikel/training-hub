@@ -11,6 +11,7 @@ import { RaceControl } from "@/components/race-control";
 import { JournalEditor } from "@/components/journal-editor";
 import { SplitsSection } from "@/components/splits-section";
 import { SportIcon } from "@/components/sport-icon";
+import { ZoneBar } from "@/components/zone-bar";
 import {
   getActivity,
   getActivityLoad,
@@ -20,7 +21,16 @@ import {
   listShoes,
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
-import { computeLoad, paceZones, powerZones, zoneIndexOf, type Zone } from "@/lib/fitness";
+import {
+  computeLoad,
+  easyHardPct,
+  hrZones,
+  paceZones,
+  powerZones,
+  zoneIndexOf,
+  zoneSeconds,
+  type Zone,
+} from "@/lib/fitness";
 import { getDict } from "@/lib/lang";
 import {
   ensureActivityDetail,
@@ -41,7 +51,7 @@ import {
   fmtTime,
   localStartedAt,
 } from "@/lib/format";
-import type { Dict } from "@/lib/i18n";
+import { fillStr, type Dict } from "@/lib/i18n";
 import { isRunSport } from "@/lib/validate";
 import { toGearOption } from "@/lib/gear";
 
@@ -252,6 +262,51 @@ function BestEffortChips({ efforts, t }: { efforts: StravaBestEffort[]; t: Dict 
   );
 }
 
+/**
+ * One time-in-zone distribution: the signal it was measured from and the seconds
+ * spent in each of the five zones.
+ */
+interface ZoneDistribution {
+  key: "hr" | "pace";
+  label: string;
+  zoneSec: number[];
+}
+
+function ZoneDistributions({ bars, t }: { bars: ZoneDistribution[]; t: Dict }) {
+  // Z1..Z5 are the same tokens the race comparison labels its zone bars with;
+  // they live in one place in the dict rather than being duplicated per page.
+  const zoneLabels = [
+    t.compare.zones.z1,
+    t.compare.zones.z2,
+    t.compare.zones.z3,
+    t.compare.zones.z4,
+    t.compare.zones.z5,
+  ];
+
+  return (
+    <div className="space-y-5">
+      {bars.map((bar) => {
+        const split = easyHardPct(bar.zoneSec);
+        return (
+          <div key={bar.key}>
+            <div className="mb-2 flex items-baseline justify-between gap-3">
+              <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+                {bar.label}
+              </span>
+              {split ? (
+                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                  {fillStr(t.detail.easyHard, { easy: split.easyPct, hard: split.hardPct })}
+                </span>
+              ) : null}
+            </div>
+            <ZoneBar zoneSec={bar.zoneSec} labels={zoneLabels} showTime />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
   const paces = splits
     .map((s) => (s.average_speed ? 1000 / s.average_speed : paceOf(s.distance, s.moving_time)))
@@ -365,6 +420,22 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
     : run
       ? { by: "pace", zones: paceZones(thresholds) }
       : null;
+  // Time in zone, integrated from the cached stream: heart rate for any sport
+  // that recorded a trace, pace for runs. A bar is dropped when the threshold it
+  // needs is unset or no sample landed in a zone.
+  const hrZoneSec =
+    streams?.heartrate && thresholds.lthr > 0
+      ? zoneSeconds(streams.timeS, streams.heartrate, hrZones(thresholds))
+      : null;
+  const paceZoneSec =
+    run && streams?.paceSPerKm && thresholds.thresholdPaceSPerKm > 0
+      ? zoneSeconds(streams.timeS, streams.paceSPerKm, paceZones(thresholds))
+      : null;
+  const zoneDistributions: ZoneDistribution[] = [
+    ...(hrZoneSec ? [{ key: "hr" as const, label: t.chart.heartRate, zoneSec: hrZoneSec }] : []),
+    ...(paceZoneSec ? [{ key: "pace" as const, label: t.chart.pace, zoneSec: paceZoneSec }] : []),
+  ];
+
   const description = detail?.description?.trim();
 
   const coachConfigured = isCoachConfigured();
@@ -525,6 +596,17 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
           </CardHeader>
           <CardContent>
             <ActivityChart activityId={activity.id} streams={streams} isRun={run} isRide={ride} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {zoneDistributions.length > 0 ? (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>{t.detail.zones}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ZoneDistributions bars={zoneDistributions} t={t} />
           </CardContent>
         </Card>
       ) : null}

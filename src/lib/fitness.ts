@@ -479,3 +479,49 @@ export function zoneIndexOf(value: number, zones: Zone[]): number {
   }
   return -1;
 }
+
+/**
+ * Seconds spent in each zone along a time-indexed sample series (a cached
+ * activity stream, or a full-resolution one). Each interval's duration
+ * (`timeS[i + 1] - timeS[i]`) is attributed to the zone of its leading sample;
+ * samples with no value, no timestamp or no matching zone contribute nothing, so
+ * gaps (a dropped HR strap, a stopped GPS pace) shrink the total rather than
+ * landing in a wrong zone.
+ *
+ * Returns null when nothing could be attributed, which lets callers hide a bar
+ * instead of drawing an all-zero one.
+ */
+export function zoneSeconds(
+  timeS: readonly (number | null)[],
+  values: readonly (number | null)[],
+  zones: Zone[]
+): number[] | null {
+  const out = new Array<number>(zones.length).fill(0);
+  const n = Math.min(timeS.length, values.length);
+  let any = false;
+  for (let i = 0; i < n - 1; i++) {
+    const t0 = timeS[i];
+    const t1 = timeS[i + 1];
+    const value = values[i];
+    if (t0 == null || t1 == null || value == null) continue;
+    const dt = t1 - t0;
+    if (dt <= 0) continue;
+    const zi = zoneIndexOf(value, zones);
+    if (zi < 0) continue;
+    out[zi] += dt;
+    any = true;
+  }
+  return any ? out.map((s) => Math.round(s)) : null;
+}
+
+/**
+ * Easy (Z1-2) versus hard (Z3-5) share of a zone-seconds distribution, in whole
+ * percent — the same split blocks.ts uses for polarization. The two always sum
+ * to 100. Null when the distribution is empty.
+ */
+export function easyHardPct(zoneSec: number[]): { easyPct: number; hardPct: number } | null {
+  const total = zoneSec.reduce((a, b) => a + b, 0);
+  if (total <= 0) return null;
+  const easyPct = Math.round(((zoneSec[0] + zoneSec[1]) / total) * 100);
+  return { easyPct, hardPct: 100 - easyPct };
+}
