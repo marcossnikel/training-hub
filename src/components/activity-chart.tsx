@@ -3,9 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import type { ActivityStreams } from "@/lib/streams";
-import type { AthleteThresholds } from "@/lib/fitness";
+import { zoneBoundsOf, zoneIndexOf, type AthleteThresholds } from "@/lib/fitness";
+import { ZONE_COLORS, zoneLabels } from "@/lib/zones";
 import { fmtDuration, fmtKm } from "@/lib/format";
-import { ZONE_COLORS } from "@/components/zone-bar";
 import {
   AXIS_H,
   GAP,
@@ -16,9 +16,10 @@ import {
   TOP,
   VBW,
   buildSeries,
-  extent,
   fmtClock,
-  zoneOfBounds,
+  panelExtent,
+  panelScale,
+  zoneBands,
   type SeriesDef,
   type SeriesKey,
   type XMode,
@@ -26,26 +27,6 @@ import {
 
 /** Faint enough to read a zone at a glance without competing with the trace. */
 const ZONE_BAND_OPACITY = 0.06;
-
-/**
- * The horizontal zone bands of one panel, as clamped viewBox rects. `bounds` run
- * in zone order and `yPx` honours the series' inversion, so band i sits between
- * the boundary above it and the one below it; the outermost zones are open-ended
- * and take the panel edge. Bands whose zone falls outside the panel's y extent
- * are clamped to nothing and dropped, so at most five come back.
- */
-function zoneBands(bounds: number[], yPx: (v: number) => number, top: number, bottom: number) {
-  const bands: { zi: number; y: number; h: number }[] = [];
-  for (let zi = 0; zi <= bounds.length; zi++) {
-    const yTop = zi === bounds.length ? top : yPx(bounds[zi]);
-    const yBottom = zi === 0 ? bottom : yPx(bounds[zi - 1]);
-    const clampedTop = Math.min(Math.max(yTop, top), bottom);
-    const clampedBottom = Math.min(Math.max(yBottom, top), bottom);
-    const h = clampedBottom - clampedTop;
-    if (h > 0.1) bands.push({ zi, y: clampedTop, h });
-  }
-  return bands;
-}
 
 export function ActivityChart({
   activityId,
@@ -71,13 +52,7 @@ export function ActivityChart({
   );
 
   // Z1–Z5, the same dict tokens the zone bars are labelled with.
-  const zoneLabels = [
-    t.compare.zones.z1,
-    t.compare.zones.z2,
-    t.compare.zones.z3,
-    t.compare.zones.z4,
-    t.compare.zones.z5,
-  ];
+  const labels = zoneLabels(t);
 
   const available = useMemo(() => allSeries.map((s) => s.key), [allSeries]);
   const hasElevation = available.includes("elevation");
@@ -274,13 +249,12 @@ export function ActivityChart({
             {shown.map((s, i) => {
               const top = TOP + i * (PANEL_H + GAP);
               const bottom = top + PANEL_H;
-              const ext = extent(s.data);
+              const ext = panelExtent(s);
               if (!ext) return null;
               const [lo, hi] = ext;
-              const yPx = (v: number) =>
-                s.invert
-                  ? top + ((v - lo) / (hi - lo)) * PANEL_H
-                  : bottom - ((v - lo) / (hi - lo)) * PANEL_H;
+              // Samples outside the extent (a bounded pace panel) are pinned to
+              // the panel edge rather than drawn over the neighbouring panels.
+              const yPx = panelScale(ext, s.invert, top).plot;
 
               // Line segments, broken on nulls so gaps are not drawn through.
               const segs: string[] = [];
@@ -324,17 +298,19 @@ export function ActivityChart({
               const hoverVal = hover != null ? s.data[hover] : null;
 
               // Zone shading, drawn first so the frame, area and trace sit on top.
-              const bands = s.zoneBounds ? zoneBands(s.zoneBounds, yPx, top, bottom) : [];
+              const bounds = s.zones ? zoneBoundsOf(s.zones, s.invert) : null;
+              const bands = bounds ? zoneBands(bounds, ext, s.invert, top) : [];
 
               return (
                 <g key={s.key}>
                   {bands.map((b) => (
                     <rect
                       key={b.zi}
+                      data-zone-band={b.zi + 1}
                       x={PAD_L}
-                      y={b.y}
+                      y={b.y.toFixed(1)}
                       width={PLOT_W}
-                      height={b.h}
+                      height={b.h.toFixed(1)}
                       fill={ZONE_COLORS[b.zi]}
                       opacity={ZONE_BAND_OPACITY}
                     />
@@ -475,8 +451,7 @@ export function ActivityChart({
               <div className="space-y-0.5">
                 {shown.map((s) => {
                   const v = s.data[hover];
-                  const zone =
-                    v != null && s.zoneBounds ? zoneOfBounds(v, s.zoneBounds, s.invert) : null;
+                  const zone = v != null && s.zones ? zoneIndexOf(v, s.zones) : -1;
                   return (
                     <div key={s.key} className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -489,8 +464,8 @@ export function ActivityChart({
                       </span>
                       <span className="font-mono tabular-nums" style={{ color: s.color }}>
                         {v == null ? "–" : s.fmt(v)}
-                        {zone != null ? (
-                          <span className="ml-1.5 text-muted-foreground">{zoneLabels[zone]}</span>
+                        {zone >= 0 ? (
+                          <span className="ml-1.5 text-muted-foreground">{labels[zone]}</span>
                         ) : null}
                       </span>
                     </div>

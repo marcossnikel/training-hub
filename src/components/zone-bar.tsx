@@ -4,17 +4,7 @@
 // bundled into the client for race-compare.
 
 import { fmtDuration } from "@/lib/format";
-
-// The app's only five-colour chart palette, reused for the five training zones.
-// Exported so every zone-coloured surface (this bar, the stream chart's zone
-// bands) tints Z1–Z5 identically.
-export const ZONE_COLORS = [
-  "var(--primary)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
+import { ZONE_COLORS } from "@/lib/zones";
 
 // fmtDuration returns the missing-value placeholder for 0, which in this legend
 // would make a zone the athlete genuinely never entered look like absent data.

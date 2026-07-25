@@ -15,6 +15,7 @@ import {
   weeklyLoadTotal,
   weeklyMonotony,
   weeklySportLoad,
+  zoneBoundsOf,
   zoneIndexOf,
   zoneSeconds,
   type AthleteThresholds,
@@ -572,6 +573,41 @@ describe("zoneIndexOf", () => {
 
   it("returns -1 when no zone matches", () => {
     expect(zoneIndexOf(150, [{ zone: 1, min: 200, max: 220 }])).toBe(-1);
+  });
+});
+
+describe("zoneBoundsOf", () => {
+  it("reads the ascending bpm boundaries off the HR zones", () => {
+    const bounds = zoneBoundsOf(hrZones(thresholds), false);
+    expect(bounds).toEqual([143, 158, 165, 176]);
+    // Each boundary is where zoneIndexOf switches to the next zone up.
+    bounds!.forEach((bound, i) => {
+      expect(zoneIndexOf(bound, hrZones(thresholds))).toBe(i + 1);
+      expect(zoneIndexOf(bound - 1, hrZones(thresholds))).toBe(i);
+    });
+  });
+
+  it("reads the descending s/km boundaries off the pace zones", () => {
+    const bounds = zoneBoundsOf(paceZones(thresholds), true);
+    expect(bounds).toEqual([332, 299, 286, 269]);
+    // Same rule on an inverted scale: at the boundary the athlete is in the
+    // faster zone, one second per km slower and they are in the slower one.
+    bounds!.forEach((bound, i) => {
+      expect(zoneIndexOf(bound, paceZones(thresholds))).toBe(i);
+      expect(zoneIndexOf(bound - 1, paceZones(thresholds))).toBe(i + 1);
+    });
+  });
+
+  it("returns null rather than a short list when the zone set is malformed", () => {
+    // A short list would shift every band colour and tooltip label by one zone
+    // with nothing to signal it, so it must not be representable.
+    expect(zoneBoundsOf(hrZones(thresholds).slice(0, 4), false)).toBeNull();
+    const openMiddle = hrZones(thresholds).map((z) => (z.zone === 3 ? { ...z, max: null } : z));
+    expect(zoneBoundsOf(openMiddle, false)).toBeNull();
+    // Reading the wrong end of each zone also comes back empty-handed: HR zone
+    // 1 has no min, pace zone 1 has no max.
+    expect(zoneBoundsOf(hrZones(thresholds), true)).toBeNull();
+    expect(zoneBoundsOf(paceZones(thresholds), false)).toBeNull();
   });
 });
 

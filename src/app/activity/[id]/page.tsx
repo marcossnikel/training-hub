@@ -35,6 +35,7 @@ import {
   type Zone,
 } from "@/lib/fitness";
 import { getDict } from "@/lib/lang";
+import { ZONE_COLORS, zoneLabels } from "@/lib/zones";
 import {
   ensureActivityDetail,
   ensureActivityStreams,
@@ -91,15 +92,6 @@ function fmtLapDist(distanceM?: number): string {
 const TH =
   "px-2 py-1.5 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase";
 const TD = "px-2 py-1.5 font-mono text-sm tabular-nums whitespace-nowrap";
-
-// The app's only five-colour chart palette, reused for the five training zones.
-const ZONE_COLORS = [
-  "var(--primary)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
 
 /**
  * How a lap gets tinted: runs by lap pace against the pace zones, rides with a
@@ -280,13 +272,7 @@ interface ZoneDistribution {
 function ZoneDistributions({ bars, t }: { bars: ZoneDistribution[]; t: Dict }) {
   // Z1..Z5 are the same tokens the race comparison labels its zone bars with;
   // they live in one place in the dict rather than being duplicated per page.
-  const zoneLabels = [
-    t.compare.zones.z1,
-    t.compare.zones.z2,
-    t.compare.zones.z3,
-    t.compare.zones.z4,
-    t.compare.zones.z5,
-  ];
+  const labels = zoneLabels(t);
 
   return (
     <div className="space-y-5">
@@ -304,7 +290,7 @@ function ZoneDistributions({ bars, t }: { bars: ZoneDistribution[]; t: Dict }) {
                 </span>
               ) : null}
             </div>
-            <ZoneBar zoneSec={bar.zoneSec} labels={zoneLabels} showTime />
+            <ZoneBar zoneSec={bar.zoneSec} labels={labels} showTime />
           </div>
         );
       })}

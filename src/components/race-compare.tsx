@@ -5,6 +5,7 @@ import { MedalIcon } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { ZoneBar } from "@/components/zone-bar";
+import { zoneLabels } from "@/lib/zones";
 import { cn } from "@/lib/utils";
 import { fillStr, type Dict, type Lang } from "@/lib/i18n";
 import type { BlockSummary, RaceAnalysis } from "@/lib/blocks";
@@ -333,13 +334,7 @@ export function RaceCompare({
   const router = useRouter();
   const { t, lang } = useI18n();
 
-  const zoneLabels = [
-    t.compare.zones.z1,
-    t.compare.zones.z2,
-    t.compare.zones.z3,
-    t.compare.zones.z4,
-    t.compare.zones.z5,
-  ];
+  const labels = zoneLabels(t);
 
   function navigate(next: { a?: number; b?: number; weeks?: number }) {
     const a = next.a ?? sideA.race.id;
@@ -480,7 +475,7 @@ export function RaceCompare({
             color={color}
             t={t}
             lang={lang}
-            zoneLabels={zoneLabels}
+            zoneLabels={labels}
           />
         ))}
       </div>
@@ -607,7 +602,7 @@ export function RaceCompare({
                           />
                           <span className="truncate">{side.race.name ?? t.compare.raceA}</span>
                         </div>
-                        <ZoneBar zoneSec={side.analysis.inRaceZoneSec} labels={zoneLabels} />
+                        <ZoneBar zoneSec={side.analysis.inRaceZoneSec} labels={labels} />
                       </div>
                     ) : null
                   )}

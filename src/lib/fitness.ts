@@ -480,6 +480,29 @@ export function zoneIndexOf(value: number, zones: Zone[]): number {
   return -1;
 }
 
+/** The four inner boundaries of a five-zone set, in zone order. */
+export type ZoneBounds = [number, number, number, number];
+
+/**
+ * The four inner boundaries of a five-zone set, in zone order: entry i is the
+ * value where zone i+1 ends and zone i+2 begins. Read off the `Zone` bound that
+ * faces the next higher zone, which is `max` where a bigger number is a higher
+ * zone (heart rate, power) and `min` where a smaller one is (`descending`: pace
+ * in s/km). So the list ascends for heart rate and descends for pace, and in
+ * both cases a later entry always belongs to a higher zone. Classification
+ * itself stays with `zoneIndexOf`; these are for drawing the boundaries.
+ *
+ * Null unless `zones` is a five-zone set whose four inner bounds are all set.
+ * The tuple return is the point: a caller can never be handed a short list and
+ * silently shade or label every zone one slot off.
+ */
+export function zoneBoundsOf(zones: Zone[], descending: boolean): ZoneBounds | null {
+  if (zones.length !== 5) return null;
+  const [b1, b2, b3, b4] = zones.slice(0, -1).map((z) => (descending ? z.min : z.max));
+  if (b1 == null || b2 == null || b3 == null || b4 == null) return null;
+  return [b1, b2, b3, b4];
+}
+
 /**
  * Seconds spent in each zone along a time-indexed sample series (a cached
  * activity stream, or a full-resolution one). Each interval's duration
