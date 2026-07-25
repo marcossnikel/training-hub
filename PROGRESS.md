@@ -100,4 +100,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T10 Best-effort chips on run activities: done 2026-07-24, PR #13
 - ICU-T11 Per-activity time-in-zone card: done 2026-07-24, PR #14
 - ICU-T12 EF, decoupling and IF tiles on the activity page: done 2026-07-24, PR #15
-- ICU-T13 Execution card for races and long runs: done 2026-07-25, PR #pending
+- ICU-T13 Execution card for races and long runs: done 2026-07-25, PR #16
