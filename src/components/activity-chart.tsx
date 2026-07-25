@@ -37,10 +37,7 @@ export function ActivityChart({
 
   // Every candidate series with its fixed color slot; only the ones whose
   // stream is present become togglable.
-  const allSeries = useMemo<SeriesDef[]>(
-    () => buildSeries(streams, t, isRide),
-    [streams, t, isRide]
-  );
+  const allSeries = useMemo<SeriesDef[]>(() => buildSeries(streams, t, isRun), [streams, t, isRun]);
 
   const available = useMemo(() => allSeries.map((s) => s.key), [allSeries]);
   const hasElevation = available.includes("elevation");

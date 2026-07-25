@@ -32,6 +32,22 @@ export const AXIS_H = 26;
 
 const round = (v: number) => String(Math.round(v));
 
+/** Strava reports run cadence as one leg's rpm, and one revolution is two steps. */
+const STEPS_PER_REVOLUTION = 2;
+
+/**
+ * Doubles a run's one-leg cadence stream into true steps per minute. This is the
+ * single owner of the doubling on the chart path: the panel scale, the y ticks
+ * and the tooltip all read the doubled values, so `fmtSpm` only labels them.
+ */
+function toStepRate(cadence: (number | null)[] | null): (number | null)[] | null {
+  if (!cadence) return null;
+  return cadence.map((v) => (v == null ? null : v * STEPS_PER_REVOLUTION));
+}
+
+/** Labels an already-doubled step rate; does NOT double (unlike `fmtStepRate`). */
+const fmtSpm = (spm: number) => `${Math.round(spm)} spm`;
+
 /** Compact clock for the time axis: h:mm past an hour, else m:ss. */
 export function fmtClock(s: number): string {
   const h = Math.floor(s / 3600);
@@ -61,7 +77,7 @@ export function extent(data: (number | null)[]): [number, number] | null {
  * Every candidate series with its fixed color slot; only the ones whose stream
  * is present (data != null) survive the filter and become togglable.
  */
-export function buildSeries(streams: ActivityStreams, t: Dict, isRide: boolean): SeriesDef[] {
+export function buildSeries(streams: ActivityStreams, t: Dict, isRun: boolean): SeriesDef[] {
   const defs: SeriesCandidate[] = [
     {
       key: "heartRate",
@@ -98,13 +114,14 @@ export function buildSeries(streams: ActivityStreams, t: Dict, isRide: boolean):
     },
     {
       key: "cadence",
-      data: streams.cadence,
+      // Runs are plotted as steps per minute, every other sport as crank rpm.
+      data: isRun ? toStepRate(streams.cadence) : streams.cadence,
       color: "var(--chart-4)",
       label: t.chart.cadence,
-      unit: isRide ? "rpm" : "spm",
+      unit: isRun ? "spm" : "rpm",
       invert: false,
       area: false,
-      fmt: (v) => fmtCadence(v),
+      fmt: isRun ? fmtSpm : (v) => fmtCadence(v),
       tick: round,
     },
     {

@@ -1,8 +1,10 @@
 // Running form metrics read out of the cached Strava payload, the run-side
-// counterpart to cycling.ts's rideMetrics. Pure and null-safe: a manual entry
-// with no recording simply yields nulls and the tiles disappear.
+// counterpart to cycling.ts's rideMetrics. Pure, sport-gated and null-safe: a
+// non-run, or a manual entry with no recording, simply yields nulls and the
+// tiles disappear.
 
 import type { Activity } from "./types";
+import { isRunSport } from "./validate";
 
 export interface RunMetrics {
   /**
@@ -17,32 +19,40 @@ export interface RunMetrics {
 
 interface RawRun {
   average_cadence?: number;
+  /** Metres per second, as Strava reports it. */
+  average_speed?: number;
 }
 
 const SECONDS_PER_MINUTE = 60;
-const METRES_PER_KM = 1000;
 /** One leg's revolution is two steps. */
 const STEPS_PER_REVOLUTION = 2;
 
-export function runMetrics(
-  activity: Pick<Activity, "raw_json" | "distance_km" | "moving_time_s">
-): RunMetrics {
+/**
+ * Cadence and the stride it implies, for runs only: doubling a walk's or a row's
+ * cadence into steps per minute would invent a number, so every other sport
+ * gets nulls.
+ */
+export function runMetrics(activity: Pick<Activity, "sport_type" | "raw_json">): RunMetrics {
+  if (!isRunSport(activity.sport_type)) return { avgCadence: null, strideM: null };
   let raw: RawRun = {};
   if (activity.raw_json) {
     try {
-      raw = JSON.parse(activity.raw_json) as RawRun;
+      // Valid JSON is not necessarily an object: the string "null" parses fine
+      // and then throws a TypeError on the first property read.
+      const parsed: unknown = JSON.parse(activity.raw_json);
+      if (parsed !== null && typeof parsed === "object") raw = parsed as RawRun;
     } catch {
       raw = {};
     }
   }
   const cadence = raw.average_cadence ?? 0;
   const avgCadence = cadence > 0 ? cadence : null;
-  const distanceKm = activity.distance_km ?? 0;
-  const movingTimeS = activity.moving_time_s ?? 0;
-  if (avgCadence == null || distanceKm <= 0 || movingTimeS <= 0) {
+  // Speed comes straight from the payload, like rideMetrics reads it; deriving it
+  // from distance_km instead would use a distance ingest rounds to 2 decimals.
+  const metresPerSecond = raw.average_speed ?? 0;
+  if (avgCadence == null || metresPerSecond <= 0) {
     return { avgCadence, strideM: null };
   }
-  const metresPerSecond = (distanceKm * METRES_PER_KM) / movingTimeS;
   const stepsPerSecond = (avgCadence * STEPS_PER_REVOLUTION) / SECONDS_PER_MINUTE;
   return { avgCadence, strideM: metresPerSecond / stepsPerSecond };
 }
