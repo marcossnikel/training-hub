@@ -301,6 +301,13 @@ export const pt: Dict = {
     time: "Tempo",
     analysis: "Análise",
     lapSpan: "Volta {lap}, {duration} decorridos",
+    selection: "Seleção",
+    duration: "Duração",
+    avgHr: "FC média",
+    maxHr: "FC máx",
+    avgPace: "Ritmo médio",
+    avgPower: "Pot. média",
+    elevGain: "Ganho elev.",
   },
   coach: {
     title: "Treinador de IA",

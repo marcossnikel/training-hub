@@ -306,6 +306,13 @@ export const en = {
     time: "Time",
     analysis: "Analysis",
     lapSpan: "Lap {lap}, {duration} elapsed",
+    selection: "Selection",
+    duration: "Duration",
+    avgHr: "Avg HR",
+    maxHr: "Max HR",
+    avgPace: "Avg pace",
+    avgPower: "Avg power",
+    elevGain: "Elev gain",
   },
   coach: {
     title: "AI coach",

@@ -526,6 +526,203 @@ describe("ActivityChart lap strip", () => {
   });
 });
 
+// The selection's own attributes, so its rects never answer the zone-band or
+// lap-strip selectors above (and they never answer these).
+const bandOf = (container: HTMLElement) => container.querySelector("rect[data-selection-band]");
+const edgesOf = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll("line[data-selection-edge]")).map((l) => ({
+    edge: l.getAttribute("data-selection-edge"),
+    x: Number(l.getAttribute("x1")),
+  }));
+const metricsOf = (container: HTMLElement) =>
+  container.querySelector("[data-selection-metrics]")?.textContent ?? null;
+
+describe("ActivityChart drag selection", () => {
+  // Evenly spaced samples on both axes, so a viewBox x maps to a known index:
+  // sample i sits at PAD_L + i * PLOT_W / 4.
+  const streams = makeStreams({
+    distanceKm: [0, 1, 2, 3, 4],
+    timeS: [0, 300, 600, 900, 1200],
+    heartrate: [120, 140, 160, 180, 200],
+    paceSPerKm: [300, 300, 240, 240, 300],
+    altitudeM: [100, 110, 105, 130, 120],
+  });
+
+  const setup = (props: { isRide?: boolean; laps?: LapWindow[] } = {}) => {
+    const rendered = render(
+      <ActivityChart
+        activityId={1}
+        streams={streams}
+        isRun={!props.isRide}
+        isRide={props.isRide ?? false}
+        thresholds={thresholds}
+        laps={props.laps}
+      />
+    );
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    atUnitScale(svg);
+    return { ...rendered, svg };
+  };
+
+  /** Presses at one viewBox x and drags to another, as a mouse does. */
+  const drag = (svg: Element, fromX: number, toX: number) => {
+    fireEvent.pointerDown(svg, { clientX: fromX });
+    fireEvent.pointerMove(svg, { clientX: toX });
+    fireEvent.pointerUp(svg, { clientX: toX });
+  };
+
+  it("bands the dragged range and reports its metrics", () => {
+    const { container, svg } = setup();
+    expect(bandOf(container)).toBeNull();
+    expect(metricsOf(container)).toBeNull();
+
+    // Samples 0 to 2: 600 s, 2 km, HR 120 then 140 for 300 s each, pace 5:00 flat,
+    // and a 10 m rise followed by a 5 m drop.
+    drag(svg, PAD_L, PAD_L + PLOT_W / 2);
+
+    const band = bandOf(container)!;
+    expect(band.getAttribute("data-selection-band")).toBe("0-2");
+    expect(Number(band.getAttribute("x"))).toBeCloseTo(PAD_L, 1);
+    expect(Number(band.getAttribute("width"))).toBeCloseTo(PLOT_W / 2, 1);
+    // Edge lines at both ends, spanning the panels down to the axis.
+    expect(edgesOf(container).map((e) => e.edge)).toEqual(["start", "end"]);
+    expect(edgesOf(container)[1].x).toBeCloseTo(PAD_L + PLOT_W / 2, 1);
+
+    const metrics = metricsOf(container)!;
+    expect(metrics).toContain("10:00"); // duration
+    expect(metrics).toContain("2.00 km");
+    expect(metrics).toContain("130 bpm"); // time-weighted avg HR
+    expect(metrics).toContain("160 bpm"); // max HR
+    expect(metrics).toContain("5:00 /km");
+    expect(metrics).toContain("10 m"); // positive altitude deltas only
+    expect(metrics).not.toContain("W");
+  });
+
+  it("reads a ride's range in watts instead of pace", () => {
+    const rideStreams = { ...streams, watts: [100, 200, 300, 400, 500] };
+    render(
+      <ActivityChart
+        activityId={1}
+        streams={rideStreams}
+        isRun={false}
+        isRide={true}
+        thresholds={thresholds}
+      />
+    );
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    atUnitScale(svg);
+    drag(svg, PAD_L, PAD_L + PLOT_W / 2);
+    const metrics = document.querySelector("[data-selection-metrics]")!.textContent!;
+    expect(metrics).toContain("150 W"); // (100*300 + 200*300) / 600
+    expect(metrics).not.toContain("/km");
+  });
+
+  it("leaves a plain click alone: hover moves, nothing is selected", () => {
+    const { container, svg } = setup();
+    // A press that travels less than the drag threshold is still a click.
+    fireEvent.pointerDown(svg, { clientX: PAD_L + PLOT_W / 4 });
+    fireEvent.pointerMove(svg, { clientX: PAD_L + PLOT_W / 4 + 4 });
+    fireEvent.pointerUp(svg, { clientX: PAD_L + PLOT_W / 4 + 4 });
+    expect(bandOf(container)).toBeNull();
+    expect(metricsOf(container)).toBeNull();
+    // The crosshair moved to the pressed sample, exactly as before.
+    expect(container.querySelector("[data-selection-edge]")).toBeNull();
+    expect(screen.getByText("1.00 km")).toBeTruthy(); // tooltip header, sample 1
+  });
+
+  it("clears the band on the next press, and keeps it when the drag ends", () => {
+    const { container, svg } = setup();
+    drag(svg, PAD_L, PAD_L + PLOT_W);
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("0-4");
+    // A press outside the band drops it (it either starts a new one or is a click).
+    fireEvent.pointerDown(svg, { clientX: PAD_L + PLOT_W / 4 });
+    expect(bandOf(container)).toBeNull();
+  });
+
+  it("extends the band from the keyboard cursor with Shift+Arrow", () => {
+    const { container, svg } = setup();
+    // Cursor to sample 1 without selecting anything.
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(bandOf(container)).toBeNull();
+
+    // Shift anchors on where the cursor stood and extends as it moves.
+    fireEvent.keyDown(svg, { key: "ArrowRight", shiftKey: true });
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("1-2");
+    fireEvent.keyDown(svg, { key: "ArrowRight", shiftKey: true });
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("1-3");
+    expect(metricsOf(container)).toContain("10:00"); // samples 1 to 3 = 600 s
+    // Extending back the way it came keeps the same anchor.
+    fireEvent.keyDown(svg, { key: "ArrowLeft", shiftKey: true });
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("1-2");
+  });
+
+  it("Escape clears the selection before the pinned lap", () => {
+    const laps: LapWindow[] = [
+      { label: "1", startS: 0, endS: 600 },
+      { label: "2", startS: 600, endS: 1200 },
+    ];
+    const { container, svg } = setup({ laps });
+
+    fireEvent.click(container.querySelectorAll("rect[data-lap-strip]")[1]);
+    drag(svg, PAD_L, PAD_L + PLOT_W / 2);
+    expect(bandOf(container)).toBeTruthy();
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+
+    // One press peels the newest overlay: the range goes, the pinned lap stays.
+    fireEvent.keyDown(svg, { key: "Escape" });
+    expect(bandOf(container)).toBeNull();
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+
+    // The next press clears the pin, exactly as it did before selections existed.
+    fireEvent.keyDown(svg, { key: "Escape" });
+    expect(highlightOf(container)).toBeNull();
+  });
+
+  it("still pins a lap when the press lands on the strip", () => {
+    const laps: LapWindow[] = [
+      { label: "1", startS: 0, endS: 600 },
+      { label: "2", startS: 600, endS: 1200 },
+    ];
+    const { container } = setup({ laps });
+    const second = container.querySelectorAll("rect[data-lap-strip]")[1];
+    // The press bubbles to the chart's own pointer-down handler first; the click
+    // that follows must still reach the rect and pin it.
+    fireEvent.pointerDown(second, { clientX: PAD_L + PLOT_W / 2 });
+    fireEvent.pointerUp(second, { clientX: PAD_L + PLOT_W / 2 });
+    fireEvent.click(second);
+    expect(highlightOf(container)?.getAttribute("data-lap-highlight")).toBe("2");
+    expect(bandOf(container)).toBeNull();
+  });
+
+  it("drops a band whose edge stops plotting on the other axis", () => {
+    // Distance stalls across the last two samples, so a band that ends there has
+    // no width on the distance axis; a null edge sample drops it outright.
+    const timeOnlyTail = makeStreams({
+      distanceKm: [0, 1, 2, null, null],
+      timeS: [0, 300, 600, 900, 1200],
+      heartrate: [120, 140, 160, 180, 200],
+    });
+    const { container } = render(
+      <ActivityChart
+        activityId={1}
+        streams={timeOnlyTail}
+        isRun={true}
+        isRide={false}
+        thresholds={thresholds}
+      />
+    );
+    const svg = screen.getByRole("img", { name: "Analysis" });
+    atUnitScale(svg);
+    fireEvent.click(screen.getByRole("button", { name: "Time" }));
+    drag(svg, PAD_L + PLOT_W * 0.5, PAD_L + PLOT_W);
+    expect(bandOf(container)?.getAttribute("data-selection-band")).toBe("2-4");
+
+    fireEvent.click(screen.getByRole("button", { name: "Distance" }));
+    expect(bandOf(container)).toBeNull();
+    expect(metricsOf(container)).toBeNull();
+  });
+});
+
 describe("ActivityChart inverted pace panel", () => {
   // Only pace is present, so the run default renders that single panel.
   const paceOnly = (pace: (number | null)[]) => makeStreams({ paceSPerKm: pace });

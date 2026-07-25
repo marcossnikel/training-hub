@@ -5,9 +5,11 @@ import { useI18n } from "@/components/i18n-provider";
 import type { ActivityStreams } from "@/lib/streams";
 import { zoneBoundsOf, zoneIndexOf, type AthleteThresholds } from "@/lib/fitness";
 import { ZONE_COLORS, zoneLabels } from "@/lib/zones";
-import { fmtDuration, fmtKm } from "@/lib/format";
+import { fmtDuration, fmtElev, fmtHr, fmtKm, fmtPace } from "@/lib/format";
+import { fmtPower } from "@/lib/cycling";
 import { fillStr } from "@/lib/i18n";
 import { distanceAtTime, type LapWindow } from "@/lib/laps";
+import { rangeMetrics } from "@/lib/stream-range";
 import {
   AXIS_H,
   GAP,
@@ -37,6 +39,17 @@ const LAP_OPACITY = [0.15, 0.3];
 const LAP_ACTIVE_OPACITY = 0.5;
 /** The active lap's span behind every panel: readable, still transparent to the trace. */
 const LAP_HIGHLIGHT_OPACITY = 0.12;
+
+/**
+ * How far a press has to travel, in viewBox units, before it is a selection
+ * rather than a click. Below it the press keeps doing exactly what it always did
+ * (move the crosshair), so nothing about clicking the chart or the lap strip
+ * changes.
+ */
+const DRAG_THRESHOLD = 6;
+/** The selected span: a wash of the text colour, faint enough to read the trace through. */
+const SELECTION_OPACITY = 0.06;
+const SELECTION_EDGE_OPACITY = 0.4;
 
 export function ActivityChart({
   activityId,
@@ -94,6 +107,14 @@ export function ActivityChart({
   // one. Both are indices into `laps`, both local to this chart.
   const [hoverLap, setHoverLap] = useState<number | null>(null);
   const [pinnedLap, setPinnedLap] = useState<number | null>(null);
+  // The selected range: the sample the press (or the Shift key) anchored on plus
+  // the one the pointer / keyboard cursor has reached. Held unnormalized so a
+  // selection can be extended past its anchor in either direction.
+  const [selection, setSelection] = useState<{ anchor: number; cursor: number } | null>(null);
+  // The press in flight, as a ref rather than state: a press that never travels
+  // DRAG_THRESHOLD must not re-render anything. Only pointer handlers touch it,
+  // and pointer-up / leave always clear it, so it needs no resync below.
+  const dragRef = useRef<{ index: number; x: number } | null>(null);
 
   // Client-side navigation between two /activity/[id] pages can reuse this same
   // component instance, so per-activity view state would otherwise persist and
@@ -107,6 +128,7 @@ export function ActivityChart({
     setHover(null);
     setHoverLap(null);
     setPinnedLap(null);
+    setSelection(null);
   }
   // The active x-axis, and so the domain lap windows have to be mapped into.
   const xIsTime = xMode === "time" && timeAvailable;
@@ -178,6 +200,48 @@ export function ActivityChart({
   // and heading that sample's readout with it simply misreports where it is.
   const hoverBar = barAtTime(hover != null ? streams.timeS[hover] : null);
 
+  // A selection only survives while both of its edges still plot. Switching to an
+  // axis where an edge's sample has no value (a stream carrying times but no
+  // distances) would otherwise collapse the band onto the plot's left edge while
+  // the strip below kept reporting the range it no longer marks — the same
+  // reconciliation the lap pin gets a few lines above.
+  if (selection && (xs[selection.anchor] == null || xs[selection.cursor] == null))
+    setSelection(null);
+  const sel =
+    selection && xs[selection.anchor] != null && xs[selection.cursor] != null ? selection : null;
+  const selLo = sel ? Math.min(sel.anchor, sel.cursor) : null;
+  const selHi = sel ? Math.max(sel.anchor, sel.cursor) : null;
+  // Cheap over the 400 samples this chart already rebuilds its paths from every
+  // render. At that downsample a 1 h activity carries a sample roughly every 9 s,
+  // so a selection under ~30 s is coarse: its edges snap to whole samples and its
+  // averages weight each sample by the seconds it stands in for. No zoom, no
+  // re-fetch — the range is read off the arrays already in the component.
+  const selMetrics = selLo != null && selHi != null ? rangeMetrics(streams, selLo, selHi) : null;
+  const selX0 = selLo != null ? clampX(xPx(xs[selLo]!)) : null;
+  const selX1 = selHi != null ? clampX(xPx(xs[selHi]!)) : null;
+
+  /** One strip entry per metric the range actually has; a null metric is omitted. */
+  const selItems: { key: string; label: string; value: string }[] = [];
+  if (selMetrics) {
+    const push = (key: string, label: string, value: string | null) => {
+      if (value != null) selItems.push({ key, label, value });
+    };
+    const { durationS, distanceKm, avgHr, maxHr, avgPaceSPerKm, avgPowerW, elevationGainM } =
+      selMetrics;
+    push(
+      "duration",
+      t.chart.duration,
+      durationS != null && durationS > 0 ? fmtDuration(durationS) : null
+    );
+    push("distance", t.chart.distance, distanceKm != null ? fmtKm(distanceKm, 2) : null);
+    push("avgHr", t.chart.avgHr, avgHr != null ? fmtHr(avgHr) : null);
+    push("maxHr", t.chart.maxHr, maxHr != null ? fmtHr(maxHr) : null);
+    // A ride reads in watts when the bike had a meter, everything else in pace.
+    if (isRide && avgPowerW != null) push("power", t.chart.avgPower, fmtPower(avgPowerW));
+    else push("pace", t.chart.avgPace, avgPaceSPerKm != null ? fmtPace(avgPaceSPerKm) : null);
+    push("elevGain", t.chart.elevGain, elevationGainM != null ? fmtElev(elevationGainM) : null);
+  }
+
   const validIdx = useMemo(
     () => xs.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0),
     [xs]
@@ -191,12 +255,16 @@ export function ActivityChart({
       return next;
     });
 
-  // Pointer -> nearest data index, mapping client px into viewBox units.
-  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
+  /** Client px -> viewBox units on the x-axis, null before the SVG is mounted. */
+  const vbXOf = (clientX: number): number | null => {
     const svg = svgRef.current;
-    if (!svg || !xExtent || validIdx.length === 0) return;
+    if (!svg || !xExtent || validIdx.length === 0) return null;
     const rect = svg.getBoundingClientRect();
-    const vbX = ((e.clientX - rect.left) / rect.width) * VBW;
+    return ((clientX - rect.left) / rect.width) * VBW;
+  };
+
+  /** The data index plotted nearest a viewBox x. */
+  const nearestIdx = (vbX: number): number => {
     let best = validIdx[0];
     let bestD = Infinity;
     for (const i of validIdx) {
@@ -206,7 +274,38 @@ export function ActivityChart({
         best = i;
       }
     }
-    setHover(best);
+    return best;
+  };
+
+  // Pointer -> nearest data index, and while a press is held and has travelled,
+  // the far end of the selection it is dragging out.
+  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const vbX = vbXOf(e.clientX);
+    if (vbX == null) return;
+    const i = nearestIdx(vbX);
+    setHover(i);
+    const drag = dragRef.current;
+    if (drag && Math.abs(vbX - drag.x) >= DRAG_THRESHOLD) {
+      setSelection({ anchor: drag.index, cursor: i });
+    }
+  };
+
+  // A press arms a drag and drops whatever band was showing: it either becomes a
+  // new selection or stays a plain click, which is the "pointer-down outside
+  // clears" half of the interaction. It runs on the SVG, after a lap rect's own
+  // handlers have bubbled through it, so the strip's click-to-pin is untouched.
+  const onDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    const vbX = vbXOf(e.clientX);
+    if (vbX == null) return;
+    const i = nearestIdx(vbX);
+    setHover(i);
+    setSelection(null);
+    dragRef.current = { index: i, x: vbX };
+  };
+
+  /** Ends the press, keeping the band it dragged out. */
+  const endDrag = () => {
+    dragRef.current = null;
   };
 
   /** Pins the lap, or unpins it when it is already the pinned one. */
@@ -219,11 +318,25 @@ export function ActivityChart({
     setHoverLap(barAtTime(streams.timeS[i])?.i ?? null);
   };
 
+  // Extends the selection to wherever the cursor just landed, anchoring on its
+  // existing anchor, else on the sample the cursor came from.
+  const extendTo = (i: number, from: number) => {
+    moveCursor(i);
+    setSelection((prev) => ({ anchor: prev?.anchor ?? from, cursor: i }));
+  };
+
   const onKey = (e: React.KeyboardEvent<SVGSVGElement>) => {
-    // Escape drops the lap highlight (pinned or hovered) whatever the x-axis
-    // holds. Clicking a strip rect focuses this SVG, so the key lands here
-    // however the browser treats focus on the rect itself.
+    // Escape peels one overlay per press, newest first: the drag selection if one
+    // is showing, otherwise the lap highlight (pinned or hovered). Precedence
+    // rather than clearing both, so a reader who selected a range inside a pinned
+    // lap keeps the lap they were studying and only loses the range they just
+    // drew. Clicking a strip rect focuses this SVG, so the key lands here however
+    // the browser treats focus on the rect itself.
     if (e.key === "Escape") {
+      if (selection) {
+        setSelection(null);
+        return;
+      }
       setHoverLap(null);
       setPinnedLap(null);
       return;
@@ -240,17 +353,21 @@ export function ActivityChart({
     }
     if (validIdx.length === 0) return;
     const pos = hover == null ? 0 : validIdx.indexOf(hover);
+    // Shift turns every cursor key into a range gesture, the keyboard twin of a
+    // drag: the anchor is where the cursor stood, the cursor end follows the keys.
+    const from = hover ?? validIdx[0];
+    const step = e.shiftKey ? (i: number) => extendTo(i, from) : moveCursor;
     if (e.key === "ArrowRight") {
-      moveCursor(validIdx[Math.min(validIdx.length - 1, (pos < 0 ? -1 : pos) + 1)]);
+      step(validIdx[Math.min(validIdx.length - 1, (pos < 0 ? -1 : pos) + 1)]);
       e.preventDefault();
     } else if (e.key === "ArrowLeft") {
-      moveCursor(validIdx[Math.max(0, (pos < 0 ? 1 : pos) - 1)]);
+      step(validIdx[Math.max(0, (pos < 0 ? 1 : pos) - 1)]);
       e.preventDefault();
     } else if (e.key === "Home") {
-      moveCursor(validIdx[0]);
+      step(validIdx[0]);
       e.preventDefault();
     } else if (e.key === "End") {
-      moveCursor(validIdx[validIdx.length - 1]);
+      step(validIdx[validIdx.length - 1]);
       e.preventDefault();
     }
   };
@@ -340,10 +457,13 @@ export function ActivityChart({
             tabIndex={0}
             aria-label={t.chart.analysis}
             onPointerMove={onMove}
-            onPointerDown={onMove}
+            onPointerDown={onDown}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
             onPointerLeave={() => {
               setHover(null);
               setHoverLap(null);
+              endDrag();
             }}
             onKeyDown={onKey}
             className="outline-none"
@@ -358,6 +478,21 @@ export function ActivityChart({
                 height={(axisY - plotTop).toFixed(1)}
                 fill="var(--chart-4)"
                 opacity={LAP_HIGHLIGHT_OPACITY}
+                pointerEvents="none"
+              />
+            ) : null}
+
+            {/* Selected span, behind the panels alongside the lap highlight. */}
+            {selX0 != null && selX1 != null ? (
+              <rect
+                data-selection-band={`${selLo}-${selHi}`}
+                x={selX0.toFixed(1)}
+                y={plotTop}
+                // A hairline floor keeps a one-sample range visible.
+                width={Math.max(selX1 - selX0, 1).toFixed(1)}
+                height={(axisY - plotTop).toFixed(1)}
+                fill="var(--foreground)"
+                opacity={SELECTION_OPACITY}
                 pointerEvents="none"
               />
             ) : null}
@@ -586,6 +721,29 @@ export function ActivityChart({
               );
             })}
 
+            {/* Selection edges, over the traces so the range's boundaries read. */}
+            {selX0 != null && selX1 != null
+              ? (
+                  [
+                    ["start", selX0],
+                    ["end", selX1],
+                  ] as const
+                ).map(([edge, x]) => (
+                  <line
+                    key={edge}
+                    data-selection-edge={edge}
+                    x1={x.toFixed(1)}
+                    y1={plotTop}
+                    x2={x.toFixed(1)}
+                    y2={axisY}
+                    stroke="var(--foreground)"
+                    strokeWidth={1}
+                    opacity={SELECTION_EDGE_OPACITY}
+                    pointerEvents="none"
+                  />
+                ))
+              : null}
+
             {/* shared crosshair */}
             {hoverX != null ? (
               <line
@@ -646,6 +804,24 @@ export function ActivityChart({
           ) : null}
         </div>
       )}
+
+      {/* What the selected range adds up to; only the metrics it actually has. A
+          sibling of the scroll container rather than a child, so a wide chart
+          scrolling sideways never takes the strip with it. Nothing can be
+          selected while no panel is shown, so it needs no guard of its own. */}
+      {selItems.length > 0 ? (
+        <div
+          data-selection-metrics
+          className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t pt-2 font-mono text-xs tabular-nums"
+        >
+          <span className="font-medium text-muted-foreground">{t.chart.selection}</span>
+          {selItems.map((item) => (
+            <span key={item.key} className="text-muted-foreground">
+              {item.label} <span className="text-foreground">{item.value}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
