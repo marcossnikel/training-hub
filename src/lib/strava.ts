@@ -12,7 +12,9 @@ import {
   saveActivityStreams,
   saveStravaAuth,
   setMeta,
+  upsertActivityBestEfforts,
 } from "./db";
+import { bestEffortRows, type StravaBestEffort } from "./best-efforts";
 import { isRideSport } from "./cycling";
 import { logger } from "./telemetry";
 import { normalizeStreams, type ActivityStreams } from "./streams";
@@ -272,18 +274,11 @@ export interface StravaSplit {
   elevation_difference?: number;
 }
 
-/**
- * A fastest sub-segment Strava found inside a run ("5K", "1 mile", …), with the
- * athlete's all-time rank for that distance when the effort made the top three.
- */
-export interface StravaBestEffort {
-  name: string;
-  distance: number;
-  moving_time: number;
-  elapsed_time: number;
-  pr_rank: number | null;
-  start_date_local?: string;
-}
+// The best-effort payload shape is defined beside the pure transform that stores
+// it (src/lib/best-efforts.ts) and re-exported here, so it stays part of the Strava
+// payload surface for callers while this module keeps its one-way dependency on the
+// pure layer.
+export type { StravaBestEffort };
 
 export interface StravaActivityDetail {
   id?: number;
@@ -309,20 +304,48 @@ export function parseActivityDetail(json: string | null): StravaActivityDetail |
 }
 
 /**
+ * Mirrors a detail payload's best efforts into `activity_best_efforts` so the rows
+ * accumulate organically as activities are viewed, without waiting for a backfill.
+ * A no-op for anything Strava reports no efforts for (every non-run). Persisting is
+ * a side effect of viewing, so a write failure is logged and swallowed rather than
+ * taking the activity page down with it.
+ */
+async function cacheBestEfforts(
+  activityId: number,
+  detail: StravaActivityDetail | null
+): Promise<void> {
+  const rows = bestEffortRows(detail?.best_efforts);
+  if (rows.length === 0) return;
+  try {
+    await upsertActivityBestEfforts(activityId, rows);
+  } catch (error) {
+    logger.error("strava.cacheBestEfforts", { error, activityId });
+  }
+}
+
+/**
  * Returns the cached Strava detail for an activity, fetching and caching it on
  * first view. One API call per activity ever, so the read rate limit is never
  * an issue. Returns null for manual activities, when disconnected, or when the
  * fetch fails (the page then simply omits the detail sections).
+ *
+ * Either way — freshly fetched or already cached — the payload's best efforts are
+ * upserted into `activity_best_efforts` on the way out.
  */
 export async function ensureActivityDetail(
   activity: Pick<Activity, "id" | "strava_id" | "detail_json">
 ): Promise<StravaActivityDetail | null> {
-  if (activity.detail_json) return parseActivityDetail(activity.detail_json);
+  if (activity.detail_json) {
+    const cached = parseActivityDetail(activity.detail_json);
+    await cacheBestEfforts(activity.id, cached);
+    return cached;
+  }
   if (!activity.strava_id) return null;
   if (!stravaConfigured() || !(await isStravaConnected())) return null;
   try {
     const detail = await apiGet<StravaActivityDetail>(`/activities/${activity.strava_id}`);
     await saveActivityDetail(activity.id, JSON.stringify(detail));
+    await cacheBestEfforts(activity.id, detail);
     return detail;
   } catch (error) {
     logger.error("strava.ensureActivityDetail", { error, activityId: activity.id });

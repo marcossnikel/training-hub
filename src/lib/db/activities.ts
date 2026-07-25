@@ -2,6 +2,7 @@ import { cache } from "react";
 import { batchWrite, exec, many, one, sqliteBool } from "./helpers";
 import { client } from "./client";
 import { ensureMigrated } from "./migrations";
+import type { BestEffortRow } from "../best-efforts";
 import type { BlockActivity } from "../blocks";
 import type { SessionStart } from "../consistency";
 import type { TotalsActivity } from "../totals";
@@ -262,6 +263,78 @@ export async function saveActivityStreams(activityId: number, json: string): Pro
     `INSERT INTO activity_streams (activity_id, json, synced_at) VALUES (?, ?, ?)
      ON CONFLICT(activity_id) DO UPDATE SET json = excluded.json, synced_at = excluded.synced_at`,
     [activityId, json, new Date().toISOString()]
+  );
+}
+
+/**
+ * Writes an activity's best-effort rows, upserting on UNIQUE(activity_id, name):
+ * re-viewing an activity or re-running the backfill rewrites in place instead of
+ * duplicating. Nothing is deleted — `detail_json` is an immutable per-activity
+ * cache, so a name that vanished from the payload cannot happen.
+ */
+export async function upsertActivityBestEfforts(
+  activityId: number,
+  rows: BestEffortRow[]
+): Promise<void> {
+  if (rows.length === 0) return;
+  await batchWrite(
+    rows.map((row) => ({
+      sql: `INSERT INTO activity_best_efforts
+              (activity_id, name, distance_m, elapsed_time_s, moving_time_s, pr_rank)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(activity_id, name) DO UPDATE SET
+              distance_m = excluded.distance_m,
+              elapsed_time_s = excluded.elapsed_time_s,
+              moving_time_s = excluded.moving_time_s,
+              pr_rank = excluded.pr_rank`,
+      args: [
+        activityId,
+        row.name,
+        row.distance_m,
+        row.elapsed_time_s,
+        row.moving_time_s,
+        row.pr_rank,
+      ],
+    }))
+  );
+}
+
+/** How many best-effort rows an activity already has stored. */
+export interface BestEffortCount {
+  activity_id: number;
+  n: number;
+}
+
+/**
+ * Stored best-effort row counts per activity, so the backfill can report and skip
+ * what is already populated (that is what makes it resumable).
+ */
+export async function listBestEffortCounts(): Promise<BestEffortCount[]> {
+  return many<BestEffortCount>(
+    `SELECT activity_id, COUNT(*) AS n
+     FROM activity_best_efforts
+     GROUP BY activity_id
+     ORDER BY activity_id ASC`
+  );
+}
+
+/** An activity's cached Strava detail payload, as the local backfill re-reads it. */
+export interface ActivityDetailRow {
+  id: number;
+  detail_json: string | null;
+}
+
+/**
+ * Every activity carrying a cached Strava detail payload, oldest id first, for the
+ * local best-effort backfill. Read-only re-parse: no Strava call is involved, and
+ * only ~21 activities have a payload today.
+ */
+export async function listActivitiesWithDetailJson(): Promise<ActivityDetailRow[]> {
+  return many<ActivityDetailRow>(
+    `SELECT id, detail_json
+     FROM activities
+     WHERE detail_json IS NOT NULL
+     ORDER BY id ASC`
   );
 }
 

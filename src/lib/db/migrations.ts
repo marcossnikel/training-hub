@@ -303,6 +303,29 @@ const MIGRATIONS: Migration[] = [
       await addColumnIfMissing("activities", "coach_insight_at", "TEXT");
     },
   },
+  // 10: per-activity best efforts — the fastest sub-segments Strava finds inside a
+  // run ("400m", "1K", "5K", …), lifted out of the cached detail payload into rows
+  // so they can be queried across activities. One row per (activity, effort name);
+  // that UNIQUE key is what makes both the lazy detail path and the local backfill
+  // upsert in place instead of duplicating. No separate activity_id index: the
+  // UNIQUE constraint's index already leads with that column.
+  {
+    version: 10,
+    up: async () => {
+      await client.execute(
+        `CREATE TABLE IF NOT EXISTS activity_best_efforts (
+           id INTEGER PRIMARY KEY,
+           activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+           name TEXT NOT NULL,
+           distance_m REAL,
+           elapsed_time_s INTEGER,
+           moving_time_s INTEGER,
+           pr_rank INTEGER,
+           UNIQUE(activity_id, name)
+         )`
+      );
+    },
+  },
 ];
 
 async function currentSchemaVersion(): Promise<number> {
