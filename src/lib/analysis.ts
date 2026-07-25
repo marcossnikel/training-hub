@@ -1,8 +1,12 @@
-// Aerobic-quality analysis: efficiency factor and heart-rate decoupling. Pure
-// functions over whole-activity averages and the cached stream, kept free of DB
-// and UI imports so a later persisted metrics pipeline can reuse them as-is.
+// Derived-metric analysis for a single activity: aerobic quality (efficiency
+// factor, heart-rate decoupling) and split-level grade-adjusted pace. Pure
+// functions over whole-activity averages, the cached stream and per-split
+// figures, kept free of DB and UI imports so a later persisted metrics pipeline
+// can reuse them as-is. Sport gates live here rather than in the UI, so run-only
+// math can never be applied to a walk or a swim.
 
 import type { ActivityStreams } from "./streams";
+import { isRunSport } from "./validate";
 
 /**
  * Which output signal aerobic quality is measured against. Power is for rides
@@ -133,7 +137,7 @@ interface SplitGap {
   approximate: boolean;
 }
 
-/** One split reduced to what grade adjustment needs. All fields nullable. */
+/** One split reduced to what grade adjustment needs. All figures nullable. */
 interface SplitGapInput {
   /** Strava's own grade-adjusted speed for the split, m/s. Preferred whenever present. */
   gradeAdjustedSpeedMPerS: number | null;
@@ -143,16 +147,44 @@ interface SplitGapInput {
   elevationDiffM: number | null;
   /** Split length, metres. */
   distanceM: number | null;
+  /**
+   * The parent activity's Strava sport type. The local approximation is a
+   * running-economy model, so it only runs for runs; Strava's own value is
+   * accepted for any sport because it is their number, not ours.
+   */
+  sportType: string | null;
 }
 
 /**
- * APPROXIMATION — split-level only, superseded by real per-sample grade data
+ * Splits below this length get no GAP. Strava emits trailing fragments of a few
+ * metres (3.8 m, 5.1 m, 9.8 m all appear in the live data), where a decimetre of
+ * barometric noise reads as a multi-percent grade — a 9.8 m fragment with a 0.2 m
+ * delta comes out at 2%. Because the table's inline bar scales by the fastest
+ * GAP, one such fragment would shrink every real kilometre's bar. A tenth of a
+ * kilometre is the shortest piece whose net elevation change is a measurement
+ * rather than noise.
+ */
+const MIN_GAP_SPLIT_M = 100;
+
+/**
+ * Smallest adjustment worth printing, seconds per km. A grade adjustment under a
+ * second per kilometre is at most a rounding tick in the m:ss the table shows, so
+ * rendering it would print the same pace twice and imply an adjustment that never
+ * happened — the flat outdoor case (activity 754: every split's grade-adjusted
+ * speed equals its average speed) and the indoor case (payloads that carry
+ * `elevation_difference: 0` instead of null).
+ */
+const MIN_GAP_DELTA_S_PER_KM = 1;
+
+/**
+ * APPROXIMATION — split-level, run-only, superseded by real per-sample grade data
  * (plan task T26). A whole kilometre is collapsed to its net elevation change,
  * so a split that climbs 20 m and descends 20 m looks flat. Linear cost
  * coefficients: 3.3% pace credit per 1% of climb, 1.8% pace debit per 1% of
- * descent, grade clamped because the linear model breaks down on the steep.
- * Self-contained on purpose: delete this block and the fallback branch below
- * when stream grade lands.
+ * descent, grade clamped because the linear model breaks down on the steep. The
+ * coefficients come from running economy, which is why walks, swims and workouts
+ * are excluded rather than adjusted. Self-contained on purpose: delete this block
+ * and the fallback branch below when stream grade lands.
  */
 const MAX_ABS_GRADE_PCT = 10;
 const UPHILL_CREDIT_PER_PCT = 0.033;
@@ -165,21 +197,37 @@ function approximateGapFactor(gradePct: number): number {
   return clamped > 0 ? 1 + UPHILL_CREDIT_PER_PCT * clamped : 1 + DOWNHILL_DEBIT_PER_PCT * clamped;
 }
 
+/** A GAP that says nothing the raw pace does not already say is not a GAP. */
+function gapUnlessNoOp(
+  adjustedSPerKm: number,
+  rawSPerKm: number,
+  approximate: boolean
+): SplitGap | null {
+  if (Math.abs(adjustedSPerKm - rawSPerKm) < MIN_GAP_DELTA_S_PER_KM) return null;
+  return { paceSPerKm: adjustedSPerKm, approximate };
+}
+
 /**
  * Grade-adjusted pace for a split: the pace the same effort would have produced
- * on flat ground, so hilly kilometres compare honestly against flat ones. Uses
- * Strava's value when the split carries one, otherwise the approximation above.
- * Null for indoor splits, which have neither a grade-adjusted speed nor an
- * elevation change to work from.
+ * on flat ground, so hilly kilometres compare honestly against flat ones. Prefers
+ * Strava's own grade-adjusted speed, falling back to the run-only approximation
+ * above when the split has a net elevation change but no Strava value.
+ *
+ * Null whenever there is nothing to say: no usable raw pace to adjust or compare
+ * against, a split too short to carry a real grade, a non-run with no Strava
+ * value, an indoor split with no elevation change to work from, or an adjustment
+ * so small it would just reprint the raw pace.
  */
 export function splitGap(input: SplitGapInput): SplitGap | null {
-  const gradeAdjusted = input.gradeAdjustedSpeedMPerS ?? 0;
-  if (gradeAdjusted > 0) {
-    return { paceSPerKm: METRES_PER_KM / gradeAdjusted, approximate: false };
-  }
   const pace = input.paceSPerKm ?? 0;
   const distanceM = input.distanceM ?? 0;
-  if (pace <= 0 || distanceM <= 0 || input.elevationDiffM == null) return null;
+  if (pace <= 0 || distanceM < MIN_GAP_SPLIT_M) return null;
+
+  const gradeAdjusted = input.gradeAdjustedSpeedMPerS ?? 0;
+  if (gradeAdjusted > 0) {
+    return gapUnlessNoOp(METRES_PER_KM / gradeAdjusted, pace, false);
+  }
+  if (!isRunSport(input.sportType) || input.elevationDiffM == null) return null;
   const gradePct = (input.elevationDiffM / distanceM) * 100;
-  return { paceSPerKm: pace / approximateGapFactor(gradePct), approximate: true };
+  return gapUnlessNoOp(pace / approximateGapFactor(gradePct), pace, true);
 }

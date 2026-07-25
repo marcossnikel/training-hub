@@ -148,7 +148,14 @@ describe("computeDecoupling", () => {
 });
 
 describe("splitGap", () => {
-  const flat = { paceSPerKm: 300, distanceM: 1000, elevationDiffM: 0 };
+  /** A flat one-kilometre run split at 5:00/km, with no Strava value of its own. */
+  const flat: Parameters<typeof splitGap>[0] = {
+    gradeAdjustedSpeedMPerS: null,
+    paceSPerKm: 300,
+    elevationDiffM: 0,
+    distanceM: 1000,
+    sportType: "Run",
+  };
 
   it("prefers Strava's own grade-adjusted speed and does not mark it approximate", () => {
     // 2.5 m/s = 400 s/km, deliberately unrelated to the raw pace so the source
@@ -159,38 +166,113 @@ describe("splitGap", () => {
     });
   });
 
-  it("approximates a flat split as its raw pace", () => {
-    const gap = splitGap({ ...flat, gradeAdjustedSpeedMPerS: null });
-    expect(gap).toEqual({ paceSPerKm: 300, approximate: true });
+  it("uses Strava's value on a non-run, because it is their number and not our model", () => {
+    expect(splitGap({ ...flat, sportType: "Walk", gradeAdjustedSpeedMPerS: 2.5 })).toEqual({
+      paceSPerKm: 400,
+      approximate: false,
+    });
   });
 
   it("makes an uphill split faster than its raw pace", () => {
     // +5% over a kilometre = 50 m of climb.
-    const gap = splitGap({ ...flat, elevationDiffM: 50, gradeAdjustedSpeedMPerS: null });
+    const gap = splitGap({ ...flat, elevationDiffM: 50 });
     expect(gap?.paceSPerKm).toBeLessThan(300);
     expect(gap?.paceSPerKm).toBeCloseTo(300 / 1.165, 6);
     expect(gap?.approximate).toBe(true);
   });
 
   it("makes a downhill split slower than its raw pace", () => {
-    const gap = splitGap({ ...flat, elevationDiffM: -50, gradeAdjustedSpeedMPerS: null });
+    const gap = splitGap({ ...flat, elevationDiffM: -50 });
     expect(gap?.paceSPerKm).toBeGreaterThan(300);
     expect(gap?.paceSPerKm).toBeCloseTo(300 / 0.91, 6);
   });
 
   it("clamps grade beyond ten percent in both directions", () => {
-    const steepUp = splitGap({ ...flat, elevationDiffM: 300, gradeAdjustedSpeedMPerS: null });
+    const steepUp = splitGap({ ...flat, elevationDiffM: 300 });
     expect(steepUp?.paceSPerKm).toBeCloseTo(300 / 1.33, 6);
-    const steepDown = splitGap({ ...flat, elevationDiffM: -300, gradeAdjustedSpeedMPerS: null });
+    const steepDown = splitGap({ ...flat, elevationDiffM: -300 });
     expect(steepDown?.paceSPerKm).toBeCloseTo(300 / 0.82, 6);
   });
 
+  it("adjusts a grade sitting exactly on the clamp boundary", () => {
+    // Exactly +10% and exactly -10% are inside the clamp: the boundary value is
+    // adjusted in full and matches what a steeper grade clamps down to.
+    const up = splitGap({ ...flat, elevationDiffM: 100 });
+    expect(up?.paceSPerKm).toBeCloseTo(300 / 1.33, 6);
+    expect(up?.paceSPerKm).toBe(splitGap({ ...flat, elevationDiffM: 300 })?.paceSPerKm);
+    const down = splitGap({ ...flat, elevationDiffM: -100 });
+    expect(down?.paceSPerKm).toBeCloseTo(300 / 0.82, 6);
+    expect(down?.paceSPerKm).toBe(splitGap({ ...flat, elevationDiffM: -300 })?.paceSPerKm);
+  });
+
+  it("falls back to the approximation when Strava's value is present but unusable", () => {
+    for (const unusable of [0, -1]) {
+      expect(splitGap({ ...flat, elevationDiffM: 50, gradeAdjustedSpeedMPerS: unusable })).toEqual({
+        paceSPerKm: 300 / 1.165,
+        approximate: true,
+      });
+      // ...and on a non-run there is no fallback to reach, so there is no GAP.
+      expect(
+        splitGap({
+          ...flat,
+          sportType: "Walk",
+          elevationDiffM: 50,
+          gradeAdjustedSpeedMPerS: unusable,
+        })
+      ).toBeNull();
+    }
+  });
+
+  it("does not approximate a non-run: the coefficients are running economy", () => {
+    // A kilometre walked at 12:00/km with 50 m of climb would otherwise be
+    // credited 102 s/km by a model of running.
+    expect(
+      splitGap({ ...flat, sportType: "Walk", paceSPerKm: 720, elevationDiffM: 50 })
+    ).toBeNull();
+    expect(splitGap({ ...flat, sportType: "Swim", elevationDiffM: 50 })).toBeNull();
+    expect(splitGap({ ...flat, sportType: "Workout", elevationDiffM: 50 })).toBeNull();
+    expect(splitGap({ ...flat, sportType: null, elevationDiffM: 50 })).toBeNull();
+  });
+
+  it("gives no GAP to a split too short to carry a real grade", () => {
+    // A live 9.8 m trailing fragment: a 0.2 m delta reads as a 2% grade.
+    expect(splitGap({ ...flat, distanceM: 9.8, elevationDiffM: 0.2 })).toBeNull();
+    // Just under the 100 m floor, at a grade that would otherwise be adjusted.
+    expect(splitGap({ ...flat, distanceM: 99, elevationDiffM: 4.95 })).toBeNull();
+    // Exactly at the floor, same +5%, is adjusted.
+    expect(splitGap({ ...flat, distanceM: 100, elevationDiffM: 5 })).toEqual({
+      paceSPerKm: 300 / 1.165,
+      approximate: true,
+    });
+  });
+
+  it("gives no GAP when Strava's own value only reprints the raw pace", () => {
+    // Activity 754: every split's grade-adjusted speed equals its average speed.
+    expect(splitGap({ ...flat, gradeAdjustedSpeedMPerS: 1000 / 300 })).toBeNull();
+    // Half a second per km apart still renders as the same 5:00/km.
+    expect(splitGap({ ...flat, gradeAdjustedSpeedMPerS: 1000 / 300.5 })).toBeNull();
+    // A full second per km apart is a difference the table can show.
+    expect(splitGap({ ...flat, gradeAdjustedSpeedMPerS: 1000 / 301 })).toEqual({
+      paceSPerKm: 301,
+      approximate: false,
+    });
+  });
+
+  it("gives no GAP when the approximation is a no-op", () => {
+    // A flat outdoor split, and an indoor split whose payload carries a literal
+    // 0 rather than null, both adjust to exactly the raw pace.
+    expect(splitGap(flat)).toBeNull();
+    // A 0.2 m delta over a kilometre is well under a second per km of credit.
+    expect(splitGap({ ...flat, elevationDiffM: 0.2 })).toBeNull();
+  });
+
   it("is null for an indoor split, which has no elevation to adjust by", () => {
-    expect(splitGap({ ...flat, elevationDiffM: null, gradeAdjustedSpeedMPerS: null })).toBeNull();
+    expect(splitGap({ ...flat, elevationDiffM: null })).toBeNull();
   });
 
   it("is null without a usable raw pace or distance", () => {
-    expect(splitGap({ ...flat, paceSPerKm: null, gradeAdjustedSpeedMPerS: null })).toBeNull();
-    expect(splitGap({ ...flat, distanceM: 0, gradeAdjustedSpeedMPerS: null })).toBeNull();
+    expect(splitGap({ ...flat, paceSPerKm: null, elevationDiffM: 50 })).toBeNull();
+    expect(splitGap({ ...flat, distanceM: 0, elevationDiffM: 50 })).toBeNull();
+    expect(splitGap({ ...flat, distanceM: null, elevationDiffM: 50 })).toBeNull();
   });
 });

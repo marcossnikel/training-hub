@@ -312,7 +312,15 @@ function ZoneDistributions({ bars, t }: { bars: ZoneDistribution[]; t: Dict }) {
   );
 }
 
-function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
+function KmSplitsTable({
+  splits,
+  sportType,
+  t,
+}: {
+  splits: StravaSplit[];
+  sportType: string | null;
+  t: Dict;
+}) {
   const rows = splits.map((split) => {
     const pace = split.average_speed
       ? 1000 / split.average_speed
@@ -320,11 +328,14 @@ function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
     return {
       split,
       pace,
+      // splitGap owns every gate (sport, split length, no-op adjustment), so a
+      // split with nothing to add simply comes back null and renders one line.
       gap: splitGap({
         gradeAdjustedSpeedMPerS: split.average_grade_adjusted_speed ?? null,
         paceSPerKm: pace,
         elevationDiffM: split.elevation_difference ?? null,
         distanceM: split.distance ?? null,
+        sportType,
       }),
     };
   });
@@ -713,7 +724,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             <CardTitle>{t.detail.kmSplits}</CardTitle>
           </CardHeader>
           <CardContent>
-            <KmSplitsTable splits={kmSplits} t={t} />
+            <KmSplitsTable splits={kmSplits} sportType={activity.sport_type} t={t} />
           </CardContent>
         </Card>
       ) : null}
