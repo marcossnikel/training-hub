@@ -213,6 +213,9 @@ export const pt: Dict = {
     backToLog: "Diário de treinos",
     confirmed: "Confirmada",
     pending: "Aguardando revisão",
+    exportOriginal: "Arquivo original",
+    exportOriginalTitle:
+      "Baixa no Strava o arquivo de onde esta atividade veio. Abre o strava.com e exige que você esteja logado lá. Atividades lançadas na mão não têm arquivo.",
     journal: "Diário",
     noJournal: "Nenhuma anotação para esta atividade ainda.",
     nothingNoted: "Nada anotado.",

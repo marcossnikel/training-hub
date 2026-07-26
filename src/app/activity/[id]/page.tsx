@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon, CheckCircle2Icon, ClockIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckCircle2Icon, ClockIcon, DownloadIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MedalIcon } from "lucide-react";
 import { ActivityChart } from "@/components/activity-chart";
@@ -636,6 +636,28 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
               ? `, ${fmtTime(localStartedAt(activity))}`
               : ""}
           </span>
+          {/* Strava's own export, not ours: their public API has no endpoint for the
+              original upload, and what we cache is a 400-point downsample with no
+              coordinates, so anything we generated would be a lossy reconstruction
+              rather than the file the watch recorded. The link needs a Strava session
+              in the browser, and returns whatever was uploaded (.fit from a watch,
+              .gpx or .tcx otherwise). Hidden for activities entered by hand, which
+              carry no strava_id and so have no file behind them. */}
+          {activity.strava_id ? (
+            <>
+              <span aria-hidden>·</span>
+              <a
+                href={`https://www.strava.com/activities/${activity.strava_id}/export_original`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t.detail.exportOriginalTitle}
+                className="inline-flex items-center gap-1 underline-offset-2 transition-colors hover:text-foreground hover:underline"
+              >
+                <DownloadIcon className="size-3.5" aria-hidden />
+                {t.detail.exportOriginal}
+              </a>
+            </>
+          ) : null}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 font-display text-3xl font-semibold tracking-tight">

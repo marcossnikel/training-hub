@@ -219,6 +219,9 @@ export const en = {
     backToLog: "Training log",
     confirmed: "Confirmed",
     pending: "Pending review",
+    exportOriginal: "Original file",
+    exportOriginalTitle:
+      "Download the file this activity was uploaded from, on Strava. Opens strava.com and needs you signed in there. Activities entered by hand have no file.",
     journal: "Journal",
     noJournal: "No journal entry for this activity yet.",
     nothingNoted: "Nothing noted.",
