@@ -537,7 +537,7 @@ export const en = {
     empty: "No runs to analyze yet",
     emptyBody: "Confirm some runs and your best efforts and race predictions build here.",
     summaryNote:
-      "The threshold estimate and the predictions come from activity summaries — whole-activity times, not segments inside a run. Cycling power (FTP) needs per-second streams and is not covered here.",
+      "The threshold estimate and the predictions come from activity summaries — whole-activity times, not segments inside a run. Cycling FTP is estimated separately, from power-meter rides only.",
     bestEfforts: "Best efforts by distance",
     bestEffortsBody:
       "The fastest time at each standard distance, next to the length it was measured over. A true segment inside a run wins wherever Strava recorded one; a whole activity takes the row only when there is no segment, or when it is faster per kilometre without simply being longer than the distance.",
@@ -561,6 +561,17 @@ export const en = {
     applied: "Threshold pace updated",
     applyOutOfRange: "Outside the accepted range",
     csEmpty: "Mark at least 2 races at different distances to estimate your critical speed.",
+    eftp: "Critical power estimate",
+    eftpBody:
+      "A 2-parameter model fit to the best power you have held between 3 and 20 minutes over the last {days} days. What it recovers is a critical power, which typically reads a few percent above a tested FTP. The FTP it implies is a suggestion — it is not applied automatically.",
+    estFtp: "Estimated FTP",
+    currentFtp: "Current FTP",
+    wPrime: "W′",
+    eftpCoverage: "Based on {n} durations",
+    eftpCaveat:
+      "Only rides with a real power meter feed this. Watch-estimated run power is excluded on purpose — it models pace rather than measuring force. The card stays hidden until at least {n} rides carry power curve points, because a single steady ride fills every duration on its own and fits them almost perfectly.",
+    eftpApply: "Use as FTP",
+    eftpApplied: "FTP updated",
     predictions: "Race predictions",
     predictionsBody:
       "Riegel projections from your {ref} effort ({time}). Estimates only; extrapolating far from the reference is less reliable.",

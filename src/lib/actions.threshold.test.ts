@@ -48,7 +48,12 @@ vi.mock("./db", () => ({
   getAthleteThresholds: mocks.getAthleteThresholds,
 }));
 
-import { applyThresholdPaceAction, saveThresholdsAction, type ThresholdsInput } from "./actions";
+import {
+  applyFtpAction,
+  applyThresholdPaceAction,
+  saveThresholdsAction,
+  type ThresholdsInput,
+} from "./actions";
 
 const VALID: ThresholdsInput = {
   maxHr: 190,
@@ -152,6 +157,53 @@ describe("applyThresholdPaceAction (pace-only apply)", () => {
 
   it("rejects an out-of-range pace without reading or writing thresholds", async () => {
     const result = await applyThresholdPaceAction(700);
+
+    expect(result.ok).toBe(false);
+    expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.after).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyFtpAction (eFTP apply, T28)", () => {
+  it("changes only the FTP and clears the provisional flag", async () => {
+    mocks.getAthleteThresholds.mockResolvedValueOnce({
+      maxHr: 195,
+      restingHr: 50,
+      lthr: 170,
+      thresholdPaceSPerKm: 300,
+      ftpW: 150,
+      restingHrEstimated: true,
+      ftpProvisional: true,
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
+
+    const result = await applyFtpAction(248.6);
+
+    expect(result).toEqual({ ok: true });
+    // Same contract as the pace apply: read the CURRENT thresholds server-side,
+    // write them back with one field changed, so a concurrent edit is not lost.
+    expect(mocks.getAthleteThresholds).toHaveBeenCalledTimes(1);
+    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith({
+      maxHr: 195,
+      restingHr: 50,
+      lthr: 170,
+      thresholdPaceSPerKm: 300,
+      // Rounded to whole watts, and no longer a placeholder.
+      ftpW: 249,
+      restingHrEstimated: true,
+      ftpProvisional: false,
+    });
+    // FTP divides power-method TSS, so the recompute is scheduled post-response.
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+    expect(mocks.recomputeAllLoads).not.toHaveBeenCalled();
+
+    await mocks.afterCallbacks[0]();
+    expect(mocks.recomputeAllLoads).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an out-of-range FTP without reading or writing thresholds", async () => {
+    const result = await applyFtpAction(900);
 
     expect(result.ok).toBe(false);
     expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();

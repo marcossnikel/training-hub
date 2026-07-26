@@ -116,6 +116,7 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T26 grade_smooth ingestion and real GAP: done 2026-07-26, committed direct to main
 - ICU-T27 Mean-max curves on /performance: done 2026-07-26, committed direct to main
 - ICU-T25 Stream-integrated hrTSS with explicit recompute action: done 2026-07-26, committed direct to main
+- ICU-T28 Cycling eFTP with apply button: done 2026-07-26, committed direct to main
 
 **Open, carried forward from T24 (deliberately not done in T25): threshold invalidation for `activity_metrics`.** `hr_zone_secs` and `pace_zone_secs` are frozen at the thresholds in force when the row was written, and nothing refreshes them when thresholds change. T25's recompute action was the obvious owner and is the wrong one: it rewrites `activity_load`, and folding a second bulk rewrite of a different table into the same button would hide it. Three things have to be settled first.
 

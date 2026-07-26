@@ -81,6 +81,7 @@ import {
 } from "./coach";
 import {
   computeLoad,
+  FTP_RANGE,
   THRESHOLD_PACE_RANGE,
   weeklyMonotony,
   type LoadRecomputeExpectation,
@@ -355,7 +356,7 @@ export async function saveThresholdsAction(input: ThresholdsInput): Promise<Acti
       !inRange(restingHr, 25, 90) ||
       !inRange(lthr, 90, 220) ||
       !inRange(thresholdPace, THRESHOLD_PACE_RANGE.min, THRESHOLD_PACE_RANGE.max) ||
-      !inRange(ftpW, 50, 600) ||
+      !inRange(ftpW, FTP_RANGE.min, FTP_RANGE.max) ||
       restingHr >= lthr ||
       lthr > maxHr
     ) {
@@ -424,6 +425,52 @@ export async function applyThresholdPaceAction(paceSPerKm: number): Promise<Acti
         await recomputeAllLoads();
       } catch (error) {
         logger.error("actions.applyThresholdPace.recompute", { error });
+      }
+    });
+    refreshAll();
+    return { ok: true };
+  } catch (error) {
+    return fail(error, t.errors.generic);
+  }
+}
+
+/**
+ * Applies ONLY the eFTP estimate, the cycling twin of `applyThresholdPaceAction`
+ * and built the same way: it re-reads the stored thresholds server-side and
+ * writes them back with just the FTP changed, so it cannot revert an unrelated
+ * edit made after the Performance page loaded.
+ *
+ * It also clears `ftpProvisional`. That flag means "a placeholder nobody
+ * measured"; an FTP fitted to the athlete's own maximal efforts is measured, and
+ * leaving the flag set would keep the coach prompt calling a real number
+ * provisional forever.
+ */
+export async function applyFtpAction(ftpW: number): Promise<ActionResult> {
+  const t = await dict();
+  if (!(await requireAuth())) return { ok: false, error: t.errors.unauthorized };
+  try {
+    const ftp = Math.round(ftpW);
+    if (!inRange(ftp, FTP_RANGE.min, FTP_RANGE.max)) {
+      return { ok: false, error: t.errors.invalidThresholds };
+    }
+    const current = await getAthleteThresholds();
+    await saveAthleteThresholds({
+      maxHr: current.maxHr,
+      restingHr: current.restingHr,
+      lthr: current.lthr,
+      thresholdPaceSPerKm: current.thresholdPaceSPerKm,
+      ftpW: ftp,
+      restingHrEstimated: current.restingHrEstimated,
+      ftpProvisional: false,
+    });
+    // FTP is the divisor of power-method TSS, so the stored loads of every ride
+    // with a power meter are now stale — deferred past the response exactly like
+    // the pace apply, since the threshold edit above is already persisted.
+    after(async () => {
+      try {
+        await recomputeAllLoads();
+      } catch (error) {
+        logger.error("actions.applyFtp.recompute", { error });
       }
     });
     refreshAll();

@@ -532,7 +532,7 @@ export const pt: Dict = {
     empty: "Nenhuma corrida para analisar ainda",
     emptyBody: "Confirme algumas corridas e seus melhores tempos e previsões aparecem aqui.",
     summaryNote:
-      "A estimativa de limiar e as previsões vêm dos resumos das atividades — tempos de atividade inteira, não trechos dentro de uma corrida. A potência do ciclismo (FTP) exige streams por segundo e não é coberta aqui.",
+      "A estimativa de limiar e as previsões vêm dos resumos das atividades — tempos de atividade inteira, não trechos dentro de uma corrida. O FTP do ciclismo é estimado à parte, somente a partir de pedais com medidor de potência.",
     bestEfforts: "Melhores tempos por distância",
     bestEffortsBody:
       "O tempo mais rápido em cada distância padrão, ao lado do comprimento em que foi medido. Um trecho real dentro de uma corrida vence sempre que o Strava registrou um; a atividade inteira só assume a linha quando não existe trecho ou quando é mais rápida por quilômetro sem ser apenas mais longa que a distância.",
@@ -557,6 +557,17 @@ export const pt: Dict = {
     applyOutOfRange: "Fora do intervalo aceito",
     csEmpty:
       "Marque pelo menos 2 provas em distâncias diferentes para estimar sua velocidade crítica.",
+    eftp: "Estimativa de potência crítica",
+    eftpBody:
+      "Um modelo de 2 parâmetros ajustado à melhor potência que você sustentou entre 3 e 20 minutos nos últimos {days} dias. O que ele recupera é uma potência crítica, que costuma ficar alguns por cento acima de um FTP testado. O FTP que ele indica é uma sugestão — não é aplicado automaticamente.",
+    estFtp: "FTP estimado",
+    currentFtp: "FTP atual",
+    wPrime: "W′",
+    eftpCoverage: "Baseado em {n} durações",
+    eftpCaveat:
+      "Somente pedais com medidor de potência real alimentam esta estimativa. A potência de corrida estimada pelo relógio fica de fora de propósito — ela modela o ritmo em vez de medir força. O cartão permanece oculto até que pelo menos {n} pedais tenham pontos de curva de potência, porque um único pedal constante preenche sozinho todas as durações e as ajusta de forma quase perfeita.",
+    eftpApply: "Usar como FTP",
+    eftpApplied: "FTP atualizado",
     predictions: "Previsões de prova",
     predictionsBody:
       "Projeções de Riegel a partir do seu esforço de {ref} ({time}). Apenas estimativas; extrapolar para longe da referência é menos confiável.",

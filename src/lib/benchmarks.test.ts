@@ -4,14 +4,20 @@ import {
   bestEffortsByDistance,
   currentVdot,
   estimateCriticalSpeed,
+  estimateEftp,
   pickReferenceEffort,
+  powerDurationPoints,
   predictRaceTimes,
+  showEftp,
   RIEGEL_FATIGUE_EXPONENT,
   SEGMENT_DISTANCE_BY_NAME,
   vdotFromEffort,
   vdotTrend,
+  MIN_EFTP_R2,
+  MIN_W_PRIME_J,
   MIN_VDOT_DISTANCE_M,
   VDOT_TREND_MONTHS,
+  type PowerDurationPoint,
   type RunEffort,
   type VdotEffort,
 } from "@/lib/benchmarks";
@@ -335,6 +341,226 @@ describe("estimateCriticalSpeed", () => {
     const withRun = estimateCriticalSpeed(withEasyRun);
     expect(withRun!.cs).toBeCloseTo(racesOnly!.cs, 6);
     expect(withRun!.points).toHaveLength(2);
+  });
+});
+
+describe("estimateEftp (Monod-Scherrer)", () => {
+  // Synthetic rider: CP = 250 W, W′ = 20 kJ. The model says the best average
+  // power over t seconds is exactly CP + W′/t, so these three points lie on the
+  // fitted line by construction and the regression must return the parameters
+  // that generated them.
+  const CP = 250;
+  const W_PRIME = 20_000;
+  const synthetic = (durationS: number): PowerDurationPoint => ({
+    durationS,
+    watts: CP + W_PRIME / durationS,
+  });
+  // A ride count comfortably over the floor, so these cases test the FIT and the
+  // ride-count gate is exercised on its own below.
+  const ENOUGH_RIDES = 40;
+
+  it("recovers the CP and W′ that generated the points", () => {
+    const fit = estimateEftp([synthetic(300), synthetic(480), synthetic(1200)]);
+
+    expect(fit).not.toBeNull();
+    expect(fit!.cp).toBeCloseTo(CP, 6);
+    expect(fit!.wPrimeJ).toBeCloseTo(W_PRIME, 6);
+    expect(fit!.r2).toBeCloseTo(1, 12);
+    expect(fit!.sampleCount).toBe(3);
+    expect(showEftp(fit, ENOUGH_RIDES)).toBe(true);
+  });
+
+  it("fits two durations exactly and reports R² = 1 (the line is determined)", () => {
+    const fit = estimateEftp([synthetic(300), synthetic(1200)]);
+
+    expect(fit!.cp).toBeCloseTo(CP, 6);
+    expect(fit!.wPrimeJ).toBeCloseTo(W_PRIME, 6);
+    expect(fit!.r2).toBe(1);
+    expect(fit!.sampleCount).toBe(2);
+  });
+
+  it("reads only durations inside the 180–1200 s window, both ends inclusive", () => {
+    // 5 s, 1 min and 60 min are stored buckets that must not enter the fit; 5 m,
+    // 8 m and 20 m are the three that may, and 1200 s is the inclusive ceiling.
+    // 180 s is the inclusive FLOOR and no stored bucket sits on it, so it is
+    // supplied synthetically — otherwise nothing distinguishes `<` from `<=` and
+    // the "both ends inclusive" this test is named for is only half checked.
+    const fit = estimateEftp([
+      { durationS: 5, watts: 900 },
+      { durationS: 60, watts: 500 },
+      { durationS: 179, watts: 400 },
+      synthetic(180),
+      synthetic(300),
+      synthetic(480),
+      synthetic(1200),
+      { durationS: 1201, watts: 260 },
+      { durationS: 3600, watts: 200 },
+    ]);
+
+    expect(fit!.cp).toBeCloseTo(CP, 6);
+    expect(fit!.sampleCount).toBe(4);
+  });
+
+  it("returns null below 2 distinct durations", () => {
+    expect(estimateEftp([])).toBeNull();
+    expect(estimateEftp([synthetic(300)])).toBeNull();
+    // Out-of-window points cannot make up the count.
+    expect(estimateEftp([synthetic(300), { durationS: 3600, watts: 200 }])).toBeNull();
+  });
+
+  it("keeps the highest watts when a duration appears twice", () => {
+    const fit = estimateEftp([{ durationS: 300, watts: 200 }, synthetic(300), synthetic(1200)]);
+
+    expect(fit!.sampleCount).toBe(2);
+    expect(fit!.cp).toBeCloseTo(CP, 6);
+  });
+
+  it("returns null when CP would sit at or above the short-duration power (W′ ≤ 0)", () => {
+    // Power RISING with duration: the 5-minute effort was not maximal, so the
+    // line crosses below the origin and the fit is physiologically meaningless.
+    expect(
+      estimateEftp([
+        { durationS: 300, watts: 250 },
+        { durationS: 1200, watts: 260 },
+      ])
+    ).toBeNull();
+  });
+
+  it("returns null for a non-maximal curve whose W′ is below the floor", () => {
+    // The two real Zone-2 rides in production, run through the shipped
+    // `powerCurvePoints`: all three buckets come from ONE steady turbo session
+    // ("Bike Z2 - Training Peaks Virtual"). The fit is essentially perfect —
+    // r² = 0.99997 — because a rider holding the same power throughout IS a
+    // straight line in work-against-time. Only W′ gives it away: 4.2 kJ is a
+    // twentieth of a trained cyclist's, because there was no anaerobic
+    // contribution to separate out. Unguarded this offered CP 131.6 W as an FTP
+    // against a stored 150 W, which on applying inflates those two rides' TSS by
+    // ~29% and every other power ride with them.
+    const z2 = estimateEftp([
+      { durationS: 300, watts: 144.49 },
+      { durationS: 480, watts: 140.94 },
+      { durationS: 1200, watts: 134.96 },
+    ]);
+    expect(z2).toBeNull();
+
+    // Same failure with two points, where R² is 1 by construction and the lever
+    // arm is 180 s: {5 min 200 W, 8 min 199 W} fits CP 197.3 W on W′ = 800 J.
+    expect(
+      estimateEftp([
+        { durationS: 300, watts: 200 },
+        { durationS: 480, watts: 199 },
+      ])
+    ).toBeNull();
+
+    // The floor is a floor, not a rounding: 1 J under is out, on it is in.
+    const under = MIN_W_PRIME_J - 1;
+    const at = MIN_W_PRIME_J;
+    const pair = (wPrimeJ: number): PowerDurationPoint[] => [
+      { durationS: 300, watts: CP + wPrimeJ / 300 },
+      { durationS: 1200, watts: CP + wPrimeJ / 1200 },
+    ];
+    expect(estimateEftp(pair(under))).toBeNull();
+    expect(estimateEftp(pair(at))!.wPrimeJ).toBeCloseTo(at, 6);
+  });
+
+  it("returns null when the curve fits a negative CP", () => {
+    // Power collapsing with duration: work at 300 s is 120 kJ and at 1200 s only
+    // 60 kJ, so the line slopes DOWN — slope −66.7 W against an intercept of
+    // 140 kJ, which clears the W′ floor and is a perfect fit at two points. The
+    // CP guard is the only thing between this and a card reading
+    // "Estimated FTP −67 W" at 100% fit quality.
+    const points: PowerDurationPoint[] = [
+      { durationS: 300, watts: 400 },
+      { durationS: 1200, watts: 50 },
+    ];
+    expect(estimateEftp(points)).toBeNull();
+  });
+
+  it("drops readings that are not a positive, finite wattage at a finite duration", () => {
+    // Each junk point is DROPPED rather than poisoning the regression: the two
+    // clean points still recover CP. Left in, a NaN or an Infinity propagates
+    // through the fit into a NaN r², which fails the `>= MIN_EFTP_R2` comparison
+    // for a reason nobody reading the hidden card could ever trace.
+    for (const junk of [
+      { durationS: 1200, watts: Number.NaN },
+      { durationS: 1200, watts: Number.POSITIVE_INFINITY },
+      { durationS: 1200, watts: 0 },
+      { durationS: 1200, watts: -5 },
+      { durationS: Number.NaN, watts: 300 },
+      { durationS: Number.POSITIVE_INFINITY, watts: 300 },
+    ]) {
+      const fit = estimateEftp([synthetic(300), synthetic(480), junk]);
+      expect(fit!.cp).toBeCloseTo(CP, 6);
+      expect(fit!.sampleCount).toBe(2);
+    }
+
+    // And when dropping it leaves fewer than two durations there is no line.
+    expect(estimateEftp([synthetic(300), { durationS: 1200, watts: Number.NaN }])).toBeNull();
+  });
+
+  it("hides a fit whose points do not lie on a line (R² below the floor)", () => {
+    // work = 135 kJ / 100 kJ / 320 kJ at 300 / 480 / 1200 s: a positive CP and a
+    // positive W′, but the three points scatter badly around the line.
+    const fit = estimateEftp([
+      { durationS: 300, watts: 450 },
+      { durationS: 480, watts: 100_000 / 480 },
+      { durationS: 1200, watts: 320_000 / 1200 },
+    ]);
+
+    expect(fit).not.toBeNull();
+    expect(fit!.r2).toBeCloseTo(0.8896, 4);
+    expect(fit!.r2).toBeLessThan(MIN_EFTP_R2);
+    expect(showEftp(fit, ENOUGH_RIDES)).toBe(false);
+  });
+
+  it("showEftp rejects a null fit", () => {
+    expect(showEftp(null, ENOUGH_RIDES)).toBe(false);
+  });
+
+  it("showEftp hides a perfect fit until enough rides carry power points", () => {
+    // A textbook fit — CP 250 W, W′ 20 kJ, r² = 1 — is still not shown off one
+    // ride, because one ride of 20 minutes fills all three buckets by itself and
+    // no part of the fit can tell that from three maximal tests. The floor is the
+    // power CHART's, so the card can never appear above a hidden chart.
+    const fit = estimateEftp([synthetic(300), synthetic(480), synthetic(1200)]);
+
+    expect(showEftp(fit, 1)).toBe(false);
+    expect(showEftp(fit, 9)).toBe(false);
+    expect(showEftp(fit, 10)).toBe(true);
+  });
+
+  it("shows a genuine two-test maximal curve", () => {
+    // What the card is FOR: a 5-minute VO2max test at 330 W trailing to 300 W at
+    // 8 minutes, plus a separate 20-minute FTP test at 268 W.
+    const fit = estimateEftp([
+      { durationS: 300, watts: 330 },
+      { durationS: 480, watts: 300 },
+      { durationS: 1200, watts: 268 },
+    ]);
+
+    expect(fit!.cp).toBeCloseTo(247.14, 2);
+    expect(fit!.wPrimeJ).toBeCloseTo(25086, 0);
+    expect(fit!.r2).toBeCloseTo(0.999995, 6);
+    expect(showEftp(fit, 10)).toBe(true);
+  });
+});
+
+describe("powerDurationPoints", () => {
+  it("maps stored power buckets to their durations and drops everything else", () => {
+    const points = powerDurationPoints([
+      { bucket: "5s", value: 800 },
+      { bucket: "5m", value: 310 },
+      { bucket: "20m", value: 270 },
+      // A pace bucket, and a key no power bucket defines: neither has a duration.
+      { bucket: "5k", value: 280 },
+      { bucket: "90m", value: 200 },
+    ]);
+
+    expect(points).toEqual([
+      { durationS: 5, watts: 800 },
+      { durationS: 300, watts: 310 },
+      { durationS: 1200, watts: 270 },
+    ]);
   });
 });
 

@@ -25,6 +25,14 @@ export interface AthleteThresholds {
  */
 export const THRESHOLD_PACE_RANGE = { min: 120, max: 600 } as const;
 
+/**
+ * Accepted stored FTP range in watts, the same bounds saveThresholdsAction
+ * enforces. Shared for the same reason as the pace range above: the Performance
+ * page's "apply estimated FTP" control suppresses an apply the save would
+ * reject instead of offering a button that always fails validation.
+ */
+export const FTP_RANGE = { min: 50, max: 600 } as const;
+
 /** Which signal a TSS value was derived from, best (power) to weakest (rpe). */
 export type LoadMethod = "power" | "pace" | "hr" | "rpe";
 

@@ -9,11 +9,13 @@
 // No IO here — the data layer feeds these functions their inputs and the UI
 // renders their output.
 //
-// SCOPE: running only. Cycling power (functional threshold power / mFTP)
-// genuinely needs per-second power streams — the average/normalized power held
-// over maximal windows — which are not kept as summaries, so cycling power is
-// intentionally OUT OF SCOPE in this engine.
+// It also holds the one cycling model: `estimateEftp`, the Monod-Scherrer fit
+// that reads a critical power off the stored power-duration curve. That needed
+// per-second power streams, which is why it was out of scope here until T27
+// persisted mean-max power per ride in `activity_curve_points` — the fit now
+// reads those stored buckets, not a stream.
 import type { StoredBestEffort } from "./best-efforts";
+import { POWER_BUCKETS, showPowerCurve } from "./curves";
 import { localDateInputValue } from "./format";
 import { raceCategory, type RaceCategory } from "./races";
 
@@ -401,6 +403,203 @@ export function estimateCriticalSpeed(efforts: RunEffort[]): CriticalSpeed | nul
     rSquared: fit.rSquared,
     points,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Cycling: estimated FTP from the power-duration curve
+// ---------------------------------------------------------------------------
+
+/** One maximal-power point: the best average watts held for exactly this long. */
+export interface PowerDurationPoint {
+  durationS: number;
+  watts: number;
+}
+
+/**
+ * The durations the fit reads, in seconds, both ends inclusive.
+ *
+ * Below 3 minutes the anaerobic store dominates and the two-parameter model
+ * bends; beyond 20 minutes it drifts the other way, because a real ride rarely
+ * holds a maximal effort that long and the point stops being maximal at all.
+ * 3 to 20 minutes is the span every critical-power protocol uses, and of the
+ * stored POWER_BUCKETS exactly three land inside it: 5 min, 8 min and 20 min.
+ */
+export const EFTP_DURATION_RANGE = { minS: 180, maxS: 1200 } as const;
+
+/**
+ * How far back the curve the fit reads may reach.
+ *
+ * Deliberately NOT the display window the page's pills select: an FTP that moved
+ * because someone clicked "6 months" on a chart filter would be incoherent. But
+ * "not the pill" does not mean "unbounded". An all-time curve offers a personal
+ * best set at peak form years ago as today's FTP, and because the curve takes
+ * the best of each bucket INDEPENDENTLY, its 5, 8 and 20-minute points may come
+ * from three different rides in three different seasons — a fit with R² ≈ 1
+ * describing no athlete who ever existed. An athlete who peaks in March and
+ * detrains through August would still be offered his March CP in August; applied,
+ * every ride's IF drops, TSS under-reports and CTL sags, and the stale FTP is now
+ * marked non-provisional so nothing flags it. 90 days is the same trailing window
+ * VDOT_CURRENT_WINDOW_DAYS uses and is close to the ~6 weeks intervals.icu decays
+ * its eFTP over.
+ */
+export const EFTP_WINDOW_DAYS = 90;
+
+/**
+ * The smallest anaerobic work capacity a fit may report and still be believed,
+ * in joules.
+ *
+ * W′ is the work a rider can spend ABOVE CP before stopping, and a trained
+ * cyclist's is 10–30 kJ. A fit that recovers far less than that has not measured
+ * an anaerobic contribution at all: it has measured a rider holding much the same
+ * power at 5, 8 and 20 minutes, which is what a STEADY ride looks like, and the
+ * CP it reports is that rider's cruising power dressed up as a threshold. Two
+ * live examples: a Zone-2 turbo session fits to W′ = 4.2 kJ, and a pair like
+ * {5 min 200 W, 8 min 199 W} to 0.8 kJ.
+ *
+ * MIN_EFTP_R2 cannot catch either, and never could: the floor rejects NON-LINEAR
+ * data, and non-maximal data is the most linear data there is. W′ is the only
+ * parameter of the fit that says whether the input was maximal, so it is the one
+ * that has to carry the check.
+ */
+export const MIN_W_PRIME_J = 10_000;
+
+/**
+ * How well the line must fit before the estimate is worth showing. Work against
+ * time is very nearly linear for any real power curve, so a fit that misses this
+ * is not a slightly noisy athlete — it is a curve whose points were not maximal
+ * efforts of the same rider on the same form, and the CP it implies is a number
+ * with no meaning behind it.
+ *
+ * It only bites at three points or more: two points define the line exactly, so
+ * R² is 1 by construction there and the sanity checks in `estimateEftp`, not
+ * this floor, are what reject a nonsense pair.
+ */
+export const MIN_EFTP_R2 = 0.9;
+
+/** A critical-power fit over the power-duration curve. */
+export interface Eftp {
+  /** Critical power in watts — the regression slope, read as the estimated FTP. */
+  cp: number;
+  /** Anaerobic work capacity W′ in joules — the regression intercept. */
+  wPrimeJ: number;
+  /** Coefficient of determination (0..1) of the fit — a confidence indicator. */
+  r2: number;
+  /** How many distinct durations the fit used. */
+  sampleCount: number;
+}
+
+// The stored power buckets keyed by the duration each one means, so the curve
+// rows (which carry only a bucket key) can be read as fit points without a
+// second duration table drifting from POWER_BUCKETS.
+const POWER_BUCKET_DURATION_S = new Map<string, number>(
+  POWER_BUCKETS.map((bucket) => [bucket.key as string, bucket.durationS as number])
+);
+
+/**
+ * Stored power-curve bests read as fit points. Rows whose bucket is not a power
+ * bucket (a pace bucket, or a key from a future migration) are dropped rather
+ * than guessed at, so an unknown bucket can never enter the regression with a
+ * made-up duration.
+ */
+export function powerDurationPoints(
+  bests: readonly { bucket: string; value: number }[]
+): PowerDurationPoint[] {
+  const points: PowerDurationPoint[] = [];
+  for (const best of bests) {
+    const durationS = POWER_BUCKET_DURATION_S.get(best.bucket);
+    if (durationS === undefined) continue;
+    points.push({ durationS, watts: best.value });
+  }
+  return points;
+}
+
+/**
+ * Fits the 2-parameter Monod-Scherrer model `work_J = CP·t + W′` by linear
+ * regression over the best average power held at ≥2 distinct durations inside
+ * EFTP_DURATION_RANGE, and reads the slope as an estimated FTP.
+ *
+ * CP is reported as-is, with no correction factor. Some tools scale it (the
+ * familiar "95% of your 20-minute power") because they are deriving FTP from a
+ * SINGLE effort and must discount the anaerobic contribution by rule of thumb.
+ * The whole point of a two-parameter fit is that it separates that contribution
+ * out into W′ instead of assuming it, so multiplying the slope afterwards would
+ * subtract the same thing twice.
+ *
+ * What CP is not is a TESTED FTP. CP is the asymptote of the power-duration
+ * hyperbola; FTP is conventionally the power a rider holds for 40–60 minutes, and
+ * a CP fitted from 5 to 20-minute points sits above the maximal metabolic steady
+ * state by a few percent. That gap is stated in words on the card rather than
+ * closed with an invented constant: the honest label costs nothing and cannot be
+ * wrong, whereas a scale factor picked to be "about right" is a second rule of
+ * thumb layered on a model that exists to avoid the first one.
+ *
+ * Returns null when the model does not hold rather than a number the caller has
+ * to distrust:
+ *  - fewer than two distinct durations survive the window, so the line is
+ *    under-determined — `linearFit` is that guard, and the only one needed;
+ *  - CP ≤ 0, which is not a power. Not implied by the W′ floor below: a curve
+ *    that falls with duration ({5 min 400 W, 20 min 50 W}) fits a NEGATIVE slope
+ *    against a large positive intercept, which without this check would render as
+ *    "Estimated FTP −67 W" at 100% fit quality;
+ *  - W′ below MIN_W_PRIME_J, which says the fit found no anaerobic contribution
+ *    to separate out and is therefore reading a steady ride's cruising power as a
+ *    threshold. This is the check R² cannot make, since two points are always
+ *    perfectly linear and non-maximal points nearly so. No upper bound is
+ *    imposed: an over-large W′ understates CP, which errs toward a LOW FTP and so
+ *    toward over-reporting load, the safe direction of the two.
+ *
+ * Only real-power rides ever reach this: `activity_curve_points` gets power rows
+ * from the stream scan alone, which is gated on a genuine power meter. Watch
+ * run power never enters, by design.
+ */
+export function estimateEftp(points: readonly PowerDurationPoint[]): Eftp | null {
+  // One point per duration — the best of any duplicates, since the curve is a
+  // maximal-effort envelope.
+  const wattsByDuration = new Map<number, number>();
+  for (const point of points) {
+    if (!Number.isFinite(point.durationS) || !Number.isFinite(point.watts)) continue;
+    if (point.watts <= 0) continue;
+    if (point.durationS < EFTP_DURATION_RANGE.minS) continue;
+    if (point.durationS > EFTP_DURATION_RANGE.maxS) continue;
+    const current = wattsByDuration.get(point.durationS);
+    if (current === undefined || point.watts > current) {
+      wattsByDuration.set(point.durationS, point.watts);
+    }
+  }
+
+  // Two points define the line and one does not: `linearFit` returns null below
+  // two, so there is no second count check here to fall out of step with it.
+  const durations = [...wattsByDuration.keys()].sort((a, b) => a - b);
+  const fit = linearFit(
+    durations,
+    durations.map((durationS) => durationS * (wattsByDuration.get(durationS) as number))
+  );
+  if (!fit || fit.slope <= 0 || fit.intercept < MIN_W_PRIME_J) return null;
+
+  return {
+    cp: fit.slope,
+    wPrimeJ: fit.intercept,
+    r2: fit.rSquared,
+    sampleCount: durations.length,
+  };
+}
+
+/**
+ * Whether an eFTP fit is solid enough to put on screen. The card shows nothing
+ * at all when this is false: a junk FTP is worse than no FTP, because every TSS
+ * on a power ride is measured against it.
+ *
+ * `rideCount` is how many rides carry power curve points at all, and the floor it
+ * must clear is `showPowerCurve`'s — reused rather than re-declared so the two
+ * cannot drift. A single ride of 20 minutes or more fills the 5, 8 and 20-minute
+ * buckets by itself, and nothing in the fit knows those three points came from
+ * one steady ride rather than three maximal tests, so without this the card can
+ * offer a cruising power as an FTP while the power CHART directly above it is
+ * still hidden for want of data. The stronger claim is the one that needs the
+ * stricter gate, not the weaker one.
+ */
+export function showEftp(fit: Eftp | null, rideCount: number): fit is Eftp {
+  return fit !== null && showPowerCurve(rideCount) && fit.r2 >= MIN_EFTP_R2;
 }
 
 // Riegel's endurance model t2 = t1·(d2/d1)^k. 1.06 is Riegel's empirically

@@ -63,8 +63,11 @@ export function bucketKeys(kind: CurveKind): readonly CurveBucketKey[] {
  * them reads as a capability claim it cannot support. Exactly 2 rides have a real
  * meter today, so the panel stays hidden until that changes — which is the
  * correct behaviour, not a bug.
+ *
+ * Exported because the copy on /performance names the number: a caveat that
+ * promises a gate has to promise the gate the code actually applies.
  */
-const MIN_POWER_CURVE_RIDES = 10;
+export const MIN_POWER_CURVE_RIDES = 10;
 
 /** Whether enough rides carry power points for the power panel to be a curve. */
 export function showPowerCurve(rideCount: number): boolean {
