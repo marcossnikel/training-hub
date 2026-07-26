@@ -389,6 +389,19 @@ const MIGRATIONS: Migration[] = [
       );
     },
   },
+
+  // Migration 14: how an hrTSS was measured — 'stream' for the per-sample
+  // integral of the heart-rate trace, 'avg' for the whole-activity average. Only
+  // the heart-rate method has two readings, so power, pace and RPE rows leave it
+  // NULL, and so does every row written before this column existed: a NULL means
+  // "unrecorded", not "average", which is why the UI falls back to the plain
+  // method label rather than claiming a measurement nobody made.
+  {
+    version: 14,
+    up: async () => {
+      await addColumnIfMissing("activity_load", "variant", "TEXT");
+    },
+  },
 ];
 
 async function currentSchemaVersion(): Promise<number> {

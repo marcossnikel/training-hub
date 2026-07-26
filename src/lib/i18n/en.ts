@@ -672,6 +672,13 @@ export const en = {
       "power" | "pace" | "hr" | "rpe",
       string
     >,
+    // The heart-rate method's two readings: the per-sample stream integral and
+    // the whole-activity average. Shown instead of the plain "Heart rate" label
+    // once a load row records which one it is.
+    hrVariants: { stream: "HR (stream)", avg: "HR (avg)" } satisfies Record<
+      "stream" | "avg",
+      string
+    >,
     thresholds: {
       title: "Athlete thresholds",
       body: "The reference values training load is measured against. Better inputs, better numbers.",
@@ -909,6 +916,23 @@ export const en = {
         "Nothing new in over a day — the sync job may be failing. Check the GitHub Actions run, or re-run the login.",
       neverBody:
         "No wearable data yet. Set up the sync (see services/garmin-sync/README.md), or just use the manual check-in on the Health page.",
+    },
+    recompute: {
+      title: "Recompute training load",
+      body: "Re-measures every activity's TSS with the current thresholds, reading heart rate sample by sample wherever a stream is cached. Interval sessions score higher that way. Preview first — this rewrites the fitness curve.",
+      preview: "Preview changes",
+      apply: "Apply to history",
+      cancel: "Cancel",
+      changed: "Activities changed",
+      meanDelta: "Mean TSS delta",
+      maxDelta: "Largest TSS delta",
+      ctlToday: "CTL today",
+      detail:
+        "{stream} activities would be measured from their heart-rate stream. {manual} manual load overrides are left untouched.",
+      noChanges: "Nothing to apply.",
+      applied: "{count} activities recomputed",
+      drifted:
+        "The history moved since that preview: {changed} activities would change now, with CTL landing at {ctl}. Nothing was written — preview again.",
     },
     goals: {
       title: "Goals",

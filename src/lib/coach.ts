@@ -9,7 +9,18 @@ import type { AthleteThresholds, WeeklyMonotony } from "./fitness";
 import type { ActivityStreams } from "./streams";
 import type { ActivityWithSplits, Goal } from "./types";
 import type { DerivedZones } from "./zones";
-import { fmtDateLong, fmtDuration, fmtHr, fmtKm, fmtPace, localStartedAt } from "./format";
+import { fmtCadence } from "./cycling";
+import {
+  fmtDateLong,
+  fmtDuration,
+  fmtHr,
+  fmtKm,
+  fmtPace,
+  fmtStepRate,
+  fmtTsb,
+  localStartedAt,
+} from "./format";
+import { isRunSport } from "./validate";
 
 export const COACH_MODEL = "claude-opus-4-8";
 
@@ -188,7 +199,19 @@ export function buildActivityContext(input: {
       parts.push(
         `power avg ${Math.round(streams.avgPower)}${streams.maxPower != null ? ` / max ${Math.round(streams.maxPower)}` : ""} W`
       );
-    if (streams.avgCadence != null) parts.push(`cadence avg ${Math.round(streams.avgCadence)}`);
+    // Strava records run cadence as one-leg revolutions per minute, so a raw 88
+    // is a runner turning over at 176 spm. The page has printed the doubled step
+    // rate since T14; sending the halved, unitless number here had the coach
+    // reasoning about an impossibly slow turnover. Same formatters as the UI, so
+    // the prompt and the screen can never disagree.
+    if (streams.avgCadence != null)
+      parts.push(
+        `cadence avg ${
+          isRunSport(activity.sport_type)
+            ? fmtStepRate(streams.avgCadence)
+            : fmtCadence(streams.avgCadence)
+        }`
+      );
     if (parts.length > 0) {
       lines.push("");
       lines.push("STREAM RANGES");
@@ -211,7 +234,10 @@ export function buildActivityContext(input: {
     lines.push("FITNESS TODAY (Performance Management Chart)");
     lines.push(`- CTL (fitness): ${pmc.ctl.toFixed(0)}`);
     lines.push(`- ATL (fatigue): ${pmc.atl.toFixed(0)}`);
-    lines.push(`- TSB (form): ${pmc.tsb.toFixed(0)}`);
+    // Signed, via the same formatter every UI surface uses: form is a direction
+    // before it is a magnitude, and an unsigned "8" reads as fresh when the
+    // athlete is actually 8 points into fatigue.
+    lines.push(`- TSB (form): ${fmtTsb(pmc.tsb)}`);
   }
 
   const journalParts: string[] = [];
@@ -308,11 +334,11 @@ export function buildDigestContext(input: {
     lines.push("FITNESS MOVEMENT (today vs 7 days ago)");
     lines.push(`- CTL (fitness): ${weekAgo.ctl.toFixed(0)} → ${now.ctl.toFixed(0)}`);
     lines.push(`- ATL (fatigue): ${weekAgo.atl.toFixed(0)} → ${now.atl.toFixed(0)}`);
-    lines.push(`- TSB (form): ${weekAgo.tsb.toFixed(0)} → ${now.tsb.toFixed(0)}`);
+    lines.push(`- TSB (form): ${fmtTsb(weekAgo.tsb)} → ${fmtTsb(now.tsb)}`);
   } else if (now) {
     lines.push("");
     lines.push("FITNESS TODAY");
-    lines.push(`- CTL ${now.ctl.toFixed(0)}, ATL ${now.atl.toFixed(0)}, TSB ${now.tsb.toFixed(0)}`);
+    lines.push(`- CTL ${now.ctl.toFixed(0)}, ATL ${now.atl.toFixed(0)}, TSB ${fmtTsb(now.tsb)}`);
   }
 
   if (week.monotony != null && week.strain != null) {

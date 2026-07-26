@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   availableLoadSports,
   computeAcwr,
+  computeHrTssFromStream,
   computeLoad,
   computePmc,
   dailyLoadSeries,
@@ -10,10 +11,12 @@ import {
   formSnapshot,
   formState,
   hrZones,
+  loadPlanDrifted,
   loadSport,
   paceZones,
   powerZones,
   projectPmc,
+  summarizeLoadRecompute,
   weekLoadVsTrailing,
   weeklyLoadTotal,
   weeklyMonotony,
@@ -130,6 +133,285 @@ describe("computeLoad method priority", () => {
       thresholds
     );
     expect(load).toBeNull();
+  });
+});
+
+describe("stream-integrated hrTSS", () => {
+  /** A stream sampled every `dt` seconds, one heart rate per segment. */
+  function hrStream(segments: { hr: number; seconds: number }[], dt = 1) {
+    const hr: number[] = [];
+    const timeS: number[] = [];
+    let t = 0;
+    for (const segment of segments) {
+      for (let elapsed = 0; elapsed < segment.seconds; elapsed += dt) {
+        hr.push(segment.hr);
+        timeS.push(t);
+        t += dt;
+      }
+    }
+    // The last sample closes the final segment's span (forward-credit).
+    hr.push(segments[segments.length - 1].hr);
+    timeS.push(t);
+    return { hr, timeS };
+  }
+
+  it("reproduces the average-HR formula for a constant heart rate", () => {
+    const constant = hrStream([{ hr: 150, seconds: 3600 }]);
+    const avg = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 150 }),
+      thresholds
+    );
+    const stream = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 150, hrStream: constant }),
+      thresholds
+    );
+    expect(avg?.variant).toBe("avg");
+    expect(stream?.variant).toBe("stream");
+    expect(stream?.tss).toBeCloseTo(avg?.tss ?? 0, 5);
+    expect(stream?.intensityFactor).toBeCloseTo(avg?.intensityFactor ?? 0, 3);
+  });
+
+  it("scores a 50/50 interval session above its average-HR equivalent", () => {
+    // 30 min at 176 (threshold) alternating with 30 min at 124: the average is
+    // 150 bpm, the same activity the case above scores flat.
+    const intervals = hrStream(
+      Array.from({ length: 12 }, (_, i) => ({ hr: i % 2 === 0 ? 176 : 124, seconds: 300 }))
+    );
+    const avg = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 150 }),
+      thresholds
+    );
+    const stream = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 150, hrStream: intervals }),
+      thresholds
+    );
+    expect(stream?.variant).toBe("stream");
+    expect(stream?.tss).toBeGreaterThan(avg?.tss ?? 0);
+    // IF 1.0 half the time and (124-45)/131 = 0.603 the other half: the mean of
+    // the squares is (1 + 0.3636)/2 = 0.6818, against the average heart rate's
+    // 0.8015² = 0.6424. 68.2 TSS versus 64.2.
+    expect(stream?.tss).toBeCloseTo(68.2, 1);
+    expect(avg?.tss).toBeCloseTo(64.2, 1);
+  });
+
+  it("charges moving time, not the stream's elapsed clock", () => {
+    // Ten minutes of stream for an activity Strava credits with five minutes of
+    // movement. Only the INTENSITY comes from the trace; a session must not gain
+    // load for the traffic light in the middle of it.
+    const constant = hrStream([{ hr: 150, seconds: 600 }]);
+    const stream = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 300, avg_hr: 150, hrStream: constant }),
+      thresholds
+    );
+    const avg = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 300, avg_hr: 150 }),
+      thresholds
+    );
+    expect(stream?.tss).toBeCloseTo(avg?.tss ?? 0, 5);
+  });
+
+  it("integrates a coarse stream on the span between samples, not per sample", () => {
+    // The cached trace is downsampled to 400 points, so a long session steps
+    // tens of seconds at a time. Weighting by dt is what makes the two
+    // resolutions agree instead of counting samples.
+    const fine = hrStream(
+      [
+        { hr: 170, seconds: 1800 },
+        { hr: 130, seconds: 1800 },
+      ],
+      1
+    );
+    const coarse = hrStream(
+      [
+        { hr: 170, seconds: 1800 },
+        { hr: 130, seconds: 1800 },
+      ],
+      45
+    );
+    const of = (s: { hr: number[]; timeS: number[] }) =>
+      computeLoad(
+        activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 150, hrStream: s }),
+        thresholds
+      )?.tss;
+    expect(of(coarse)).toBeCloseTo(of(fine) ?? 0, 1);
+  });
+
+  it("falls back to the average when the trace carries no usable heart rate", () => {
+    const load = computeLoad(
+      activity({
+        sport_type: "Swim",
+        moving_time_s: 3600,
+        avg_hr: 150,
+        hrStream: { hr: [null, null, null], timeS: [0, 10, 20] },
+      }),
+      thresholds
+    );
+    expect(load?.variant).toBe("avg");
+    expect(load?.tss).toBeCloseTo(64.2, 1);
+  });
+
+  it("skips samples whose clock does not advance and leaves the rest intact", () => {
+    const clean = computeHrTssFromStream([150, 150, 150], [0, 10, 20], thresholds);
+    const stalled = computeHrTssFromStream([150, 150, 150, 150], [0, 10, 10, 20], thresholds);
+    expect(stalled?.coveredS).toBe(clean?.coveredS);
+    expect(stalled?.tss).toBeCloseTo(clean?.tss ?? 0, 6);
+  });
+
+  it("clamps a sample above the heart-rate intensity ceiling", () => {
+    // 1.5 is the same ceiling the average method uses, so a spike cannot run the
+    // quadratic away: an hour pinned there is 225 TSS and no more.
+    const spike = computeHrTssFromStream([400, 400], [0, 3600], thresholds);
+    expect(spike?.tss).toBeCloseTo(225, 5);
+  });
+
+  it("returns null when nothing in the trace can be integrated", () => {
+    expect(computeHrTssFromStream([150], [0], thresholds)).toBeNull();
+    expect(computeHrTssFromStream([], [], thresholds)).toBeNull();
+  });
+
+  it("extrapolates a trace that covers most of the moving time", () => {
+    // 50 of 60 minutes recorded (0.833 coverage, just over the floor). The
+    // covered window's intensity is charged for the whole session.
+    const partial = hrStream([{ hr: 176, seconds: 3000 }]);
+    const load = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 150, hrStream: partial }),
+      thresholds
+    );
+    expect(load?.variant).toBe("stream");
+    expect(load?.tss).toBeCloseTo(100, 1);
+  });
+
+  it("falls back to the average when the trace covers too little of the session", () => {
+    // The strap-dropout case: 10 of 60 minutes at threshold. Extrapolated it
+    // would score the whole hour at 176 bpm — 100 TSS instead of 42.1 — and
+    // that number would go straight into CTL.
+    const dropout = hrStream([{ hr: 176, seconds: 600 }]);
+    const load = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 130, hrStream: dropout }),
+      thresholds
+    );
+    const avg = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 130 }),
+      thresholds
+    );
+    expect(load?.variant).toBe("avg");
+    expect(load?.tss).toBe(avg?.tss);
+    expect(load?.tss).toBeCloseTo(42.1, 1);
+  });
+
+  it("credits a heart rate below resting with no load rather than negative load", () => {
+    // Karvonen goes negative under the resting heart rate. Squaring it would
+    // turn a nap into training, so the intensity floors at zero.
+    const belowResting = computeHrTssFromStream([30, 30], [0, 3600], thresholds);
+    expect(belowResting?.coveredS).toBe(3600);
+    expect(belowResting?.tss).toBe(0);
+  });
+
+  it("produces no heart-rate load when threshold and resting heart rate are equal", () => {
+    // The Karvonen denominator is zero here. Dividing anyway gives Infinity,
+    // which clamps to the 1.5 ceiling and scores an hour of anything as 225 TSS.
+    const degenerate: AthleteThresholds = { ...thresholds, restingHr: 176, lthr: 176 };
+    const load = computeLoad(
+      activity({ sport_type: "Swim", moving_time_s: 3600, avg_hr: 180 }),
+      degenerate
+    );
+    expect(load).toBeNull();
+    expect(computeHrTssFromStream([180, 180], [0, 3600], degenerate)).toBeNull();
+  });
+
+  it("skips a backwards timestamp instead of subtracting the span it spans", () => {
+    // A rewound clock must not remove time and load already integrated: the two
+    // forward spans here are worth 600 s, not 400.
+    const backwards = computeHrTssFromStream([176, 176, 176, 176], [0, 300, 100, 400], thresholds);
+    const forwardOnly = computeHrTssFromStream([176, 176], [0, 600], thresholds);
+    expect(backwards?.coveredS).toBe(600);
+    expect(backwards?.tss).toBeCloseTo(forwardOnly?.tss ?? 0, 6);
+  });
+
+  it("does not attach a variant to the power, pace or RPE methods", () => {
+    const pace = computeLoad(
+      activity({ sport_type: "Run", moving_time_s: 3600, avg_pace_s_per_km: 300 }),
+      thresholds
+    );
+    const rpe = computeLoad(
+      activity({ sport_type: "Workout", moving_time_s: 3600, rpe: 5 }),
+      thresholds
+    );
+    expect(pace?.variant).toBeNull();
+    expect(rpe?.variant).toBeNull();
+  });
+});
+
+describe("summarizeLoadRecompute", () => {
+  const day = (n: number) => `2026-07-${String(n).padStart(2, "0")}T12:00:00Z`;
+
+  it("counts only the activities whose load actually moves", () => {
+    const summary = summarizeLoadRecompute([
+      { started_at: day(1), before: 50, after: 50 },
+      { started_at: day(2), before: 50, after: 50.02 },
+      { started_at: day(3), before: 40, after: 55 },
+      { started_at: day(4), before: null, after: 20 },
+    ]);
+    expect(summary.changed).toBe(2);
+    expect(summary.meanDelta).toBeCloseTo(17.5, 1);
+    // An activity gaining its first load row moves by its whole TSS.
+    expect(summary.maxDelta).toBeCloseTo(20, 1);
+  });
+
+  it("keeps the largest delta's sign", () => {
+    const summary = summarizeLoadRecompute([
+      { started_at: day(1), before: 100, after: 80 },
+      { started_at: day(2), before: 10, after: 15 },
+    ]);
+    expect(summary.maxDelta).toBeCloseTo(-20, 1);
+  });
+
+  it("reports today's CTL before and after the rewrite", () => {
+    const unchanged = summarizeLoadRecompute([{ started_at: day(1), before: 60, after: 60 }]);
+    expect(unchanged.ctlAfter).toBeCloseTo(unchanged.ctlBefore, 5);
+
+    const raised = summarizeLoadRecompute([
+      { started_at: day(1), before: 60, after: 90 },
+      { started_at: day(2), before: 60, after: 90 },
+    ]);
+    expect(raised.ctlAfter).toBeGreaterThan(raised.ctlBefore);
+  });
+
+  it("is empty-safe", () => {
+    expect(summarizeLoadRecompute([])).toEqual({
+      changed: 0,
+      meanDelta: 0,
+      maxDelta: 0,
+      ctlBefore: 0,
+      ctlAfter: 0,
+    });
+  });
+});
+
+describe("loadPlanDrifted", () => {
+  const plan = (changed: number, ctlAfter: number) => ({
+    changed,
+    meanDelta: 0,
+    maxDelta: 0,
+    ctlBefore: 40,
+    ctlAfter,
+  });
+
+  it("accepts a plan that has not moved", () => {
+    expect(loadPlanDrifted({ changed: 77, ctlAfter: 43.6 }, plan(77, 43.6))).toBe(false);
+  });
+
+  it("tolerates a CTL difference no larger than the stored rounding", () => {
+    expect(loadPlanDrifted({ changed: 77, ctlAfter: 43.6 }, plan(77, 43.65))).toBe(false);
+    expect(loadPlanDrifted({ changed: 77, ctlAfter: 43.6 }, plan(77, 43.7))).toBe(true);
+  });
+
+  it("rejects any change in the number of activities", () => {
+    // The scenario this exists for: the preview ran at 99 cached streams and the
+    // apply would run at 460. Same direction, far more rows.
+    expect(loadPlanDrifted({ changed: 62, ctlAfter: 43.6 }, plan(190, 46.1))).toBe(true);
+    // Even one extra confirmed activity is a different set of edits.
+    expect(loadPlanDrifted({ changed: 77, ctlAfter: 43.6 }, plan(78, 43.6))).toBe(true);
   });
 });
 

@@ -115,3 +115,12 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T24 Derived-metrics pipeline (activity_metrics + full-res compute, one decoupling implementation): done 2026-07-25, committed direct to main
 - ICU-T26 grade_smooth ingestion and real GAP: done 2026-07-26, committed direct to main
 - ICU-T27 Mean-max curves on /performance: done 2026-07-26, committed direct to main
+- ICU-T25 Stream-integrated hrTSS with explicit recompute action: done 2026-07-26, committed direct to main
+
+**Open, carried forward from T24 (deliberately not done in T25): threshold invalidation for `activity_metrics`.** `hr_zone_secs` and `pace_zone_secs` are frozen at the thresholds in force when the row was written, and nothing refreshes them when thresholds change. T25's recompute action was the obvious owner and is the wrong one: it rewrites `activity_load`, and folding a second bulk rewrite of a different table into the same button would hide it. Three things have to be settled first.
+
+- A refresh can only read the cached 400-point downsample (re-fetching full resolution costs a Strava call per activity plus deleting the cached stream). That is honest for a version-1 row and a downgrade for a version-2/3 one: it either strands `np_w` and `avg_gap_s_per_km`, which only full resolution produces, or leaves `metrics_version` claiming a provenance the zone arrays no longer have.
+- Refreshing per column-group therefore needs its own provenance record (a second version, or a zones-computed-at stamp). That is a data-model change, not a rider on another task.
+- Detecting staleness needs no migration at all (`computed_at` against `athlete_thresholds.updated_at`), but the right response differs per read site: the activity page has an exact live fallback, so ignoring a stale row is strictly better there, while `blocks.ts` falls back to a whole-session avg-HR estimate that a slightly stale stream split still beats.
+
+Stopgap in the meantime: `scripts/backfill-metrics.ts --recompute`, which refreshes version-1 rows only. Thresholds move rarely. Full reasoning lives beside the data in `src/lib/db/metrics.ts`.

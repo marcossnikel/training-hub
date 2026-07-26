@@ -43,9 +43,11 @@
  * version-1 rows with `np_w` dropped. Use it when a correct zone split matters
  * more than keeping normalized power on those activities.
  *
- * These flags are the manual stopgap. Plan task T25 owns the in-app recompute
- * action, and an automatic invalidation hook on saveAthleteThresholds belongs
- * there, with it — not bolted onto the save path here.
+ * These flags remain the stopgap. The in-app "recompute loads" action on
+ * /settings rewrites `activity_load` and deliberately does not touch
+ * `activity_metrics`: refreshing a zone split from the downsample is only honest
+ * for a version-1 row, so an automatic invalidation needs per-column provenance
+ * first. The reasoning is on StoredActivityMetrics in src/lib/db/metrics.ts.
  *
  * Against the shared Turso database, load the env and opt in explicitly:
  *

@@ -12,6 +12,8 @@ import {
   fmtStepRate,
   fmtStride,
   fmtTime,
+  fmtTsb,
+  fmtTssDelta,
   localStartedAt,
   monthLabel,
   parsePace,
@@ -82,6 +84,26 @@ describe("fmtStride", () => {
   it("returns a placeholder without a stride", () => {
     expect(fmtStride(null)).toBe("–");
     expect(fmtStride(0)).toBe("–");
+  });
+});
+
+describe("fmtTssDelta", () => {
+  it("keeps the tenth a load delta is measured to", () => {
+    expect(fmtTssDelta(1.2)).toBe("+1.2");
+    expect(fmtTssDelta(5.2)).toBe("+5.2");
+    expect(fmtTssDelta(-3.4)).toBe("-3.4");
+  });
+
+  it("signs a small negative delta instead of printing a bare zero", () => {
+    // The form formatter cannot do this job: Math.round(-0.5) is -0, and its
+    // "+" only applies above zero, so a real loss renders as an unsigned "0".
+    expect(fmtTsb(-0.5)).toBe("0");
+    expect(fmtTssDelta(-0.5)).toBe("-0.5");
+  });
+
+  it("prints an exact zero unsigned", () => {
+    expect(fmtTssDelta(0)).toBe("0.0");
+    expect(fmtTssDelta(-0)).toBe("0.0");
   });
 });
 

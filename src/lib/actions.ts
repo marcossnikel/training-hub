@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NONE } from "./constants";
-import { splitErrorText, isLang } from "./i18n";
+import { fillStr, splitErrorText, isLang } from "./i18n";
 import { LANG_COOKIE, getLang } from "./lang";
 import { storePhoto, deletePhoto, sniffImageType, InvalidImageError } from "./storage";
 import {
@@ -23,6 +23,7 @@ import {
   listActivityChat,
   recomputeActivityLoad,
   recomputeAllLoads,
+  recomputeLoadsWithStreams,
   replaceActivitySplits,
   saveAthleteThresholds,
   setActivityBike,
@@ -52,6 +53,7 @@ import {
   listRecentSessionsWithDetail,
   setActivityInsight,
   type BikeFields,
+  type LoadRecomputePlan,
   type ShoeFields,
 } from "./db";
 import { METRIC_META, SUBJECTIVE_SCALE, snapshotToMetrics } from "./health";
@@ -77,7 +79,12 @@ import {
   type LapSummary,
   type RecentSessionSummary,
 } from "./coach";
-import { computeLoad, THRESHOLD_PACE_RANGE, weeklyMonotony } from "./fitness";
+import {
+  computeLoad,
+  THRESHOLD_PACE_RANGE,
+  weeklyMonotony,
+  type LoadRecomputeExpectation,
+} from "./fitness";
 import {
   ensureActivityStreams,
   ensureActivityDetail,
@@ -211,6 +218,21 @@ export async function confirmActivityAction(input: {
     const bikeId = input.bikeId != null && (await getBike(input.bikeId)) ? input.bikeId : null;
 
     await confirmActivity(input.activityId, journal, splits, bikeId);
+    // Cache this ONE activity's heart-rate trace before its load is computed.
+    // `recomputeActivityLoad` reads whatever stream is cached, and the review
+    // page never fetched one, so every confirm stored the average-HR reading and
+    // nothing upgraded it afterwards: the bulk recompute keeps each row's
+    // existing measurement by design, and the activity page only computes live
+    // when there is no stored load at all. The cost is one Strava call for the
+    // single activity being confirmed, and only ever once — `ensureActivityStreams`
+    // returns the cache (or its negative marker) on every later view, so the
+    // activity page's own fetch is now a cache hit instead of a second call.
+    // Never fatal: a failed fetch just means the average reading, as before.
+    try {
+      await ensureActivityStreams(activity);
+    } catch (error) {
+      logger.error("confirmActivityAction.streams", { error, activityId: input.activityId });
+    }
     // Compute this activity's training load on confirm so it immediately counts
     // toward the fitness PMC, the recovery fold and the "recent sessions" list.
     // Without this, a newly confirmed activity had no activity_load row until the
@@ -440,6 +462,63 @@ export async function resetActivityLoadAction(activityId: number): Promise<Actio
   } catch (error) {
     return fail(error, t.errors.generic);
   }
+}
+
+/**
+ * The two halves of the explicit load recompute, the only path that adopts the
+ * stream-integrated hrTSS across training history.
+ *
+ * Split into a preview and an apply on purpose. Every stored TSS feeds a 42-day
+ * EWMA, so re-measuring a thousand past sessions moves today's CTL and with it
+ * every form reading the athlete plans against — that is a decision, not a
+ * refresh. The preview computes the whole thing in memory and writes nothing;
+ * the apply repeats the identical computation and stores it. Rows the athlete
+ * entered by hand are excluded from both.
+ */
+export type LoadRecomputeResult =
+  | ({ ok: true } & LoadRecomputePlan)
+  /** `drifted` marks the one failure that invalidates the figures on screen. */
+  | { ok: false; error: string; drifted?: boolean };
+
+async function runLoadRecompute(
+  opts: { write: false } | { write: true; expect: LoadRecomputeExpectation }
+): Promise<LoadRecomputeResult> {
+  const t = await dict();
+  if (!(await requireAuth())) return { ok: false, error: t.errors.unauthorized };
+  try {
+    const { applied, ...plan } = await recomputeLoadsWithStreams(opts);
+    // An apply that did not apply was refused: the history moved since the
+    // preview. Report the fresh figures so the next preview is not a surprise.
+    if (opts.write && !applied) {
+      return {
+        ok: false,
+        drifted: true,
+        error: fillStr(t.settingsPage.recompute.drifted, {
+          changed: plan.changed,
+          ctl: plan.ctlAfter.toFixed(1),
+        }),
+      };
+    }
+    if (applied) refreshAll();
+    return { ok: true, ...plan };
+  } catch (error) {
+    return fail(error, t.errors.generic);
+  }
+}
+
+export async function previewLoadRecomputeAction(): Promise<LoadRecomputeResult> {
+  return runLoadRecompute({ write: false });
+}
+
+/**
+ * Applies the previewed recompute. `expect` is the preview's own `changed` /
+ * `ctlAfter`, handed back so the server can refuse to write a plan the athlete
+ * never saw; it is a check, never data to write.
+ */
+export async function applyLoadRecomputeAction(
+  expect: LoadRecomputeExpectation
+): Promise<LoadRecomputeResult> {
+  return runLoadRecompute({ write: true, expect });
 }
 
 // ---------------------------------------------------------------------------

@@ -429,12 +429,27 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
 
   const thresholds = await getAthleteThresholds();
 
+  const detail = await ensureActivityDetail(activity);
+  const streams = await ensureActivityStreams(activity);
+
   // Training load: the persisted value from backfill, else computed on the fly
-  // for display from the current thresholds.
+  // for display from the current thresholds. The on-the-fly compute reads the
+  // heart-rate stream the page has just loaded, so an unsaved load shows the
+  // same number a recompute would store for it rather than the flatter
+  // average-HR reading.
   const storedLoad = await getActivityLoad(activity.id);
-  const computedLoad = storedLoad ? null : computeLoad(activity, thresholds);
+  const computedLoad = storedLoad
+    ? null
+    : computeLoad(
+        {
+          ...activity,
+          hrStream: streams?.heartrate ? { hr: streams.heartrate, timeS: streams.timeS } : null,
+        },
+        thresholds
+      );
   const loadTss = storedLoad?.tss ?? computedLoad?.tss ?? null;
   const loadMethod = storedLoad?.method ?? computedLoad?.method ?? null;
+  const loadVariant = storedLoad?.variant ?? computedLoad?.variant ?? null;
   const loadIntensity = storedLoad?.intensity_factor ?? computedLoad?.intensityFactor ?? null;
   const loadSource: "auto" | "manual" | "computed" = storedLoad
     ? storedLoad.source === "manual"
@@ -442,8 +457,6 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
       : "auto"
     : "computed";
 
-  const detail = await ensureActivityDetail(activity);
-  const streams = await ensureActivityStreams(activity);
   const laps = (detail?.laps ?? []).filter(
     (lap) => (lap.distance ?? 0) > 0 || (lap.moving_time ?? 0) > 0
   );
@@ -554,7 +567,10 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // at all, and it is preferred anyway because it is full resolution and free.
   // `scripts/backfill-metrics.ts --recompute --write` refreshes version-1 rows;
   // a version-2 row would have to give up its np_w to be refreshed that way, so
-  // it is left alone until plan task T25's in-app recompute action.
+  // it is left alone. There is still no automatic invalidation, and the reasons
+  // it is not simply bolted onto the threshold save (or onto the /settings load
+  // recompute, which never touches `activity_metrics`) are set out on
+  // StoredActivityMetrics in src/lib/db/metrics.ts.
   const hrZoneSec =
     storedMetrics?.hrZoneSecs ??
     (streams?.heartrate && thresholds.lthr > 0
@@ -736,6 +752,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
           activityId={activity.id}
           tss={loadTss}
           method={loadMethod}
+          variant={loadVariant}
           source={loadSource}
           intensityFactor={loadIntensity}
           ef={ef}

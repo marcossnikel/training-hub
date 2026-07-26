@@ -6,6 +6,7 @@ import { SyncButton } from "@/components/sync-button";
 import { DisconnectButton, GearMatcher, ManualActivityForm } from "@/components/settings-forms";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { GoalsManager } from "@/components/goals-manager";
+import { RecomputeLoads } from "@/components/recompute-loads";
 import {
   getAthleteThresholds,
   getHealthSourceStatus,
@@ -219,6 +220,16 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </CardHeader>
           <CardContent>
             <ThresholdsForm thresholds={thresholds} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.settingsPage.recompute.title}</CardTitle>
+            <CardDescription>{t.settingsPage.recompute.body}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RecomputeLoads />
           </CardContent>
         </Card>
 

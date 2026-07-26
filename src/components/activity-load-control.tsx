@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/components/i18n-provider";
 import { resetActivityLoadAction, setActivityLoadManualAction } from "@/lib/actions";
-import type { LoadMethod } from "@/lib/fitness";
+import type { LoadMethod, LoadVariant } from "@/lib/fitness";
 
 /** Decoupling bands: under 5% well supported, 5-10% drifting, above 10% too much. */
 function decouplingColor(pct: number): string {
@@ -53,6 +53,7 @@ export function ActivityLoadControl({
   activityId,
   tss,
   method,
+  variant,
   source,
   intensityFactor,
   ef,
@@ -62,6 +63,12 @@ export function ActivityLoadControl({
   activityId: number;
   tss: number;
   method: LoadMethod | null;
+  /**
+   * Which hrTSS reading this load is. Null on the other methods and on rows
+   * stored before the variant was recorded, which fall back to the plain method
+   * label rather than claiming a measurement that was never made.
+   */
+  variant: LoadVariant | null;
   source: "auto" | "manual" | "computed";
   /** Persisted IF of the load; null on manual overrides and RPE loads. */
   intensityFactor: number | null;
@@ -78,7 +85,12 @@ export function ActivityLoadControl({
   const [value, setValue] = useState(String(tss));
   const [pending, startTransition] = useTransition();
 
-  const methodLabel = method ? t.fitness.methods[method] : null;
+  const methodLabel =
+    method === "hr" && variant
+      ? t.fitness.hrVariants[variant]
+      : method
+        ? t.fitness.methods[method]
+        : null;
 
   function save() {
     const parsed = Number(value);

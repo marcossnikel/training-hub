@@ -27,9 +27,11 @@ export interface BlockActivity {
    * when the stream was fetched and nothing invalidates it, so after new zones
    * are applied these seconds still describe the old ones.
    * `scripts/backfill-metrics.ts --recompute --write` refreshes version-1 rows;
-   * a version-2 one keeps its stale split unless it is re-fetched (T25 turns
-   * this into an in-app action). Still closer than the avg-HR fallback below,
-   * which drops a whole session into one zone.
+   * a version-2 one keeps its stale split unless it is re-fetched. Still closer
+   * than the avg-HR fallback below, which drops a whole session into one zone —
+   * which is exactly why this site must NOT simply discard a stale row, and part
+   * of why there is still no automatic invalidation (see StoredActivityMetrics
+   * in src/lib/db/metrics.ts for the rest).
    */
   hrZoneSec?: number[] | null;
 }

@@ -659,6 +659,7 @@ export const pt: Dict = {
       "Confirme atividades com frequência cardíaca, ritmo, potência ou RPE e sua curva de condicionamento aparece aqui.",
     tssUnit: "TSS",
     methods: { power: "Potência", pace: "Ritmo", hr: "FC", rpe: "RPE" },
+    hrVariants: { stream: "FC (série)", avg: "FC (média)" },
     thresholds: {
       title: "Limiares do atleta",
       body: "Os valores de referência usados para medir a carga de treino. Melhores entradas, melhores números.",
@@ -900,6 +901,23 @@ export const pt: Dict = {
         "Nada novo há mais de um dia — o job do sync pode estar falhando. Veja a execução no GitHub Actions, ou refaça o login.",
       neverBody:
         "Ainda sem dados do wearable. Configure o sync (veja services/garmin-sync/README.md), ou use o check-in manual na página Saúde.",
+    },
+    recompute: {
+      title: "Recalcular carga de treino",
+      body: "Remede o TSS de cada atividade com os limiares atuais, lendo a frequência cardíaca amostra por amostra sempre que houver série salva. Treinos intervalados pontuam mais assim. Veja a prévia primeiro — isto reescreve a curva de forma.",
+      preview: "Ver prévia",
+      apply: "Aplicar ao histórico",
+      cancel: "Cancelar",
+      changed: "Atividades alteradas",
+      meanDelta: "Variação média de TSS",
+      maxDelta: "Maior variação de TSS",
+      ctlToday: "CTL de hoje",
+      detail:
+        "{stream} atividades seriam medidas pela série de frequência cardíaca. {manual} cargas ajustadas à mão ficam intactas.",
+      noChanges: "Nada a aplicar.",
+      applied: "{count} atividades recalculadas",
+      drifted:
+        "O histórico mudou desde aquela prévia: agora {changed} atividades mudariam, com o CTL indo para {ctl}. Nada foi gravado — veja a prévia de novo.",
     },
     goals: {
       title: "Metas",

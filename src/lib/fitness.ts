@@ -28,10 +28,55 @@ export const THRESHOLD_PACE_RANGE = { min: 120, max: 600 } as const;
 /** Which signal a TSS value was derived from, best (power) to weakest (rpe). */
 export type LoadMethod = "power" | "pace" | "hr" | "rpe";
 
+/**
+ * How an hrTSS was measured. The heart-rate method is the only one with two
+ * readings of the same activity:
+ *
+ * - `stream` — the per-sample integral of the cached heart-rate trace.
+ * - `avg` — the whole-activity average heart rate, one intensity for the
+ *   session.
+ *
+ * They are not interchangeable. Karvonen intensity is affine in heart rate, so
+ * the average of the per-sample intensities IS the intensity of the average
+ * heart rate — but TSS squares it, and the mean of the squares is never below
+ * the square of the mean. WHERE THE TWO READINGS SEE THE SAME MEAN HEART RATE,
+ * an interval session therefore scores at least as high from its stream as from
+ * its average, and exactly the same when the heart rate never moved. That gap is
+ * the systematic error this variant exists to record: 897 of the 1234 stored
+ * loads were measured the flat way.
+ *
+ * They do not always see the same mean, so the inequality is a property of the
+ * spread rather than a guarantee about the two stored numbers. The trace is
+ * sampled on the ELAPSED clock: its stopped samples (a red light, a bag drop)
+ * are averaged in and pull its time-weighted mean below the moving-time `avg_hr`
+ * Strava reports, and {@link computeLoad}'s rescale onto moving time then charges
+ * that lower mean for the whole session. A steady ride can therefore come back
+ * slightly BELOW its average reading — activity 71 (elapsed/moving 1.22)
+ * integrates a 115.0 bpm mean against a stored 116.1 and lands 35.0 → 34.7 TSS.
+ * The stream is still the truer reading of the two; it is simply not an
+ * upper bound.
+ *
+ * Null on the other three methods, which have a single definition each.
+ */
+export type LoadVariant = "stream" | "avg";
+
 export interface ActivityLoad {
   tss: number;
   method: LoadMethod;
   intensityFactor: number | null;
+  /** Which hrTSS reading this is; null for power, pace and RPE. */
+  variant: LoadVariant | null;
+}
+
+/**
+ * An activity's cached heart-rate trace, index-aligned, as the load engine reads
+ * it. Both channels are nullable exactly as `ActivityStreams` stores them —
+ * dropping the null samples up front would slide the two arrays out of alignment
+ * and credit each heart rate to the wrong moment.
+ */
+export interface HrStream {
+  hr: readonly (number | null)[];
+  timeS: readonly (number | null)[];
 }
 
 /** The minimal activity shape the load engine reads. */
@@ -43,6 +88,14 @@ export interface LoadActivity {
   avg_pace_s_per_km: number | null;
   rpe: number | null;
   raw_json: string | null;
+  /**
+   * The heart-rate stream, when the caller has one cached. Optional because
+   * `computeLoad` is pure and synchronous with no way to load it: every caller
+   * that wants the stream reading has to hand the trace over (see
+   * {@link computeHrTssFromStream}). Absent or unusable, the heart-rate method
+   * falls back to the average — the same number it has always produced.
+   */
+  hrStream?: HrStream | null;
 }
 
 export interface LoadOptions {
@@ -84,6 +137,93 @@ function tssFrom(movingS: number, intensity: number): number {
 }
 
 /**
+ * Karvonen heart-rate intensity: where a heart rate sits between resting and
+ * threshold, clamped to the hrTSS range. The single definition, read once per
+ * activity by the average method below and once per sample by
+ * {@link computeHrTssFromStream}, so the two readings of an activity can only
+ * differ in HOW they average, never in what they measure.
+ *
+ * Null when the thresholds cannot support the question (a resting heart rate at
+ * or above threshold leaves no range to place a beat in) or the beat is absent.
+ */
+function hrIntensity(hr: number, thresholds: AthleteThresholds): number | null {
+  if (hr <= 0 || thresholds.lthr <= thresholds.restingHr) return null;
+  return clamp(
+    (hr - thresholds.restingHr) / (thresholds.lthr - thresholds.restingHr),
+    0,
+    IF_CLAMP_HR
+  );
+}
+
+/** A heart-rate trace's integrated load, and the span it was integrated over. */
+export interface StreamHrTss {
+  /** `Σ dt/3600 · IF² · 100` over `coveredS` seconds of stream. */
+  tss: number;
+  /** Seconds of stream that carried a usable heart rate. */
+  coveredS: number;
+}
+
+/**
+ * Stream-integrated hrTSS: the training load of a heart-rate trace read sample
+ * by sample rather than as one session-long average.
+ *
+ * Each sample's intensity ({@link hrIntensity}) is credited for the span to the
+ * NEXT sample — the same forward-credit convention {@link zoneSeconds} uses, so
+ * an activity's zone seconds and its hrTSS describe the same partition of the
+ * clock, and a 400-point downsample scores the same as the trace it came from.
+ *
+ * The two figures come back together because neither is usable alone. The
+ * integral runs on the STREAM's clock, which is elapsed time: it includes the
+ * stops that `moving_time_s` excludes (across the cached streams, elapsed runs 0
+ * to 22% longer than moving) and it stops early wherever the strap dropped out.
+ * A caller that wants a load comparable with the average method — which charges
+ * moving time — must rescale onto its own clock, and needs `coveredS` to do it.
+ * See {@link computeLoad}.
+ *
+ * Null when no pair of samples carries both a time and a heart rate, which is
+ * the caller's signal to fall back rather than to store a zero.
+ */
+export function computeHrTssFromStream(
+  hr: readonly (number | null)[],
+  timeS: readonly (number | null)[],
+  thresholds: AthleteThresholds
+): StreamHrTss | null {
+  let tss = 0;
+  let coveredS = 0;
+  const n = Math.min(hr.length, timeS.length);
+  for (let i = 0; i + 1 < n; i++) {
+    const t0 = timeS[i];
+    const t1 = timeS[i + 1];
+    const beat = hr[i];
+    if (t0 == null || t1 == null || beat == null) continue;
+    const dt = t1 - t0;
+    if (dt <= 0) continue;
+    const intensity = hrIntensity(beat, thresholds);
+    if (intensity == null) continue;
+    tss += tssFrom(dt, intensity);
+    coveredS += dt;
+  }
+  return coveredS > 0 ? { tss, coveredS } : null;
+}
+
+/**
+ * Least share of an activity's moving time a heart-rate trace has to cover
+ * before {@link computeLoad} extrapolates its integral across the whole session.
+ *
+ * The rescale below charges the covered window's intensity for every moving
+ * second. That is right for a complete trace and badly wrong for a truncated
+ * one: a strap that records the first 10 minutes of a 60-minute ride at 176 bpm
+ * would score the whole hour at 176 bpm — 100 TSS against the average reading's
+ * 41 — and the number goes straight into CTL. Below the floor the average heart
+ * rate is the honest reading: it is weak, but it describes the entire session.
+ *
+ * Set well clear of real data rather than tight: every cached stream today
+ * covers at least 99.7% of its moving time, so this is a guard against dropouts
+ * and truncated files, not a filter the current history trips.
+ */
+export const MIN_HR_STREAM_COVERAGE = 0.8;
+
+/**
  * Best-available training load for one activity. Picks the strongest signal
  * present in priority order (power → pace → HR → RPE) and returns null when
  * none apply. TSS is rounded to 1 decimal, intensity factor to 3.
@@ -108,6 +248,7 @@ export function computeLoad(
         tss: round1(tssFrom(time, intensity)),
         method: "power",
         intensityFactor: round3(intensity),
+        variant: null,
       };
     }
   }
@@ -120,28 +261,51 @@ export function computeLoad(
       tss: round1(tssFrom(time, intensity)),
       method: "pace",
       intensityFactor: round3(intensity),
+      variant: null,
     };
   }
 
-  // 3. Heart rate (hrTSS, works for any sport with an average HR).
+  // 3. Heart rate (hrTSS, works for any sport with an average HR). Two readings
+  // of the same signal, preferring the stream when the caller supplied one.
   const hr = activity.avg_hr ?? 0;
-  if (hr > 0 && thresholds.lthr > thresholds.restingHr) {
-    const intensity = clamp(
-      (hr - thresholds.restingHr) / (thresholds.lthr - thresholds.restingHr),
-      0,
-      IF_CLAMP_HR
-    );
+  const avgIntensity = hrIntensity(hr, thresholds);
+  if (avgIntensity != null) {
+    const stream = activity.hrStream
+      ? computeHrTssFromStream(activity.hrStream.hr, activity.hrStream.timeS, thresholds)
+      : null;
+    // A trace that stops early says nothing about the minutes it missed, so it
+    // is only extrapolated once it covers most of them (MIN_HR_STREAM_COVERAGE).
+    if (stream && stream.coveredS >= time * MIN_HR_STREAM_COVERAGE) {
+      // Rescale the stream's integral from its own elapsed clock onto MOVING
+      // time, which is the duration every other method here charges. Only the
+      // intensity comes from the stream, the duration stays the activity's, so
+      // the two readings differ by exactly the variance of the heart rate and
+      // by nothing else: no activity gains load merely for having stood at a
+      // traffic light, and a constant-heart-rate stream reproduces the average
+      // method's number identically whatever the two clocks did.
+      const tss = stream.tss * (time / stream.coveredS);
+      // The steady intensity that would have cost the same, so the stored IF
+      // stays the number the tile has always shown: TSS = h · IF² · 100.
+      const intensity = Math.sqrt(tss / ((time / SECONDS_PER_HOUR) * TSS_SCALE));
+      return {
+        tss: round1(tss),
+        method: "hr",
+        intensityFactor: round3(intensity),
+        variant: "stream",
+      };
+    }
     return {
-      tss: round1(tssFrom(time, intensity)),
+      tss: round1(tssFrom(time, avgIntensity)),
       method: "hr",
-      intensityFactor: round3(intensity),
+      intensityFactor: round3(avgIntensity),
+      variant: "avg",
     };
   }
 
   // 4. RPE (subjective fallback; RPE 10 for 60 min ≈ 150 TSS).
   if (activity.rpe != null) {
     const tss = round1(activity.rpe * (time / SECONDS_PER_MINUTE) * RPE_TSS_FACTOR);
-    return { tss, method: "rpe", intensityFactor: null };
+    return { tss, method: "rpe", intensityFactor: null, variant: null };
   }
 
   return null;
@@ -279,6 +443,112 @@ export function computePmc(dailyLoads: { date: string; load: number }[]): PmcPoi
     });
   }
   return out;
+}
+
+/** One activity's stored load beside the load a recompute would give it. */
+export interface LoadChange {
+  started_at: string;
+  /** The stored TSS, or null when the activity has no load row yet. */
+  before: number | null;
+  /** What the recompute would store, or null when it would write nothing. */
+  after: number | null;
+}
+
+/**
+ * What a bulk load recompute would do, measured before anything is written.
+ *
+ * Deltas below {@link CHANGE_EPSILON} are not changes: both sides are already
+ * rounded to a tenth of a TSS point, so anything smaller is the rounding itself.
+ * A missing side counts as zero load — an activity gaining its first load row
+ * is a change of its whole TSS.
+ *
+ * The CTL pair is the number that matters. TSS is the input to a 42-day EWMA, so
+ * a rewrite of history moves today's fitness, and "how far" is the only honest
+ * summary of a thousand individually plausible edits. Both figures come from the
+ * same {@link dailyLoadSeries} + {@link computePmc} path the fitness page runs,
+ * so the "before" CTL printed here is the CTL currently on that page.
+ */
+export interface LoadRecomputeSummary {
+  /** Activities whose stored TSS would move. */
+  changed: number;
+  /** Mean signed delta across the changed activities, TSS. */
+  meanDelta: number;
+  /** The largest single delta by magnitude, signed. */
+  maxDelta: number;
+  /** Today's CTL as stored, and as the recompute would leave it. */
+  ctlBefore: number;
+  ctlAfter: number;
+}
+
+/** Smallest TSS difference that is a real change rather than stored rounding. */
+const CHANGE_EPSILON = 0.05;
+
+export function summarizeLoadRecompute(changes: LoadChange[]): LoadRecomputeSummary {
+  let changed = 0;
+  let total = 0;
+  let maxDelta = 0;
+  for (const change of changes) {
+    const delta = (change.after ?? 0) - (change.before ?? 0);
+    if (Math.abs(delta) < CHANGE_EPSILON) continue;
+    changed += 1;
+    total += delta;
+    if (Math.abs(delta) > Math.abs(maxDelta)) maxDelta = delta;
+  }
+  const ctlOf = (pick: (change: LoadChange) => number | null): number => {
+    const series = computePmc(
+      dailyLoadSeries(
+        changes
+          .map((change) => ({ started_at: change.started_at, tss: pick(change) ?? 0 }))
+          .filter((load) => load.tss !== 0)
+      )
+    );
+    return series.length > 0 ? series[series.length - 1].ctl : 0;
+  };
+  return {
+    changed,
+    meanDelta: changed > 0 ? round1(total / changed) : 0,
+    maxDelta: round1(maxDelta),
+    ctlBefore: ctlOf((change) => change.before),
+    ctlAfter: ctlOf((change) => change.after),
+  };
+}
+
+/**
+ * The two figures an apply is checked against before it writes.
+ *
+ * A preview and its apply are separate requests against a database that keeps
+ * moving underneath them — a sync lands, a history fetch caches another stream,
+ * an activity is confirmed — so the second one has to prove it is about to write
+ * the plan the athlete read. Only these two travel back from the client: they
+ * are a fingerprint OF the plan, never the plan itself, so every number that
+ * actually lands is still computed server-side from the database.
+ */
+export interface LoadRecomputeExpectation {
+  changed: number;
+  ctlAfter: number;
+}
+
+/**
+ * Largest CTL move (TSS) between a preview and its apply that is still the same
+ * plan. Both figures are rounded to a tenth, so at half of that it is the
+ * rounding rather than a changed history.
+ */
+const CTL_DRIFT_TOLERANCE = 0.05;
+
+/**
+ * Whether a freshly planned recompute has moved away from the previewed one.
+ *
+ * `changed` has to match exactly: it counts rows, and a different count is a
+ * different set of edits regardless of how little CTL happens to move.
+ */
+export function loadPlanDrifted(
+  expected: LoadRecomputeExpectation,
+  actual: LoadRecomputeSummary
+): boolean {
+  return (
+    expected.changed !== actual.changed ||
+    Math.abs(expected.ctlAfter - actual.ctlAfter) > CTL_DRIFT_TOLERANCE
+  );
 }
 
 /**
