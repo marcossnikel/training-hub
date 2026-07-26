@@ -259,7 +259,9 @@ export const en = {
     elev: "Elev",
     gap: "GAP",
     gapTooltip:
-      "Grade-adjusted pace: the pace each kilometre would have been on flat ground. Strava's own value where it exists, otherwise approximated from the split's net elevation change and marked with a ~.",
+      "Grade-adjusted pace: the pace each kilometre would have been on flat ground, as Strava computed it for the split.",
+    avgGapTooltip:
+      "Grade-adjusted pace for the whole run: the flat-ground pace the same effort would have produced, integrated sample by sample from the terrain's slope. Faster than your actual pace on a climbing route, slower on a net descent.",
     calories: "Calories",
     maxHr: "Max HR",
     speed: "Speed",
@@ -295,6 +297,8 @@ export const en = {
     ef: "EF",
     efTooltip:
       "Efficiency factor: output per heartbeat (watts/bpm on a ride, metres per minute/bpm on a run). Rising at the same effort means aerobic fitness improving.",
+    efGapTooltip:
+      "Efficiency factor: output per heartbeat, metres per minute/bpm. Measured against this run's grade-adjusted pace, so the hills do not count against it. Rising at the same effort means aerobic fitness improving.",
     decoupling: "Decoupling",
     decouplingTooltip:
       "How much efficiency fell from the first half to the second, warm-up excluded. Under 5% is well supported aerobically, above 10% means the pace or the heat outran your endurance.",
@@ -322,6 +326,7 @@ export const en = {
     avgPace: "Avg pace",
     avgPower: "Avg power",
     elevGain: "Elev gain",
+    gap: "GAP",
   },
   coach: {
     title: "AI coach",

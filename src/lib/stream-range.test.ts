@@ -15,6 +15,7 @@ function streams(overrides: Partial<ActivityStreams>): ActivityStreams {
     watts: null,
     cadence: null,
     altitudeM: null,
+    gradePct: null,
     ...overrides,
   };
 }

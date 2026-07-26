@@ -350,6 +350,18 @@ const MIGRATIONS: Migration[] = [
       );
     },
   },
+
+  // Migration 12: the whole-activity grade-adjusted pace, seconds per km, on
+  // `activity_metrics`. Runs only, integrated per sample from the stream's grade
+  // (`grade_smooth` where the fetch requested it, differentiated from the
+  // altitude trace on streams cached before that). Nullable: every activity
+  // stored before this column existed keeps a NULL until its row is recomputed.
+  {
+    version: 12,
+    up: async () => {
+      await addColumnIfMissing("activity_metrics", "avg_gap_s_per_km", "REAL");
+    },
+  },
 ];
 
 async function currentSchemaVersion(): Promise<number> {

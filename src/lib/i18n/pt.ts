@@ -254,7 +254,9 @@ export const pt: Dict = {
     elev: "Elev",
     gap: "GAP",
     gapTooltip:
-      "Ritmo ajustado pela inclinação: o ritmo que cada quilômetro teria no plano. Usa o valor do próprio Strava quando existe; senão é aproximado pela variação líquida de altimetria da parcial e marcado com ~.",
+      "Ritmo ajustado pela inclinação: o ritmo que cada quilômetro teria no plano, calculado pelo próprio Strava para a parcial.",
+    avgGapTooltip:
+      "Ritmo ajustado pela inclinação para a corrida inteira: o ritmo no plano que o mesmo esforço teria produzido, integrado amostra a amostra a partir da inclinação do terreno. Mais rápido que o ritmo real num percurso de subida, mais lento numa descida líquida.",
     calories: "Calorias",
     maxHr: "FC máx",
     speed: "Velocidade",
@@ -290,6 +292,8 @@ export const pt: Dict = {
     ef: "EF",
     efTooltip:
       "Fator de eficiência: produção por batimento (watts/bpm na bike, metros por minuto/bpm na corrida). Subir com o mesmo esforço significa ganho aeróbico.",
+    efGapTooltip:
+      "Fator de eficiência: produção por batimento, metros por minuto/bpm. Medido pelo ritmo ajustado pela inclinação desta corrida, então as subidas não pesam contra ele. Subir com o mesmo esforço significa ganho aeróbico.",
     decoupling: "Desacoplamento",
     decouplingTooltip:
       "Quanto a eficiência caiu da primeira para a segunda metade, sem o aquecimento. Abaixo de 5% o esforço foi bem sustentado; acima de 10% o ritmo ou o calor passaram da sua resistência.",
@@ -317,6 +321,7 @@ export const pt: Dict = {
     avgPace: "Ritmo médio",
     avgPower: "Pot. média",
     elevGain: "Ganho elev.",
+    gap: "GAP",
   },
   coach: {
     title: "Treinador de IA",

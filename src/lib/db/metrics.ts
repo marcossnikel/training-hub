@@ -15,20 +15,24 @@ import {
 /**
  * One stored row, decoded.
  *
+ * `metricsVersion` is the precision ladder documented in `src/lib/stream-metrics.ts`:
+ * 1 = the 400-point downsample, 2 = full resolution fetched before the grade
+ * channel existed, 3 = full resolution including it.
+ *
  * `hrZoneSecs` and `paceZoneSecs` are the two fields that depend on the
  * athlete's thresholds, and they are frozen at the thresholds in force when the
  * row was written. Nothing invalidates them when thresholds change:
  * `saveAthleteThresholds` recomputes `activity_load` but not this table, and
  * `scripts/backfill-metrics.ts` skips any activity that already has a row unless
  * it is run with `--recompute` — which refreshes version-1 rows only, since
- * recomputing a version-2 row from the cached downsample would drop the `np_w`
- * only a full-resolution fetch can produce. Every reader that prefers a stored
+ * recomputing a full-resolution row from the cached downsample would drop the
+ * `np_w` only a full-resolution fetch can produce. Every reader that prefers a stored
  * split over computing one is therefore showing the zones of the day the stream
  * was fetched. Plan task T25 owns the explicit in-app recompute action, and an
  * automatic invalidation hook belongs there rather than on the save path.
  */
 export interface StoredActivityMetrics extends ActivityMetrics {
-  /** 1 = from the 400-point downsample, 2 = from the full-resolution stream. */
+  /** What the numbers were computed from; see the ladder above. */
   metricsVersion: number;
 }
 
@@ -38,6 +42,7 @@ interface MetricsRow {
   np_w: number | null;
   hr_zone_secs: string | null;
   pace_zone_secs: string | null;
+  avg_gap_s_per_km: number | null;
   metrics_version: number;
 }
 
@@ -48,6 +53,7 @@ function decodeMetrics(row: MetricsRow): StoredActivityMetrics {
     npW: row.np_w,
     hrZoneSecs: parseZoneSecs(row.hr_zone_secs),
     paceZoneSecs: parseZoneSecs(row.pace_zone_secs),
+    avgGapSPerKm: row.avg_gap_s_per_km,
     metricsVersion: row.metrics_version,
   };
 }
@@ -57,7 +63,8 @@ export async function getActivityMetrics(
   activityId: number
 ): Promise<StoredActivityMetrics | null> {
   const row = await one<MetricsRow>(
-    `SELECT ef, decoupling_pct, np_w, hr_zone_secs, pace_zone_secs, metrics_version
+    `SELECT ef, decoupling_pct, np_w, hr_zone_secs, pace_zone_secs, avg_gap_s_per_km,
+            metrics_version
      FROM activity_metrics WHERE activity_id = ?`,
     [activityId]
   );
@@ -78,14 +85,15 @@ export async function upsertActivityMetrics(
   await exec(
     `INSERT INTO activity_metrics
        (activity_id, ef, decoupling_pct, np_w, hr_zone_secs, pace_zone_secs,
-        metrics_version, computed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        avg_gap_s_per_km, metrics_version, computed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(activity_id) DO UPDATE SET
        ef = excluded.ef,
        decoupling_pct = excluded.decoupling_pct,
        np_w = excluded.np_w,
        hr_zone_secs = excluded.hr_zone_secs,
        pace_zone_secs = excluded.pace_zone_secs,
+       avg_gap_s_per_km = excluded.avg_gap_s_per_km,
        metrics_version = excluded.metrics_version,
        computed_at = excluded.computed_at`,
     [
@@ -95,6 +103,7 @@ export async function upsertActivityMetrics(
       metrics.npW,
       serializeZoneSecs(metrics.hrZoneSecs),
       serializeZoneSecs(metrics.paceZoneSecs),
+      metrics.avgGapSPerKm,
       metricsVersion,
       new Date().toISOString(),
     ]
@@ -105,6 +114,7 @@ interface MetricsActivityRow {
   sport_type: string | null;
   distance_km: number | null;
   moving_time_s: number | null;
+  avg_pace_s_per_km: number | null;
   avg_hr: number | null;
   raw_json: string | null;
 }
@@ -117,7 +127,8 @@ interface MetricsActivityRow {
  */
 export async function getMetricsActivity(activityId: number): Promise<MetricsActivity | null> {
   const row = await one<MetricsActivityRow>(
-    "SELECT sport_type, distance_km, moving_time_s, avg_hr, raw_json FROM activities WHERE id = ?",
+    `SELECT sport_type, distance_km, moving_time_s, avg_pace_s_per_km, avg_hr, raw_json
+       FROM activities WHERE id = ?`,
     [activityId]
   );
   return row ? metricsActivityOf(row) : null;
@@ -129,6 +140,7 @@ export interface StreamedActivity {
   sport_type: string | null;
   distance_km: number | null;
   moving_time_s: number | null;
+  avg_pace_s_per_km: number | null;
   avg_hr: number | null;
   raw_json: string | null;
   /** The cached 400-point stream, as stored JSON. */
@@ -148,8 +160,8 @@ export async function listStreamedActivities(page: {
   limit: number;
 }): Promise<StreamedActivity[]> {
   return many<StreamedActivity>(
-    `SELECT a.id, a.sport_type, a.distance_km, a.moving_time_s, a.avg_hr, a.raw_json,
-            s.json, m.metrics_version
+    `SELECT a.id, a.sport_type, a.distance_km, a.moving_time_s, a.avg_pace_s_per_km,
+            a.avg_hr, a.raw_json, s.json, m.metrics_version
      FROM activity_streams s
      JOIN activities a ON a.id = s.activity_id
      LEFT JOIN activity_metrics m ON m.activity_id = a.id

@@ -1,4 +1,5 @@
 import type { ActivityStreams } from "@/lib/streams";
+import { gapPaceSeries } from "@/lib/stream-metrics";
 import type { Dict } from "@/lib/i18n";
 import { fmtHr, fmtPace, fmtPaceShort } from "@/lib/format";
 import { fmtCadence, fmtPower } from "@/lib/cycling";
@@ -31,6 +32,14 @@ export interface SeriesDef {
    * rule has exactly one implementation. Absent means no bands and no zone.
    */
   zones?: Zone[];
+  /**
+   * A second trace on the same panel, plotted on the same scale and drawn dashed
+   * so the recorded series stays the one the eye reads first. One panel rather
+   * than two because the pair only means anything side by side: the gap between
+   * a run's pace and its grade-adjusted pace IS the terrain, and splitting them
+   * across panels with independent extents would hide exactly that.
+   */
+  overlay?: { data: (number | null)[]; label: string };
 }
 
 type SeriesCandidate = Omit<SeriesDef, "data"> & { data: (number | null)[] | null };
@@ -137,11 +146,20 @@ export function paceExtent(data: (number | null)[]): [number, number] | null {
 }
 
 /**
- * A panel's y extent. Only pace needs bounding: every other series is recorded
- * directly, while pace is a reciprocal of a velocity that goes to zero.
+ * A panel's y extent, over BOTH traces it draws. The overlay shares the scale,
+ * so leaving it out of the extent silently pins it: on 8 of the 32 streamed
+ * production runs at least one grade-adjusted sample fell outside the recorded
+ * pace's range and drew as a dashed line flat along the panel border, reading as
+ * "the terrain was constant here" exactly where it was steepest.
+ *
+ * Only pace needs bounding: every other series is recorded directly, while pace
+ * is a reciprocal of a velocity that goes to zero. The bound applies to the
+ * overlay too, since a GAP derived from a stopped-GPS pace sample is just as
+ * unbounded as the sample it came from.
  */
 export function panelExtent(series: SeriesDef): [number, number] | null {
-  return series.key === "pace" ? paceExtent(series.data) : extent(series.data);
+  const data = series.overlay ? [...series.data, ...series.overlay.data] : series.data;
+  return series.key === "pace" ? paceExtent(data) : extent(data);
 }
 
 /**
@@ -210,6 +228,9 @@ export function buildSeries(
   isRun: boolean,
   thresholds: AthleteThresholds
 ): SeriesDef[] {
+  // Grade-adjusted pace rides along with the pace panel rather than claiming one
+  // of its own. Runs only: the cost polynomial behind it is running economy.
+  const gapPace = isRun ? gapPaceSeries(streams) : null;
   const defs: SeriesCandidate[] = [
     {
       key: "heartRate",
@@ -234,6 +255,7 @@ export function buildSeries(
       fmt: (v) => fmtPace(v),
       tick: fmtPaceShort,
       zones: isRun && thresholds.thresholdPaceSPerKm > 0 ? paceZones(thresholds) : undefined,
+      overlay: gapPace ? { data: gapPace, label: t.chart.gap } : undefined,
     },
     {
       key: "power",

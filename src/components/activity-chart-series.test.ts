@@ -34,6 +34,7 @@ function makeStreams(overrides: Partial<ActivityStreams>): ActivityStreams {
     watts: null,
     cadence: null,
     altitudeM: null,
+    gradePct: null,
     ...overrides,
   };
 }
@@ -168,6 +169,28 @@ describe("paceExtent", () => {
     expect(panelExtent(pace)).toEqual(paceExtent(pace.data));
     // Heart rate (and every other series) keeps its full raw range.
     expect(panelExtent(hr)).toEqual([115.6, 179.4]);
+  });
+
+  it("spans the grade-adjusted overlay too, which shares the scale", () => {
+    // A steady 6% climb at a constant 330 s/km. The overlay plots 241 s/km,
+    // nowhere near the recorded trace's own range — scaling the panel to the
+    // recorded trace alone pins every one of those samples to the panel border,
+    // where a dashed line lying flat along the top reads as "the terrain was
+    // constant here".
+    const streams = makeStreams({
+      paceSPerKm: [330, 330, 330],
+      gradePct: [6, 6, 6],
+    });
+    const pace = buildSeries(streams, en, true, thresholds).find((s) => s.key === "pace")!;
+    expect(pace.overlay).toBeDefined();
+    const [lo, hi] = panelExtent(pace)!;
+    for (const v of [...pace.data, ...pace.overlay!.data]) {
+      expect(v).not.toBeNull();
+      expect(v!).toBeGreaterThanOrEqual(lo);
+      expect(v!).toBeLessThanOrEqual(hi);
+    }
+    // And it is genuinely wider than the recorded trace's own degenerate extent.
+    expect(hi - lo).toBeGreaterThan(80);
   });
 });
 

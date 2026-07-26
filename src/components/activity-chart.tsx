@@ -34,6 +34,40 @@ import {
 /** Faint enough to read a zone at a glance without competing with the trace. */
 const ZONE_BAND_OPACITY = 0.06;
 
+/**
+ * A panel's second trace (grade-adjusted pace) shares its colour, so the dash and
+ * the reduced opacity are the only things telling the two apart. Both are needed:
+ * opacity alone reads as "the same line, further away" once the traces cross.
+ */
+const OVERLAY_DASH = "4 3";
+const OVERLAY_OPACITY = 0.6;
+
+/**
+ * One series as SVG path segments, broken wherever the value or the x position is
+ * missing so a recording gap is left open instead of drawn straight through.
+ */
+function traceSegments(
+  data: (number | null)[],
+  xs: (number | null)[],
+  xPx: (v: number) => number,
+  yPx: (v: number) => number
+): string[] {
+  const segs: string[] = [];
+  let cur = "";
+  for (let k = 0; k < data.length; k++) {
+    const d = data[k];
+    const x = xs[k];
+    if (d == null || x == null) {
+      if (cur) segs.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += `${cur ? "L" : "M"}${xPx(x).toFixed(1)},${yPx(d).toFixed(1)} `;
+  }
+  if (cur) segs.push(cur);
+  return segs;
+}
+
 /** Alternating lap tints, then the one the pointer (or a pin) has hold of. */
 const LAP_OPACITY = [0.15, 0.3];
 const LAP_ACTIVE_OPACITY = 0.5;
@@ -561,19 +595,8 @@ export function ActivityChart({
               const yPx = panelScale(ext, s.invert, top).plot;
 
               // Line segments, broken on nulls so gaps are not drawn through.
-              const segs: string[] = [];
-              let cur = "";
-              for (let k = 0; k < s.data.length; k++) {
-                const d = s.data[k];
-                const x = xs[k];
-                if (d == null || x == null) {
-                  if (cur) segs.push(cur);
-                  cur = "";
-                  continue;
-                }
-                cur += `${cur ? "L" : "M"}${xPx(x).toFixed(1)},${yPx(d).toFixed(1)} `;
-              }
-              if (cur) segs.push(cur);
+              const segs = traceSegments(s.data, xs, xPx, yPx);
+              const overlaySegs = s.overlay ? traceSegments(s.overlay.data, xs, xPx, yPx) : [];
 
               // Filled area (elevation) built per contiguous run.
               let areaPath = "";
@@ -672,6 +695,21 @@ export function ActivityChart({
                   </text>
 
                   {s.area ? <path d={areaPath} fill={s.color} opacity={0.18} /> : null}
+                  {/* Overlay first: the recorded trace stays on top of it. */}
+                  {overlaySegs.map((d, si) => (
+                    <path
+                      key={`overlay-${si}`}
+                      data-overlay={s.key}
+                      d={d}
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth={1.5}
+                      strokeDasharray={OVERLAY_DASH}
+                      opacity={OVERLAY_OPACITY}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                  ))}
                   {segs.map((d, si) => (
                     <path
                       key={si}
@@ -836,22 +874,38 @@ export function ActivityChart({
                 {shown.map((s) => {
                   const v = s.data[hover];
                   const zone = v != null && s.zones ? zoneIndexOf(v, s.zones) : -1;
+                  const overlayV = s.overlay ? s.overlay.data[hover] : null;
                   return (
-                    <div key={s.key} className="flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: s.color }}
-                          aria-hidden
-                        />
-                        {s.label}
-                      </span>
-                      <span className="font-mono tabular-nums" style={{ color: s.color }}>
-                        {v == null ? "–" : s.fmt(v)}
-                        {zone >= 0 ? (
-                          <span className="ml-1.5 text-muted-foreground">{labels[zone]}</span>
-                        ) : null}
-                      </span>
+                    <div key={s.key}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <span
+                            className="size-2 rounded-full"
+                            style={{ backgroundColor: s.color }}
+                            aria-hidden
+                          />
+                          {s.label}
+                        </span>
+                        <span className="font-mono tabular-nums" style={{ color: s.color }}>
+                          {v == null ? "–" : s.fmt(v)}
+                          {zone >= 0 ? (
+                            <span className="ml-1.5 text-muted-foreground">{labels[zone]}</span>
+                          ) : null}
+                        </span>
+                      </div>
+                      {s.overlay && overlayV != null ? (
+                        <div
+                          className="flex items-center justify-between gap-3"
+                          style={{ opacity: OVERLAY_OPACITY }}
+                        >
+                          <span className="flex items-center gap-1.5 pl-3.5 text-muted-foreground">
+                            {s.overlay.label}
+                          </span>
+                          <span className="font-mono tabular-nums" style={{ color: s.color }}>
+                            {s.fmt(overlayV)}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

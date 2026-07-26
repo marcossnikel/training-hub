@@ -24,7 +24,19 @@ export type EfBasis = "power" | "speed";
  */
 type EfInput =
   | { basis: "power"; watts: number | null; avgHr: number | null }
-  | { basis: "speed"; distanceKm: number | null; movingTimeS: number | null; avgHr: number | null };
+  | {
+      basis: "speed";
+      distanceKm: number | null;
+      movingTimeS: number | null;
+      avgHr: number | null;
+      /**
+       * Whole-activity grade-adjusted pace, s/km, when the stream carried enough
+       * grade to derive one. Present, it replaces the raw pace, so a hilly run's
+       * efficiency factor is measured against the flat-ground speed the same
+       * effort would have produced instead of being marked down for the hills.
+       */
+      gapSPerKm?: number | null;
+    };
 
 const SECONDS_PER_MINUTE = 60;
 const METRES_PER_KM = 1000;
@@ -46,6 +58,11 @@ export function efBasisFor(sportType: string | null, hasRealPower: boolean): EfB
  * Efficiency factor: aerobic output per heartbeat — watts per bpm on a ride,
  * metres per minute per bpm on a run. Rising at the same pace or power means
  * aerobic fitness improving. Null when heart rate or the output is missing.
+ *
+ * On the speed basis the pace is the grade-adjusted one whenever the caller has
+ * it, because the alternative is an efficiency factor that falls every time the
+ * route goes uphill — which is the terrain talking, not the athlete's aerobic
+ * fitness.
  */
 export function computeEf(input: EfInput): number | null {
   const hr = input.avgHr ?? 0;
@@ -57,7 +74,9 @@ export function computeEf(input: EfInput): number | null {
   const distanceKm = input.distanceKm ?? 0;
   const movingTimeS = input.movingTimeS ?? 0;
   if (distanceKm <= 0 || movingTimeS <= 0) return null;
-  const metresPerMinute = (distanceKm * METRES_PER_KM) / (movingTimeS / SECONDS_PER_MINUTE);
+  const gap = input.gapSPerKm ?? 0;
+  const paceSPerKm = gap > 0 ? gap : movingTimeS / distanceKm;
+  const metresPerMinute = (METRES_PER_KM * SECONDS_PER_MINUTE) / paceSPerKm;
   return metresPerMinute / hr;
 }
 
@@ -169,45 +188,23 @@ export function computeDecouplingHalves(input: DecouplingInput): DecouplingHalve
   };
 }
 
-/**
- * Grade-adjusted pace for one split, plus where the number came from. Strava
- * ships its own grade-adjusted speed on outdoor-run splits; the local
- * approximation below only fills the gaps, and the UI marks it so the two are
- * never confused.
- */
-interface SplitGap {
-  /** Grade-adjusted pace, seconds per km. */
-  paceSPerKm: number;
-  /** True when produced by the local approximation rather than by Strava. */
-  approximate: boolean;
-}
-
 /** One split reduced to what grade adjustment needs. All figures nullable. */
 interface SplitGapInput {
-  /** Strava's own grade-adjusted speed for the split, m/s. Preferred whenever present. */
+  /** Strava's own grade-adjusted speed for the split, m/s. The only source. */
   gradeAdjustedSpeedMPerS: number | null;
   /** The split's actual pace, s/km. */
   paceSPerKm: number | null;
-  /** Net elevation change across the split, metres, signed. */
-  elevationDiffM: number | null;
   /** Split length, metres. */
   distanceM: number | null;
-  /**
-   * The parent activity's Strava sport type. The local approximation is a
-   * running-economy model, so it only runs for runs; Strava's own value is
-   * accepted for any sport because it is their number, not ours.
-   */
-  sportType: string | null;
 }
 
 /**
  * Splits below this length get no GAP. Strava emits trailing fragments of a few
  * metres (3.8 m, 5.1 m, 9.8 m all appear in the live data), where a decimetre of
- * barometric noise reads as a multi-percent grade — a 9.8 m fragment with a 0.2 m
- * delta comes out at 2%. Because the table's inline bar scales by the fastest
- * GAP, one such fragment would shrink every real kilometre's bar. A tenth of a
- * kilometre is the shortest piece whose net elevation change is a measurement
- * rather than noise.
+ * barometric noise reads as a multi-percent grade. Because the table's inline bar
+ * scales by the fastest GAP, one such fragment would shrink every real
+ * kilometre's bar. A tenth of a kilometre is the shortest piece whose grade
+ * adjustment is a measurement rather than noise.
  */
 const MIN_GAP_SPLIT_M = 100;
 
@@ -216,63 +213,51 @@ const MIN_GAP_SPLIT_M = 100;
  * second per kilometre is at most a rounding tick in the m:ss the table shows, so
  * rendering it would print the same pace twice and imply an adjustment that never
  * happened — the flat outdoor case (activity 754: every split's grade-adjusted
- * speed equals its average speed) and the indoor case (payloads that carry
- * `elevation_difference: 0` instead of null).
+ * speed equals its average speed) and the indoor case.
  */
 const MIN_GAP_DELTA_S_PER_KM = 1;
 
 /**
- * APPROXIMATION — split-level, run-only, superseded by real per-sample grade data
- * (plan task T26). A whole kilometre is collapsed to its net elevation change,
- * so a split that climbs 20 m and descends 20 m looks flat. Linear cost
- * coefficients: 3.3% pace credit per 1% of climb, 1.8% pace debit per 1% of
- * descent, grade clamped because the linear model breaks down on the steep. The
- * coefficients come from running economy, which is why walks, swims and workouts
- * are excluded rather than adjusted. Self-contained on purpose: delete this block
- * and the fallback branch below when stream grade lands.
+ * A grade-adjusted pace, or null when printing it would just reprint the pace
+ * beside it. The single owner of that rule, applied at both scales it is needed
+ * at: the splits table (below) and the activity page's whole-run GAP tile.
+ *
+ * Both render an m:ss next to the raw pace's m:ss, so both have the same failure
+ * — on 14 of the 32 streamed runs here the whole-activity GAP rounds to exactly
+ * the pace it sits next to, and printing it claims a terrain adjustment of
+ * 0.02%. It also gates the efficiency-factor tooltip, so the tile cannot say the
+ * EF was measured against grade-adjusted pace while no grade-adjusted pace is on
+ * screen.
  */
-const MAX_ABS_GRADE_PCT = 10;
-const UPHILL_CREDIT_PER_PCT = 0.033;
-const DOWNHILL_DEBIT_PER_PCT = 0.018;
-
-function approximateGapFactor(gradePct: number): number {
-  const clamped = Math.max(-MAX_ABS_GRADE_PCT, Math.min(MAX_ABS_GRADE_PCT, gradePct));
-  // Dividing pace by a factor above 1 makes it faster, which is what climbing
-  // must do to a grade-adjusted pace; descending inverts it.
-  return clamped > 0 ? 1 + UPHILL_CREDIT_PER_PCT * clamped : 1 + DOWNHILL_DEBIT_PER_PCT * clamped;
-}
-
-/** A GAP that says nothing the raw pace does not already say is not a GAP. */
-function gapUnlessNoOp(
-  adjustedSPerKm: number,
-  rawSPerKm: number,
-  approximate: boolean
-): SplitGap | null {
-  if (Math.abs(adjustedSPerKm - rawSPerKm) < MIN_GAP_DELTA_S_PER_KM) return null;
-  return { paceSPerKm: adjustedSPerKm, approximate };
+export function meaningfulGap(
+  gapSPerKm: number | null | undefined,
+  paceSPerKm: number | null | undefined
+): number | null {
+  const gap = gapSPerKm ?? 0;
+  const pace = paceSPerKm ?? 0;
+  if (gap <= 0 || pace <= 0) return null;
+  return Math.abs(gap - pace) < MIN_GAP_DELTA_S_PER_KM ? null : gap;
 }
 
 /**
- * Grade-adjusted pace for a split: the pace the same effort would have produced
- * on flat ground, so hilly kilometres compare honestly against flat ones. Prefers
- * Strava's own grade-adjusted speed, falling back to the run-only approximation
- * above when the split has a net elevation change but no Strava value.
+ * Grade-adjusted pace for a split, seconds per km: the pace the same effort would
+ * have produced on flat ground, so hilly kilometres compare honestly against flat
+ * ones. Strava's own grade-adjusted speed is the source — the whole-activity GAP
+ * this app computes itself is a per-sample integration of the stream
+ * (`avgGapSPerKm` in stream-metrics.ts), which a split payload has nothing to
+ * offer.
  *
- * Null whenever there is nothing to say: no usable raw pace to adjust or compare
- * against, a split too short to carry a real grade, a non-run with no Strava
- * value, an indoor split with no elevation change to work from, or an adjustment
- * so small it would just reprint the raw pace.
+ * Null whenever there is nothing to say: no usable raw pace to compare against,
+ * no Strava value, a split too short to carry a real grade, or an adjustment so
+ * small it would just reprint the raw pace.
  */
-export function splitGap(input: SplitGapInput): SplitGap | null {
+export function splitGap(input: SplitGapInput): number | null {
   const pace = input.paceSPerKm ?? 0;
   const distanceM = input.distanceM ?? 0;
   if (pace <= 0 || distanceM < MIN_GAP_SPLIT_M) return null;
 
   const gradeAdjusted = input.gradeAdjustedSpeedMPerS ?? 0;
-  if (gradeAdjusted > 0) {
-    return gapUnlessNoOp(METRES_PER_KM / gradeAdjusted, pace, false);
-  }
-  if (!isRunSport(input.sportType) || input.elevationDiffM == null) return null;
-  const gradePct = (input.elevationDiffM / distanceM) * 100;
-  return gapUnlessNoOp(pace / approximateGapFactor(gradePct), pace, true);
+  if (gradeAdjusted <= 0) return null;
+  // A GAP that says nothing the raw pace does not already say is not a GAP.
+  return meaningfulGap(METRES_PER_KM / gradeAdjusted, pace);
 }

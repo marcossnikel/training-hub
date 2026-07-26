@@ -11,6 +11,13 @@ export interface ActivityStreams {
   watts: (number | null)[] | null;
   cadence: (number | null)[] | null;
   altitudeM: (number | null)[] | null;
+  /**
+   * Strava's `grade_smooth`: the terrain's slope at each sample, in percent,
+   * already smoothed by them. Null on streams fetched before this channel was
+   * requested and on activities with no elevation trace at all; grade-adjusted
+   * pace falls back to differentiating {@link ActivityStreams.altitudeM} there.
+   */
+  gradePct: (number | null)[] | null;
 }
 
 const MAX_POINTS = 400;
@@ -48,8 +55,9 @@ export function normalizeStreams(
   const watts = get("watts");
   const cadence = get("cadence");
   const altitude = get("altitude");
+  const grade = get("grade_smooth");
 
-  const present = [distance, time, heartrate, velocity, watts, cadence, altitude].filter(
+  const present = [distance, time, heartrate, velocity, watts, cadence, altitude, grade].filter(
     (a): a is number[] => a !== undefined
   );
   if (present.length === 0) return null;
@@ -84,5 +92,6 @@ export function normalizeStreams(
     watts: map(watts, (v) => v),
     cadence: map(cadence, (v) => v),
     altitudeM: map(altitude, (v) => v),
+    gradePct: map(grade, (v) => v),
   };
 }

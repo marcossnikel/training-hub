@@ -24,7 +24,14 @@ import {
   listShoes,
 } from "@/lib/db";
 import { effortTimeS, prBadgeEffortNames } from "@/lib/best-efforts";
-import { computeDecoupling, computeEf, efBasisFor, splitGap, type EfBasis } from "@/lib/analysis";
+import {
+  computeDecoupling,
+  computeEf,
+  efBasisFor,
+  meaningfulGap,
+  splitGap,
+  type EfBasis,
+} from "@/lib/analysis";
 import { analyzeRace } from "@/lib/blocks";
 import { isCoachConfigured } from "@/lib/coach";
 import {
@@ -62,6 +69,7 @@ import {
 } from "@/lib/format";
 import { fillStr, type Dict } from "@/lib/i18n";
 import { runMetrics } from "@/lib/running";
+import { avgGapSPerKm } from "@/lib/stream-metrics";
 import { isRunSport } from "@/lib/validate";
 import { toGearOption } from "@/lib/gear";
 
@@ -71,9 +79,9 @@ export async function generateMetadata({ params }: PageProps<"/activity/[id]">) 
   return { title: activity?.name ?? "Activity" };
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div>
+    <div title={title}>
       <dt className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
         {label}
       </dt>
@@ -316,15 +324,7 @@ function ZoneDistributions({ bars, t }: { bars: ZoneDistribution[]; t: Dict }) {
   );
 }
 
-function KmSplitsTable({
-  splits,
-  sportType,
-  t,
-}: {
-  splits: StravaSplit[];
-  sportType: string | null;
-  t: Dict;
-}) {
+function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
   const rows = splits.map((split) => {
     const pace = split.average_speed
       ? 1000 / split.average_speed
@@ -332,22 +332,20 @@ function KmSplitsTable({
     return {
       split,
       pace,
-      // splitGap owns every gate (sport, split length, no-op adjustment), so a
-      // split with nothing to add simply comes back null and renders one line.
+      // splitGap owns every gate (split length, no-op adjustment), so a split
+      // with nothing to add simply comes back null and renders one line.
       gap: splitGap({
         gradeAdjustedSpeedMPerS: split.average_grade_adjusted_speed ?? null,
         paceSPerKm: pace,
-        elevationDiffM: split.elevation_difference ?? null,
         distanceM: split.distance ?? null,
-        sportType,
       }),
     };
   });
   // The bar compares kilometres on the fairest basis each one has: grade-adjusted
   // pace where it exists, raw pace otherwise.
-  const barPaces = rows.map((row) => row.gap?.paceSPerKm ?? row.pace ?? Number.POSITIVE_INFINITY);
+  const barPaces = rows.map((row) => row.gap ?? row.pace ?? Number.POSITIVE_INFINITY);
   const fastest = Math.min(...barPaces.filter((p) => Number.isFinite(p)));
-  const showGap = rows.some((row) => row.gap);
+  const showGap = rows.some((row) => row.gap != null);
 
   return (
     <div className="overflow-x-auto">
@@ -378,10 +376,9 @@ function KmSplitsTable({
                 </td>
                 <td className={`${TD} font-medium`}>
                   {pace != null ? fmtPace(pace) : "–"}
-                  {gap ? (
+                  {gap != null ? (
                     <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                      {gap.approximate ? "~" : ""}
-                      {fmtPace(gap.paceSPerKm)}
+                      {fmtPace(gap)}
                     </span>
                   ) : null}
                 </td>
@@ -496,8 +493,19 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // power meter; runs read speed against HR. Every other sport (and a ride with
   // estimated wattage) gets no basis, so its EF and decoupling tiles stay hidden.
   const efBasis: EfBasis | null = efBasisFor(activity.sport_type, metrics?.hasRealPower ?? false);
+  // Grade-adjusted pace (T26): the whole run's flat-ground equivalent, from the
+  // stream's grade channel where the fetch requested it and from the altitude
+  // trace on the streams cached before that. Runs only.
+  const rawGapSPerKm =
+    storedMetrics?.avgGapSPerKm ??
+    (run && streams ? avgGapSPerKm(streams, { avgPaceSPerKm: activity.avg_pace_s_per_km }) : null);
+  // What the GAP tile may print. An adjustment under a second per km is at most
+  // a rounding tick in the m:ss beside it, so printing it shows the same pace
+  // twice — the rule the splits table has always applied, now applied here too.
+  const gapSPerKm = meaningfulGap(rawGapSPerKm, activity.avg_pace_s_per_km);
+  const storedEf = storedMetrics?.ef ?? null;
   const ef =
-    storedMetrics?.ef ??
+    storedEf ??
     (efBasis === "power"
       ? computeEf({
           basis: "power",
@@ -510,8 +518,23 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             distanceKm: activity.distance_km,
             movingTimeS: activity.moving_time_s,
             avgHr: activity.avg_hr,
+            // The unsuppressed value: the EF is a ratio, not an m:ss, so a
+            // sub-second adjustment is real there even when it is unprintable
+            // here. This is also what the stored pipeline divided by.
+            gapSPerKm: rawGapSPerKm,
           })
         : null);
+  // Whether the EF on show was measured against grade-adjusted speed, which
+  // decides which of the two tooltips explains it. Both halves are required. The
+  // EF has to have come from a GAP — a stored EF answers for itself: it is
+  // GAP-based exactly when its row carries one, whatever this page could compute
+  // today — and a GAP has to have survived the no-op rule, so the tooltip never
+  // explains an adjustment the page declined to show.
+  const efFromGap =
+    efBasis === "speed" &&
+    ef != null &&
+    gapSPerKm != null &&
+    (storedEf == null || storedMetrics?.avgGapSPerKm != null);
   const decoupling =
     storedMetrics?.decouplingPct ??
     (efBasis
@@ -676,6 +699,9 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             value={fmtKm(activity.distance_km, (activity.distance_km ?? 0) >= 100 ? 1 : 2)}
           />
           {run ? <Stat label={t.review.pace} value={fmtPace(activity.avg_pace_s_per_km)} /> : null}
+          {run && gapSPerKm != null ? (
+            <Stat label={t.detail.gap} value={fmtPace(gapSPerKm)} title={t.detail.avgGapTooltip} />
+          ) : null}
           <Stat label={t.review.time} value={fmtDuration(activity.moving_time_s)} />
           <Stat label={t.review.heartRate} value={fmtHr(activity.avg_hr)} />
           <Stat label={t.review.elevation} value={fmtElev(activity.elevation_gain_m)} />
@@ -713,6 +739,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
           source={loadSource}
           intensityFactor={loadIntensity}
           ef={ef}
+          efFromGap={efFromGap}
           decoupling={decoupling}
         />
       ) : null}
@@ -770,7 +797,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             <CardTitle>{t.detail.kmSplits}</CardTitle>
           </CardHeader>
           <CardContent>
-            <KmSplitsTable splits={kmSplits} sportType={activity.sport_type} t={t} />
+            <KmSplitsTable splits={kmSplits} t={t} />
           </CardContent>
         </Card>
       ) : null}

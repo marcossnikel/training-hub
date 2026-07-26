@@ -8,9 +8,9 @@
  * zone, but not for normalized power: a 30-second rolling average has nothing
  * left to average once an hour is squeezed into 400 samples. So `np_w` stays null
  * here and these rows are stamped `metrics_version = 1`. The activities the
- * fetch pass (scripts/fetch-history.ts) touches get version 2, computed from the
- * full-resolution stream. Re-fetching the handful of already-cached activities
- * just to upgrade them is not worth the API calls.
+ * fetch pass (scripts/fetch-history.ts) touches get the full-resolution version,
+ * computed from the stream as recorded. Re-fetching the handful of
+ * already-cached activities just to upgrade them is not worth the API calls.
  *
  * Dry run by default: it prints what it would write and inserts nothing.
  *
@@ -27,8 +27,8 @@
  * this flag there is no way to refresh them: the normal pass skips any activity
  * that already has a row.
  *
- * It refreshes VERSION-1 ROWS ONLY. A version-2 row is left exactly as it is,
- * because everything this script can compute comes from the 400-point
+ * It refreshes VERSION-1 ROWS ONLY. A full-resolution row is left exactly as it
+ * is, because everything this script can compute comes from the 400-point
  * downsample: rewriting one would replace a full-resolution row with a
  * downsampled one and drop its `np_w`, which is now ride-only (Strava's
  * `device_watts` is set on runs too, so only real meters qualify) and therefore
@@ -39,9 +39,9 @@
  * must not spend that.
  *
  * `--allow-downgrade` (only meaningful with `--recompute`) opts into the
- * destructive behaviour: version-2 rows are recomputed too, landing as version-1
- * rows with `np_w` dropped. Use it when a correct zone split matters more than
- * keeping normalized power on those activities.
+ * destructive behaviour: full-resolution rows are recomputed too, landing as
+ * version-1 rows with `np_w` dropped. Use it when a correct zone split matters
+ * more than keeping normalized power on those activities.
  *
  * These flags are the manual stopgap. Plan task T25 owns the in-app recompute
  * action, and an automatic invalidation hook on saveAthleteThresholds belongs
@@ -54,7 +54,7 @@
  *
  * Idempotent and resumable: without `--recompute`, an activity that already has
  * a metrics row is skipped whatever its version, so an interrupted run resumes
- * where it stopped. A version-2 row is never overwritten with a downsampled one
+ * where it stopped. A full-resolution row is never overwritten with a downsampled one
  * unless `--allow-downgrade` says so. The only write a dry run can cause is
  * `ensureMigrated` applying pending ADDITIVE migrations (here: creating the
  * table it reads).
@@ -105,6 +105,7 @@ function formatRow({ activityId, sportType, metrics }: PendingActivity): string 
     `ef ${fmtNumber(metrics.ef, 2).padStart(6)}  ` +
     `decoupling ${fmtNumber(metrics.decouplingPct, 1).padStart(6)}%  ` +
     `np ${fmtNumber(metrics.npW, 0).padStart(4)}  ` +
+    `gap ${fmtNumber(metrics.avgGapSPerKm, 0).padStart(4)}  ` +
     `hr ${fmtZones(metrics.hrZoneSecs)}  pace ${fmtZones(metrics.paceZoneSecs)}`
   );
 }
@@ -151,7 +152,7 @@ async function main() {
 
   for await (const activity of eachStreamedActivity()) {
     scanned += 1;
-    // Any stored row means this activity is done: the version-2 rows the fetch
+    // Any stored row means this activity is done: the full-resolution rows the fetch
     // pass writes are strictly better than anything computable here. Unless the
     // caller asked for a recompute, which is the only way to pick up a
     // threshold change in already-stored zone seconds.
@@ -205,7 +206,7 @@ async function main() {
   console.log(`  activities with a cached stream:        ${scanned}`);
   console.log(`  of those, metrics already stored:       ${alreadyStored}`);
   if (recompute) {
-    console.log(`  of those, version-2 rows left as they are: ${fullResKept}`);
+    console.log(`  of those, full-resolution rows left as they are: ${fullResKept}`);
     if (fullResKept > 0) {
       console.log(
         "  Their zone seconds are stale too, and this script cannot refresh them without " +
@@ -232,7 +233,7 @@ async function main() {
     const downgraded = replaced.filter((p) => p.replacesVersion !== METRICS_VERSION_DOWNSAMPLED);
     console.log(`  of those, rewriting an existing row:    ${replaced.length}`);
     if (allowDowngrade) {
-      console.log(`  of those, downgraded from version 2:    ${downgraded.length}`);
+      console.log(`  of those, downgraded from full resolution: ${downgraded.length}`);
       if (downgraded.length > 0) {
         console.log(
           "  NOTE: a downgraded row is re-integrated from the 400-point downsample " +

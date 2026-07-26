@@ -182,6 +182,41 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
     // Non-empty streams stay a fetch-once/cache-forever result.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("asks Strava for every channel the app reads, grade included", async () => {
+    // The one request an activity ever gets. `ensureActivityStreams` returns the
+    // cache before re-fetching, so a channel dropped from this list is dropped
+    // FOREVER for every activity fetched meanwhile — `grade_smooth` in
+    // particular would strand them all on the altitude fallback with no way back
+    // short of deleting their cached streams.
+    await connectWithFreshToken();
+    const inserted = await db.client.execute({
+      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES ('Key list', 'Run', '2026-01-03T12:00:00Z', 5, 'confirmed', 88801)`,
+      args: [],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ time: { data: [0, 1, 2] } }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await strava.ensureActivityStreams({
+      id: Number(inserted.lastInsertRowid),
+      strava_id: 88801,
+    });
+
+    const url = fetchMock.mock.calls[0][0] as URL;
+    expect(url.pathname).toBe("/api/v3/activities/88801/streams");
+    expect(url.searchParams.get("key_by_type")).toBe("true");
+    expect(url.searchParams.get("keys")?.split(",").sort()).toEqual([
+      "altitude",
+      "cadence",
+      "distance",
+      "grade_smooth",
+      "heartrate",
+      "time",
+      "velocity_smooth",
+      "watts",
+    ]);
+  });
 });
 
 describe("derived metrics are written from the fetched stream", () => {
@@ -226,7 +261,13 @@ describe("derived metrics are written from the fetched stream", () => {
     expect(spikeCount).toBe(350);
 
     const stored = await db.getActivityMetrics(activityId);
+    // 2, not 3: this payload carries no altitude and no `grade_smooth`, so the
+    // row is full resolution WITHOUT grade. The stamp reports what the payload
+    // held, never what the request asked for — a future re-fetch reads the
+    // ladder to decide what is worth upgrading, and a 3 here would hide this
+    // activity from it forever.
     expect(stored?.metricsVersion).toBe(2);
+    expect(stored?.avgGapSPerKm).toBeNull();
     // Integrated across the whole hour: every spike second is there.
     expect(stored?.hrZoneSecs?.reduce((sum, s) => sum + s, 0)).toBe(3599);
     expect(stored?.hrZoneSecs?.[spikeZone]).toBe(spikeCount);
@@ -248,6 +289,42 @@ describe("derived metrics are written from the fetched stream", () => {
       expect(sql.trimStart().slice(0, 6).toUpperCase()).toBe("SELECT");
     }
     executeSpy.mockRestore();
+  });
+
+  it("stamps version 3 and stores a grade-adjusted pace when the payload carries grade", async () => {
+    await connectWithFreshToken();
+    const inserted = await db.client.execute({
+      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+                                    avg_pace_s_per_km, avg_hr, status, strava_id)
+            VALUES ('Hill run', 'Run', '2026-01-06T12:00:00Z', 6, 1800, 300, 150, 'confirmed', 77701)`,
+      args: [],
+    });
+    const activityId = Number(inserted.lastInsertRowid);
+
+    // Half an hour at 300 s/km up a steady 6% grade.
+    const seconds = Array.from({ length: 1800 }, (_, i) => i);
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        time: { data: seconds },
+        distance: { data: seconds.map((s) => (s * 1000) / 300) },
+        heartrate: { data: seconds.map(() => 150) },
+        velocity_smooth: { data: seconds.map(() => 1000 / 300) },
+        grade_smooth: { data: seconds.map(() => 6) },
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await strava.ensureActivityStreams({ id: activityId, strava_id: 77701 });
+
+    const stored = await db.getActivityMetrics(activityId);
+    expect(stored?.metricsVersion).toBe(3);
+    // Climbing, so the flat-ground equivalent is quicker than the stored pace,
+    // and it is the STORED pace it scales.
+    const gap = stored?.avgGapSPerKm;
+    expect(gap).not.toBeNull();
+    expect(gap!).toBeLessThan(300);
+    // Minetti prices a 6% climb at 1.36863 flat metres per metre.
+    expect(gap!).toBeCloseTo(300 / 1.36863, 2);
   });
 
   it("caches the stream even when the metrics cannot be derived", async () => {

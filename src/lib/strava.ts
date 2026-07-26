@@ -21,7 +21,7 @@ import {
 import { bestEffortRows, type StravaBestEffort } from "./best-efforts";
 import { isRideSport } from "./cycling";
 import { logger } from "./telemetry";
-import { computeStreamMetrics, hasAnyMetric, METRICS_VERSION_FULL_RES } from "./stream-metrics";
+import { computeStreamMetrics, fullResMetricsVersion, hasAnyMetric } from "./stream-metrics";
 import { FULL_RESOLUTION, normalizeStreams, type ActivityStreams } from "./streams";
 import type { Activity } from "./types";
 import { round2 } from "./format";
@@ -424,7 +424,8 @@ export async function ensureActivityDetail(
 
 /**
  * Derives and stores an activity's metrics from the stream Strava just returned,
- * at the resolution it was recorded at (`metrics_version = 2`). Called from the
+ * at the resolution it was recorded at, stamped with the version the payload
+ * earned (`fullResMetricsVersion`: 3 with real grade, 2 without). Called from the
  * FETCH branch only: a cached read returns before it, so viewing an activity
  * whose stream is already stored still issues no write. Nothing here may take the
  * stream cache down with it — a failed metric is a missing tile, a failed cache
@@ -441,7 +442,7 @@ async function cacheStreamMetrics(
     if (!activity) return;
     const metrics = computeStreamMetrics({ streams, activity }, await getAthleteThresholds());
     if (!hasAnyMetric(metrics)) return;
-    await upsertActivityMetrics(activityId, metrics, METRICS_VERSION_FULL_RES);
+    await upsertActivityMetrics(activityId, metrics, fullResMetricsVersion(streams));
   } catch (error) {
     logger.error("strava.cacheStreamMetrics", { error, activityId });
   }
@@ -470,7 +471,7 @@ export async function ensureActivityStreams(
     const raw = await apiGet<Record<string, { data: number[] }>>(
       `/activities/${activity.strava_id}/streams`,
       {
-        keys: "time,distance,heartrate,velocity_smooth,watts,cadence,altitude",
+        keys: "time,distance,heartrate,velocity_smooth,watts,cadence,altitude,grade_smooth",
         key_by_type: "true",
       }
     );

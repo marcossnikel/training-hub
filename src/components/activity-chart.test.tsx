@@ -48,6 +48,7 @@ function makeStreams(overrides: Partial<ActivityStreams>): ActivityStreams {
     watts: null,
     cadence: null,
     altitudeM: null,
+    gradePct: null,
     ...overrides,
   };
 }
@@ -963,6 +964,93 @@ describe("ActivityChart inverted pace panel", () => {
   });
 });
 
+describe("ActivityChart grade-adjusted pace overlay", () => {
+  const hilly = (gradePct: (number | null)[]) =>
+    makeStreams({ paceSPerKm: [330, 330, 330, 330, 330], gradePct });
+
+  /** The dashed second trace drawn inside the pace panel, if any. */
+  const overlay = (container: HTMLElement) => container.querySelector('[data-overlay="pace"]');
+
+  /** Every y in a path's `d`, so a trace can be checked against the panel edges. */
+  const ysOf = (el: Element) =>
+    Array.from((el.getAttribute("d") ?? "").matchAll(/[ML]([\d.]+),([\d.]+)/g)).map((m) =>
+      Number(m[2])
+    );
+
+  it("draws a dashed GAP trace above the pace trace, on the panel's own scale", () => {
+    const { container } = render(
+      <ActivityChart
+        activityId={1}
+        streams={hilly([6, 6, 6, 6, 6])}
+        isRun={true}
+        isRide={false}
+        thresholds={thresholds}
+      />
+    );
+    const path = overlay(container);
+    expect(path).not.toBeNull();
+    // Same colour as the pace series it rides with; the dash and the reduced
+    // opacity are what separate them, and both are load-bearing — opacity alone
+    // reads as "the same line, further away" once the traces cross.
+    expect(path!.getAttribute("stroke")).toBe("var(--chart-2)");
+    expect(path!.getAttribute("stroke-dasharray")).toBeTruthy();
+    expect(Number(path!.getAttribute("opacity"))).toBeCloseTo(0.6, 6);
+
+    const paceTrace = Array.from(container.querySelectorAll("path")).find(
+      (el) => !el.hasAttribute("data-overlay") && (el.getAttribute("d") ?? "").startsWith("M")
+    )!;
+    const gapYs = ysOf(path!);
+    const paceYs = ysOf(paceTrace);
+    expect(gapYs.length).toBeGreaterThan(1);
+    // On an inverted panel a faster pace plots higher, so the GAP of a climb
+    // sits above the recorded pace.
+    expect(Math.max(...gapYs)).toBeLessThan(Math.min(...paceYs));
+    // And it sits INSIDE the panel. The pace here is a constant 330 s/km, so a
+    // panel scaled to the recorded trace alone spans 329-331 and pins this
+    // 241 s/km overlay flat against the top border, which is the one thing a
+    // grade-adjusted trace must never look like.
+    expect(Math.min(...gapYs)).toBeGreaterThan(TOP + 1);
+    expect(Math.max(...paceYs)).toBeLessThan(TOP + PANEL_H - 1);
+  });
+
+  it("has no overlay on a run with no grade", () => {
+    const { container: flat } = render(
+      <ActivityChart
+        activityId={1}
+        streams={makeStreams({ paceSPerKm: [330, 330, 330, 330, 330] })}
+        isRun={true}
+        isRide={false}
+        thresholds={thresholds}
+      />
+    );
+    expect(overlay(flat)).toBeNull();
+  });
+
+  it("has no overlay on a ride, even once its pace panel is switched on", () => {
+    // A ride's defaults never enable the pace panel, so asserting on the default
+    // render proves nothing about the sport gate — the overlay would be absent
+    // either way. Turn the panel on first: the trace appears, the overlay must
+    // not, because the cost polynomial behind it is running economy and a bike's
+    // gearing breaks the link between grade and pace it rests on.
+    const { container: ride } = render(
+      <ActivityChart
+        activityId={2}
+        streams={hilly([6, 6, 6, 6, 6])}
+        isRun={false}
+        isRide={true}
+        thresholds={thresholds}
+      />
+    );
+    expect(pressed("Pace")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Pace" }));
+    expect(pressed("Pace")).toBe("true");
+    // The pace panel really is on screen now (its axis label is drawn), so the
+    // absence below is the sport gate and not an unrendered panel.
+    expect(ride.textContent).toContain("min/km");
+    expect(overlay(ride)).toBeNull();
+  });
+});
+
 /** A pace stream written compactly, with "-" for a sample the GPS dropped. */
 const paceStream = (samples: string) =>
   samples.split(" ").map((v) => (v === "-" ? null : Number(v)));
@@ -1004,6 +1092,7 @@ describe("ActivityChart pace bands on real streams", () => {
     watts: null,
     cadence: null,
     altitudeM: null,
+    gradePct: null,
   });
 
   it.each([

@@ -56,6 +56,7 @@ export function ActivityLoadControl({
   source,
   intensityFactor,
   ef,
+  efFromGap,
   decoupling,
 }: {
   activityId: number;
@@ -66,6 +67,8 @@ export function ActivityLoadControl({
   intensityFactor: number | null;
   /** Efficiency factor, null when the sport or the recording gives no basis. */
   ef: number | null;
+  /** True when that EF was measured against grade-adjusted speed rather than raw pace. */
+  efFromGap: boolean;
   /** Aerobic decoupling in percent, null for short or streamless efforts. */
   decoupling: number | null;
 }) {
@@ -156,7 +159,11 @@ export function ActivityLoadControl({
           />
         ) : null}
         {ef != null ? (
-          <MetricTile label={t.detail.ef} value={ef.toFixed(2)} title={t.detail.efTooltip} />
+          <MetricTile
+            label={t.detail.ef}
+            value={ef.toFixed(2)}
+            title={efFromGap ? t.detail.efGapTooltip : t.detail.efTooltip}
+          />
         ) : null}
         {decoupling != null ? (
           <MetricTile
