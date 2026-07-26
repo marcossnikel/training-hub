@@ -119,6 +119,26 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T28 Cycling eFTP with apply button: done 2026-07-26, committed direct to main
 - ICU-T29 Backlog doc coherence pass: done 2026-07-26, committed direct to main
 
+**T24 history fetch coverage (2026-07-26).** Three supervised passes of `scripts/fetch-history.ts`, 850 Strava
+calls against the ~1000/day budget: pass 1 covered 45 activities in 83 calls, pass 2 covered 1 in 2 calls, and
+pass 3 covered 384 in 765 calls. Pass 2 was halted deliberately after a single activity: the stream keys did not
+yet request `grade_smooth`, and because full-resolution streams are never persisted and `ensureActivityStreams`
+never re-fetches over its own cache, every activity fetched before T26 would have been stuck permanently on the
+degraded altitude-derived GAP fallback. T26 and T27 were moved ahead of T25 so the one full-resolution pass would
+compute real grade and curve points as it went. Pass 3 was stopped by the harness at 384 of 400 with 765 calls
+spent; the script is resumable and skips populated activities, so nothing was lost.
+
+Coverage moved from 57 cached streams to 437 of 1238 activities, leaving 801 still to fetch (roughly two more
+daily passes). `activity_metrics` holds 11 rows at version 1, 46 at version 2 and 380 at version 3 (full
+resolution including real `grade_smooth`), 163 of them carrying `avg_gap_s_per_km`. `activity_curve_points` grew
+from 127 pace points across 29 activities to 787 across 192, and `activity_best_efforts` from 200 rows across 29
+activities to 1127 across 174, both via the app's own lazy insert paths.
+
+The sport gate held at scale: zero Runs carry `np_w` across all 437 rows, and the only activity with a
+normalized-power value is the single VirtualRide with a real power meter. Strava reports `device_watts: true` on
+266 of these Runs, so without that gate this pass would have written hundreds of meaningless watt values as
+version-3 rows that nothing later revisits.
+
 **Open, carried forward from T24 (deliberately not done in T25): threshold invalidation for `activity_metrics`.** `hr_zone_secs` and `pace_zone_secs` are frozen at the thresholds in force when the row was written, and nothing refreshes them when thresholds change. T25's recompute action was the obvious owner and is the wrong one: it rewrites `activity_load`, and folding a second bulk rewrite of a different table into the same button would hide it. Three things have to be settled first.
 
 - A refresh can only read the cached 400-point downsample (re-fetching full resolution costs a Strava call per activity plus deleting the cached stream). That is honest for a version-1 row and a downgrade for a version-2/3 one: it either strands `np_w` and `avg_gap_s_per_km`, which only full resolution produces, or leaves `metrics_version` claiming a provenance the zone arrays no longer have.
