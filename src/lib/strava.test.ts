@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { hrZones, zoneIndexOf, zoneSeconds } from "./fitness";
 
 // T3.6 — Strava resilience (G7.2, G7.4). Node-env unit tests that drive the REAL
 // strava.ts + db.ts against an ISOLATED temp sqlite file (never Turso) with a
@@ -194,24 +195,46 @@ describe("derived metrics are written from the fetched stream", () => {
     });
     const activityId = Number(inserted.lastInsertRowid);
 
-    // An hour of steady running: heart rate for the zone integration, velocity
-    // for the pace zones. 1 Hz, i.e. what full resolution actually looks like.
+    // An hour of running at 1 Hz — what full resolution actually looks like —
+    // carrying one-second spikes to 190 bpm that ONLY full resolution can see.
+    // The 400-point downsample keeps the samples at round(i/399 * 3599); every
+    // spike below is placed on a second that grid never lands on, so a row
+    // computed from the downsample reads zero seconds in the spike's zone while
+    // the full-resolution row reads one second per spike. Without this, a
+    // constant trace would integrate to the same 3599 seconds either way and the
+    // test would prove nothing about the resolution it was computed from.
     const seconds = Array.from({ length: 3600 }, (_, i) => i);
+    const sampledByDownsample = new Set(
+      Array.from({ length: 400 }, (_, i) => Math.round((i / 399) * 3599))
+    );
+    const isSpike = (s: number) => s % 9 === 4 && !sampledByDownsample.has(s);
+    const spikeCount = seconds.filter(isSpike).length;
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
         time: { data: seconds },
-        heartrate: { data: seconds.map(() => 150) },
+        heartrate: { data: seconds.map((s) => (isSpike(s) ? 190 : 150)) },
         velocity_smooth: { data: seconds.map(() => 3.2) },
       })
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    await strava.ensureActivityStreams({ id: activityId, strava_id: 77777 });
+    const downsampled = await strava.ensureActivityStreams({ id: activityId, strava_id: 77777 });
+
+    const zones = hrZones(await db.getAthleteThresholds());
+    const spikeZone = zoneIndexOf(190, zones);
+    expect(spikeZone).toBeGreaterThan(zoneIndexOf(150, zones));
+    expect(spikeCount).toBe(350);
 
     const stored = await db.getActivityMetrics(activityId);
     expect(stored?.metricsVersion).toBe(2);
-    // Integrated across the whole hour, not the 400-point downsample.
+    // Integrated across the whole hour: every spike second is there.
     expect(stored?.hrZoneSecs?.reduce((sum, s) => sum + s, 0)).toBe(3599);
+    expect(stored?.hrZoneSecs?.[spikeZone]).toBe(spikeCount);
+    // The same integration over the cached 400-point stream misses all of them,
+    // which is what makes the assertion above resolution-sensitive.
+    const fromDownsample = zoneSeconds(downsampled!.timeS, downsampled!.heartrate!, zones);
+    expect(fromDownsample?.reduce((sum, s) => sum + s, 0)).toBe(3599);
+    expect(fromDownsample?.[spikeZone]).toBe(0);
     expect(stored?.paceZoneSecs).not.toBeNull();
     expect(stored?.ef).toBeCloseTo(200 / 150, 6);
 

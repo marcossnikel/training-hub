@@ -12,7 +12,21 @@ import {
 // back decoded values — zone seconds as arrays, not JSON text — so no consumer
 // re-implements the parse.
 
-/** One stored row, decoded. */
+/**
+ * One stored row, decoded.
+ *
+ * `hrZoneSecs` and `paceZoneSecs` are the two fields that depend on the
+ * athlete's thresholds, and they are frozen at the thresholds in force when the
+ * row was written. Nothing invalidates them when thresholds change:
+ * `saveAthleteThresholds` recomputes `activity_load` but not this table, and
+ * `scripts/backfill-metrics.ts` skips any activity that already has a row unless
+ * it is run with `--recompute` — which refreshes version-1 rows only, since
+ * recomputing a version-2 row from the cached downsample would drop the `np_w`
+ * only a full-resolution fetch can produce. Every reader that prefers a stored
+ * split over computing one is therefore showing the zones of the day the stream
+ * was fetched. Plan task T25 owns the explicit in-app recompute action, and an
+ * automatic invalidation hook belongs there rather than on the save path.
+ */
 export interface StoredActivityMetrics extends ActivityMetrics {
   /** 1 = from the 400-point downsample, 2 = from the full-resolution stream. */
   metricsVersion: number;

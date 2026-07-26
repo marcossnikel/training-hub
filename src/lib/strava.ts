@@ -51,6 +51,44 @@ export const backoff = {
   sleep: (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
+/** One HTTP request this module actually sent to Strava. */
+export interface StravaRequestEvent {
+  /** "token" is the OAuth POST (code exchange or refresh); "api" is an API read. */
+  kind: "token" | "api";
+  /** Path requested, for logs. */
+  path: string;
+  /** HTTP status, or null when no response came back at all (network, timeout). */
+  status: number | null;
+}
+
+let requestObserver: ((event: StravaRequestEvent) => void) | null = null;
+
+/**
+ * Registers an observer notified of EVERY request that leaves this module: the
+ * token refresh POST and each 429 retry included, which is exactly what a caller
+ * counting its own `apiGet` calls cannot see. `scripts/fetch-history.ts` needs
+ * both — it books its rate budget against what actually went out, and it reads
+ * the statuses to tell a transport failure (no response, 401, 429, 5xx) from an
+ * activity that simply has nothing to fetch (404, or a 200 carrying nothing).
+ *
+ * Pass null to stop observing. Off by default, so the app pays nothing for it.
+ */
+export function observeStravaRequests(
+  observer: ((event: StravaRequestEvent) => void) | null
+): void {
+  requestObserver = observer;
+}
+
+/** Never let an observer's failure break the request path it is watching. */
+function notifyRequest(event: StravaRequestEvent): void {
+  if (!requestObserver) return;
+  try {
+    requestObserver(event);
+  } catch (error) {
+    logger.error("strava.requestObserver", { error });
+  }
+}
+
 /**
  * Retry-After is delta-seconds. Fall back to a sensible default when it is
  * missing or unparseable, and cap it so a hostile/huge value can't wedge us.
@@ -105,15 +143,22 @@ async function requestToken(params: Record<string, string>): Promise<TokenRespon
     client_secret: process.env.STRAVA_CLIENT_SECRET ?? "",
     ...params,
   });
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    cache: "no-store",
-    // Mirror apiGet: bound the token refresh so a hung request surfaces as an
-    // error/log instead of hanging the caller indefinitely.
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      cache: "no-store",
+      // Mirror apiGet: bound the token refresh so a hung request surfaces as an
+      // error/log instead of hanging the caller indefinitely.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    notifyRequest({ kind: "token", path: "/oauth/token", status: null });
+    throw error;
+  }
+  notifyRequest({ kind: "token", path: "/oauth/token", status: res.status });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Strava token request failed (${res.status}): ${text.slice(0, 200)}`);
@@ -163,11 +208,18 @@ export async function apiGet<T>(pathname: string, params?: Record<string, string
   // small number of times so one rate-limit response no longer aborts a whole
   // (up to ~50-page) sync. Never loops unbounded.
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      notifyRequest({ kind: "api", path: pathname, status: null });
+      throw error;
+    }
+    notifyRequest({ kind: "api", path: pathname, status: res.status });
     if (res.ok) return (await res.json()) as T;
     if (res.status === 401) throw new Error("Strava rejected the token. Reconnect from Settings.");
     if (res.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES) {

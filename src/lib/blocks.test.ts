@@ -56,8 +56,26 @@ describe("buildBlock time in zone", () => {
       4,
       THRESHOLDS
     );
-    // 170 bpm is Z4, so the second run's whole hour adds there.
-    expect(block.zoneSec).toEqual([600, 600, 600, 4200, 600]);
+    // The measured run's 3000 stream seconds are rescaled onto its 3600 s of
+    // moving time (720 per zone, shape unchanged), and 170 bpm is Z4, so the
+    // estimated run's whole hour adds there.
+    expect(block.zoneSec).toEqual([720, 720, 720, 4320, 720]);
+  });
+
+  it("puts stream-elapsed zone seconds on the same clock as the hours", () => {
+    // A watch that kept recording through the stops: 3900 s of stream against
+    // 3600 s of moving time. Left alone, the block's zone total would exceed its
+    // own totalHours and polarization would mix two clocks.
+    const block = buildBlock(
+      [run({ hrZoneSec: [1300, 1300, 650, 650, 0] })],
+      RACE_START,
+      4,
+      THRESHOLDS
+    );
+    expect(block.zoneSec.reduce((sum, s) => sum + s, 0)).toBe(block.totalHours * 3600);
+    // The shape survives the rescale: still 2/3 easy, 1/3 hard.
+    expect(block.zoneSec).toEqual([1200, 1200, 600, 600, 0]);
+    expect(block.polarization).toBeCloseTo(2, 6);
   });
 
   it("ignores a stored distribution that is not five zones", () => {

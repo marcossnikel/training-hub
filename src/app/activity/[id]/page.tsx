@@ -520,6 +520,18 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // Time in zone, integrated from the cached stream: heart rate for any sport
   // that recorded a trace, pace for runs. A bar is dropped when the threshold it
   // needs is unset or no sample landed in a zone.
+  //
+  // STALE AFTER A THRESHOLD CHANGE: unlike EF and decoupling, a zone split
+  // depends on the thresholds, and the stored one was frozen at the LTHR and
+  // threshold pace in force when the stream was fetched. Saving new thresholds
+  // (Settings, or the zones agent applying a suggestion) does NOT invalidate it,
+  // so these bars keep the old split until the row is recomputed. The fallback
+  // below always reflects the CURRENT thresholds, so while a row is stale it is
+  // the more correct of the two — a stale stored split is worse here than no row
+  // at all, and it is preferred anyway because it is full resolution and free.
+  // `scripts/backfill-metrics.ts --recompute --write` refreshes version-1 rows;
+  // a version-2 row would have to give up its np_w to be refreshed that way, so
+  // it is left alone until plan task T25's in-app recompute action.
   const hrZoneSec =
     storedMetrics?.hrZoneSecs ??
     (streams?.heartrate && thresholds.lthr > 0

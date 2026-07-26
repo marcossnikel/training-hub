@@ -96,6 +96,54 @@ describe("normalizedPower", () => {
     expect(np!).toBeLessThan(252);
   });
 
+  // The fourth power and the fourth root are the metric, not an implementation
+  // detail: a square/square-root pair (a root-mean-square) or a 1/1 pair (the
+  // plain average) both satisfy "above the average, below the unsmoothed
+  // quartic mean" while quietly under-reading every surging ride. These two
+  // pin the exponents to the one value they can produce together.
+  it("is the fourth-power mean of the rolling averages, not a root-mean-square", () => {
+    const stream = streamOf({
+      durationS: 1200,
+      watts: (t) => (Math.floor(t / 60) % 2 === 0 ? 100 : 300),
+    });
+    // Same trace as above. Fourth power/fourth root: 239.372. Root-mean-square
+    // would read 216.237, the plain mean 200, a sixth-power mean 253.195.
+    expect(normalizedPower(stream.timeS, stream.watts!)).toBeCloseTo(239.372, 3);
+  });
+
+  it("reads a linear ramp at its fourth-power mean", () => {
+    // 0 to 400 W over 20 minutes: mean 200 W, quartic mean 264.938,
+    // root-mean-square 229.412, sixth-power mean 286.159.
+    const stream = streamOf({ durationS: 1200, watts: (t) => (t / 1200) * 400 });
+    expect(normalizedPower(stream.timeS, stream.watts!)).toBeCloseTo(264.938, 3);
+  });
+
+  it("does not credit a recording gap at the last recorded wattage", () => {
+    // 5 min at 300 W, a 20-minute stop (auto-pause: no samples at all), 5 min at
+    // 100 W. Holding 300 W across the stop reads 286.97 W — more than the hard
+    // block deserves and more than either block was ridden at.
+    const timeS: number[] = [];
+    const watts: number[] = [];
+    for (let t = 0; t <= 300; t++) {
+      timeS.push(t);
+      watts.push(300);
+    }
+    for (let t = 0; t <= 300; t++) {
+      timeS.push(1500 + t);
+      watts.push(100);
+    }
+    const gapped = normalizedPower(timeS, watts);
+    const contiguous = streamOf({ durationS: 600, watts: (t) => (t < 300 ? 300 : 100) });
+    const backToBack = normalizedPower(contiguous.timeS, contiguous.watts!)!;
+
+    expect(gapped).toBeCloseTo(254.814, 3);
+    // The capped span still credits 30 s of the hard block's wattage across the
+    // start of the pause, so the gapped trace reads a little above the same two
+    // blocks recorded back to back (251.67 W) — a few watts, not 35.
+    expect(gapped!).toBeGreaterThan(backToBack);
+    expect(gapped! - backToBack).toBeLessThan(5);
+  });
+
   it("smooths surges shorter than the window", () => {
     // The same 50/50 duty cycle in 5 s blocks: six blocks fit exactly inside the
     // 30 s window, so every rolling average is the plain 200 W and the surges
@@ -225,8 +273,19 @@ describe("computeStreamMetrics normalized power", () => {
   });
 
   it("leaves it null for a run carrying watch power", () => {
+    // Strava marks watch run power `device_watts: true` exactly like a bike
+    // meter, so this run reaches the metric with hasRealPower set and a full
+    // watts stream. Normalizing it would store a ride-shaped number derived
+    // from a model of pace: rides only, the same gate `efBasisFor` applies.
+    const watchPower: MetricsActivity = { ...RUN, hasRealPower: true, powerW: 280 };
     const stream = streamOf({ durationS: 1200, watts: () => 280 });
-    expect(computeStreamMetrics({ streams: stream, activity: RUN }, THRESHOLDS).npW).toBeNull();
+    expect(
+      computeStreamMetrics({ streams: stream, activity: watchPower }, THRESHOLDS).npW
+    ).toBeNull();
+    // The run's own metrics are unaffected: speed-based EF still lands.
+    expect(
+      computeStreamMetrics({ streams: stream, activity: watchPower }, THRESHOLDS).ef
+    ).toBeCloseTo(200 / 150, 6);
   });
 });
 

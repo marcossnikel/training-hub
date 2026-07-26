@@ -14,19 +14,50 @@
  *
  * Dry run by default: it prints what it would write and inserts nothing.
  *
- *   npm run backfill:metrics              # dry run
- *   npm run backfill:metrics -- --write   # actually upsert
+ *   npm run backfill:metrics                        # dry run
+ *   npm run backfill:metrics -- --write             # actually upsert
+ *   npm run backfill:metrics -- --recompute         # dry run, version-1 rows too
+ *   npm run backfill:metrics -- --recompute --write # rewrite version-1 rows
+ *
+ * `--recompute` exists because the stored zone seconds are FROZEN at whatever
+ * thresholds were in force when they were computed. Change LTHR or threshold
+ * pace (Settings, or the zones agent applying a suggestion) and every stored
+ * `hr_zone_secs` / `pace_zone_secs` still describes the old zones, while the
+ * activity page and buildBlock prefer the stored array unconditionally. Without
+ * this flag there is no way to refresh them: the normal pass skips any activity
+ * that already has a row.
+ *
+ * It refreshes VERSION-1 ROWS ONLY. A version-2 row is left exactly as it is,
+ * because everything this script can compute comes from the 400-point
+ * downsample: rewriting one would replace a full-resolution row with a
+ * downsampled one and drop its `np_w`, which is now ride-only (Strava's
+ * `device_watts` is set on runs too, so only real meters qualify) and therefore
+ * rare. Nothing here can regenerate it — only another full-resolution fetch can,
+ * and that costs a Strava call against a ~100/15 min budget AND requires
+ * deleting the cached `activity_streams` row first, since `ensureActivityStreams`
+ * returns the cache and never re-fetches over it. A routine threshold change
+ * must not spend that.
+ *
+ * `--allow-downgrade` (only meaningful with `--recompute`) opts into the
+ * destructive behaviour: version-2 rows are recomputed too, landing as version-1
+ * rows with `np_w` dropped. Use it when a correct zone split matters more than
+ * keeping normalized power on those activities.
+ *
+ * These flags are the manual stopgap. Plan task T25 owns the in-app recompute
+ * action, and an automatic invalidation hook on saveAthleteThresholds belongs
+ * there, with it — not bolted onto the save path here.
  *
  * Against the shared Turso database, load the env and opt in explicitly:
  *
  *   set -a; . ./.env.local; set +a; ALLOW_REMOTE_DB=1 npx tsx scripts/backfill-metrics.ts
  *   set -a; . ./.env.local; set +a; ALLOW_REMOTE_DB=1 npx tsx scripts/backfill-metrics.ts --write
  *
- * Idempotent and resumable: an activity that already has a metrics row is
- * skipped, whatever its version, so an interrupted run resumes where it stopped
- * and a version-2 row is never overwritten with a downsampled one. The only write
- * a dry run can cause is `ensureMigrated` applying pending ADDITIVE migrations
- * (here: creating the table it reads).
+ * Idempotent and resumable: without `--recompute`, an activity that already has
+ * a metrics row is skipped whatever its version, so an interrupted run resumes
+ * where it stopped. A version-2 row is never overwritten with a downsampled one
+ * unless `--allow-downgrade` says so. The only write a dry run can cause is
+ * `ensureMigrated` applying pending ADDITIVE migrations (here: creating the
+ * table it reads).
  */
 import {
   ensureMigrated,
@@ -56,6 +87,8 @@ interface PendingActivity {
   activityId: number;
   sportType: string | null;
   metrics: ActivityMetrics;
+  /** Version of the row this one replaces, or null when there is none. */
+  replacesVersion: number | null;
 }
 
 function fmtNumber(value: number | null, digits: number): string {
@@ -97,9 +130,14 @@ function parseStreams(activity: StreamedActivity): ActivityStreams | null {
 
 async function main() {
   const write = process.argv.includes("--write");
+  const recompute = process.argv.includes("--recompute");
+  const allowDowngrade = process.argv.includes("--allow-downgrade");
   // --force is deliberately NOT accepted here: the real run is gated by --write, and
   // ALLOW_REMOTE_DB=1 stays the only way to reach a remote database.
   assertLocalDb();
+  if (allowDowngrade && !recompute) {
+    console.log("  --allow-downgrade does nothing without --recompute; ignoring it.");
+  }
   await ensureMigrated();
 
   const thresholds = await getAthleteThresholds();
@@ -107,15 +145,31 @@ async function main() {
   const pending: PendingActivity[] = [];
   let scanned = 0;
   let alreadyStored = 0;
+  let fullResKept = 0;
   let unparseable = 0;
   let nothingToStore = 0;
 
   for await (const activity of eachStreamedActivity()) {
     scanned += 1;
     // Any stored row means this activity is done: the version-2 rows the fetch
-    // pass writes are strictly better than anything computable here.
-    if (activity.metrics_version !== null) {
+    // pass writes are strictly better than anything computable here. Unless the
+    // caller asked for a recompute, which is the only way to pick up a
+    // threshold change in already-stored zone seconds.
+    if (activity.metrics_version !== null && !recompute) {
       alreadyStored += 1;
+      continue;
+    }
+    // A recompute still refuses to touch a full-resolution row: everything below
+    // is derived from the 400-point downsample, so rewriting one would trade its
+    // np_w — unrecoverable without another Strava fetch — for a zone split this
+    // script cannot compute any better than the row already has it.
+    if (
+      recompute &&
+      activity.metrics_version !== null &&
+      activity.metrics_version !== METRICS_VERSION_DOWNSAMPLED &&
+      !allowDowngrade
+    ) {
+      fullResKept += 1;
       continue;
     }
     const streams = parseStreams(activity);
@@ -136,18 +190,57 @@ async function main() {
       nothingToStore += 1;
       continue;
     }
-    pending.push({ activityId: activity.id, sportType: activity.sport_type, metrics });
+    pending.push({
+      activityId: activity.id,
+      sportType: activity.sport_type,
+      metrics,
+      replacesVersion: activity.metrics_version,
+    });
   }
 
-  console.log(write ? "Derived-metrics backfill (WRITE)." : "Derived-metrics backfill (dry run).");
+  const mode =
+    `${write ? "WRITE" : "dry run"}${recompute ? ", RECOMPUTE" : ""}` +
+    `${recompute && allowDowngrade ? ", ALLOW DOWNGRADE" : ""}`;
+  console.log(`Derived-metrics backfill (${mode}).`);
   console.log(`  activities with a cached stream:        ${scanned}`);
   console.log(`  of those, metrics already stored:       ${alreadyStored}`);
+  if (recompute) {
+    console.log(`  of those, version-2 rows left as they are: ${fullResKept}`);
+    if (fullResKept > 0) {
+      console.log(
+        "  Their zone seconds are stale too, and this script cannot refresh them without " +
+          "dropping np_w. To refresh one: delete its activity_streams row (so the cache " +
+          "stops short-circuiting the fetch) and re-run scripts/fetch-history.ts, which " +
+          "rewrites it at full resolution. Or pass --allow-downgrade to accept the loss."
+      );
+    }
+  }
   console.log(`  of those, unparseable stream (skipped): ${unparseable}`);
   console.log(`  of those, nothing computable:           ${nothingToStore}`);
   console.log(
     `  ${write ? "upserting" : "would upsert"}: ${pending.length} rows ` +
       `at metrics_version ${METRICS_VERSION_DOWNSAMPLED}`
   );
+  // The buckets above partition everything scanned; anything else is a bug in
+  // the loop, and a dry run whose numbers do not add up must say so.
+  const accounted = alreadyStored + fullResKept + unparseable + nothingToStore + pending.length;
+  if (accounted !== scanned) {
+    console.warn(`  warning: ${scanned - accounted} scanned activities are unaccounted for`);
+  }
+  if (recompute) {
+    const replaced = pending.filter((p) => p.replacesVersion !== null);
+    const downgraded = replaced.filter((p) => p.replacesVersion !== METRICS_VERSION_DOWNSAMPLED);
+    console.log(`  of those, rewriting an existing row:    ${replaced.length}`);
+    if (allowDowngrade) {
+      console.log(`  of those, downgraded from version 2:    ${downgraded.length}`);
+      if (downgraded.length > 0) {
+        console.log(
+          "  NOTE: a downgraded row is re-integrated from the 400-point downsample " +
+            "and loses its np_w. Only re-fetching the full-resolution stream restores it."
+        );
+      }
+    }
+  }
 
   const samples = pending.slice(0, SAMPLE_ROWS);
   if (samples.length > 0) {

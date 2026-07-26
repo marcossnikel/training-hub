@@ -19,8 +19,17 @@ export interface BlockActivity {
   avg_pace_s_per_km: number | null;
   /**
    * Seconds actually spent in each heart-rate zone, from this activity's
-   * persisted stream metrics. Absent for activities whose stream was never
-   * fetched, which is what the average-HR estimate below covers.
+   * persisted stream metrics, measured on the STREAM-ELAPSED clock. Absent for
+   * activities whose stream was never fetched, which is what the average-HR
+   * estimate below covers.
+   *
+   * STALE AFTER A THRESHOLD CHANGE: the split was frozen at the LTHR in force
+   * when the stream was fetched and nothing invalidates it, so after new zones
+   * are applied these seconds still describe the old ones.
+   * `scripts/backfill-metrics.ts --recompute --write` refreshes version-1 rows;
+   * a version-2 one keeps its stale split unless it is re-fetched (T25 turns
+   * this into an in-app action). Still closer than the avg-HR fallback below,
+   * which drops a whole session into one zone.
    */
   hrZoneSec?: number[] | null;
 }
@@ -64,6 +73,11 @@ export interface BlockSummary {
  * block reads truer as stream coverage grows, without waiting for all of it.
  * Activities with neither still count toward volume totals but add nothing to
  * zone time.
+ *
+ * Both sources are put on ONE clock — moving time — so `zoneSec`, `totalHours`
+ * and `polarization` stay comparable no matter which activities in the block
+ * have streams (see the rescale below). Persisted seconds are stream-elapsed as
+ * stored, and the two clocks differ by a few percent.
  */
 export function buildBlock(
   activities: BlockActivity[],
@@ -112,7 +126,18 @@ export function buildBlock(
 
     const persisted = a.hrZoneSec;
     if (persisted && persisted.length === zoneSec.length) {
-      for (let i = 0; i < zoneSec.length; i++) zoneSec[i] += persisted[i];
+      // Persisted zone seconds are integrated over STREAM-ELAPSED time, which
+      // includes whatever the watch kept recording while stopped; every other
+      // total here (week.hours, totalHours) is moving time. Left as they come,
+      // one block's zone total and its hours would run on two different clocks
+      // (measured divergence on real activities: 0-3.8%) and polarization would
+      // mix them. So the distribution is rescaled onto the moving clock: the
+      // SHAPE is what the persisted array is for, and the shape is preserved
+      // exactly, while the total it sums to is the same one the volume tiles
+      // report. An activity with no moving time keeps its raw seconds.
+      const streamSec = persisted.reduce((sum, s) => sum + s, 0);
+      const toMovingClock = streamSec > 0 && secs > 0 ? secs / streamSec : 1;
+      for (let i = 0; i < zoneSec.length; i++) zoneSec[i] += persisted[i] * toMovingClock;
     } else if (a.avg_hr != null) {
       const zi = zoneIndexOf(a.avg_hr, zones);
       if (zi >= 0) zoneSec[zi] += secs;
@@ -121,6 +146,10 @@ export function buildBlock(
     // run as a whole was hard, which per-zone seconds do not answer.
     if (run && a.avg_hr != null && (z3Min == null || a.avg_hr >= z3Min)) qualityRuns += 1;
   }
+
+  // Whole seconds: the rescale above is fractional, and a zone bar labelled in
+  // minutes has no use for the remainder.
+  for (let i = 0; i < zoneSec.length; i++) zoneSec[i] = Math.round(zoneSec[i]);
 
   const totalKm = weekly.reduce((s, w) => s + w.km, 0);
   const runKm = weekly.reduce((s, w) => s + w.runKm, 0);
