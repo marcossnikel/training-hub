@@ -489,6 +489,15 @@ export const VDOT_CURRENT_WINDOW_DAYS = 90;
 /** Months of monthly-max history the trend covers, including the current one. */
 export const VDOT_TREND_MONTHS = 12;
 
+// CAVEAT on the times these readings are built from, which this is the first code to
+// depend on: Strava's `best_efforts` payload reports `moving_time == elapsed_time` on
+// every row it stores — true for all 103 live rows — so `moving_time_s` here is really
+// WALL-CLOCK time and may include stopped seconds. Activity 41's stored 20K "moving
+// time" of 6977 s covers about 207 s of standing (its laps 9, 18 and 21 have elapsed >
+// moving); the real 20 km moving time is 6770 s, which reads as VDOT 36.9 rather than
+// 35.4. Every VDOT below is therefore a slight UNDER-estimate, by however long the
+// athlete stood still inside the segment. Not corrected here: the per-lap split is not
+// in this table, and under-stating a fitness index is the safe direction.
 /** A stored effort reduced to what the VDOT math reads: how far, how long, when. */
 export type VdotEffort = Pick<StoredBestEffort, "distance_m" | "moving_time_s" | "date">;
 
@@ -513,42 +522,135 @@ export interface VdotTrend {
   months: VdotMonth[];
 }
 
-/** The local YYYY-MM-DD key `days` before `asOf`, via calendar arithmetic (DST-safe). */
-function dayKeyBefore(asOf: Date, days: number): string {
-  return localDateInputValue(new Date(asOf.getFullYear(), asOf.getMonth(), asOf.getDate() - days));
+/**
+ * The local YYYY-MM-DD key `days` after `from` (negative goes back), via calendar
+ * arithmetic so a DST shift cannot move it.
+ */
+function dayKeyOffset(from: Date, days: number): string {
+  return localDateInputValue(new Date(from.getFullYear(), from.getMonth(), from.getDate() + days));
 }
 
 /**
- * Current VDOT plus its monthly-max trend, from stored best efforts.
- *
- * Each month keeps the single best VDOT any qualifying effort in it produced, and
- * months with none stay null: only a fraction of runs carry a cached detail
- * payload, so an empty month means "nothing measured", never "fitness dropped to
- * zero", and the UI has to draw it as a gap. The current value is a max over the
- * trailing 90 days rather than the latest reading, so an easy-run segment cannot
- * make fitness look like it collapsed since the last hard effort.
- *
- * Dates are compared as local YYYY-MM-DD keys, the form the rows already carry, so
- * a stored stamp is never re-interpreted through a timezone.
+ * First day of the VDOT_CURRENT_WINDOW_DAYS-day window ENDING on `end`, with both
+ * ends counted — so the window is exactly as many days as its label claims: the 90
+ * days ending 2026-07-25 start on 2026-04-27, not on 2026-04-26.
  */
-export function vdotTrend(efforts: readonly VdotEffort[], asOf: Date): VdotTrend {
-  const months: VdotMonth[] = [];
-  for (let back = VDOT_TREND_MONTHS - 1; back >= 0; back--) {
-    const month = new Date(asOf.getFullYear(), asOf.getMonth() - back, 1);
-    months.push({ month: localDateInputValue(month).slice(0, 7), vdot: null });
-  }
-  const byMonth = new Map(months.map((m) => [m.month, m]));
-  const currentFrom = dayKeyBefore(asOf, VDOT_CURRENT_WINDOW_DAYS);
-  let current: number | null = null;
+function windowStartKey(end: Date): string {
+  return dayKeyOffset(end, -(VDOT_CURRENT_WINDOW_DAYS - 1));
+}
 
+/** One qualifying effort reduced to the two things the trend ranks it by. */
+interface VdotReading {
+  day: string;
+  vdot: number;
+}
+
+/** Best VDOT among readings in the inclusive [from, to] day range; null when none. */
+function bestBetween(readings: readonly VdotReading[], from: string, to: string): number | null {
+  let best: number | null = null;
+  for (const reading of readings) {
+    if (reading.day < from || reading.day > to) continue;
+    if (best === null || reading.vdot > best) best = reading.vdot;
+  }
+  return best;
+}
+
+/** Every qualifying effort in the inclusive [from, to] day range, as VDOT readings. */
+function vdotReadings(
+  efforts: readonly VdotEffort[],
+  from: string,
+  to: string
+): readonly VdotReading[] {
+  const readings: VdotReading[] = [];
   for (const effort of efforts) {
     if (!qualifiesForVdot(effort)) continue;
     const day = (effort.date as string).slice(0, 10);
-    const vdot = vdotFromEffort(effort.distance_m, effort.moving_time_s);
-    if (day >= currentFrom && (current === null || vdot > current)) current = vdot;
-    const month = byMonth.get(day.slice(0, 7));
-    if (month && (month.vdot === null || vdot > month.vdot)) month.vdot = vdot;
+    if (day < from || day > to) continue;
+    readings.push({ day, vdot: vdotFromEffort(effort.distance_m, effort.moving_time_s) });
   }
+  return readings;
+}
 
-  return { current, months };
+/**
+ * Current VDOT plus its monthly trend, from stored best efforts.
+ *
+ * `current` is the best qualifying effort of the trailing VDOT_CURRENT_WINDOW_DAYS
+ * days rather than the latest reading, so an easy-run segment cannot make fitness
+ * look like it collapsed since the last hard effort.
+ *
+ * The monthly series gets the SAME protection, stated once: a month is plotted only
+ * when its own best effort IS the trailing-window best at that month's end — i.e.
+ * only when it is the number this tile would have shown on the last day of that
+ * month. A month whose best was beaten by an effort inside the trailing window is a
+ * GAP, which the sparkline draws as a break in the line.
+ *
+ * Why suppress rather than plot it: VDOT is defined for MAXIMAL efforts only, and a
+ * stored segment carries nothing that says whether the athlete was racing or jogging.
+ * Aerobic fitness does not fall and recover inside 90 days, so a month whose best
+ * effort sits below one measured that recently cannot be maximal — it is missing
+ * data, and drawing it fabricates a collapse. Live case: June 2026's best qualifying
+ * effort is the fastest 20 km inside a 22.34 km EASY run at 5:38/km, VDOT 35.4,
+ * between genuine readings of 46.1 (Apr) and 45.1 (Jul). Plotted, it reads as
+ * detraining and re-peaking within four weeks and drags the chart's floor down ten
+ * points; as a gap it says exactly what is true, that June measured nothing maximal.
+ *
+ * Two deliberate limits on the rule:
+ *  - Only the look-BACK is applied. Suppressing a month because a LATER one was
+ *    better would erase genuine progression, which is the whole point of a trend.
+ *  - It never carries a value forward into a month that measured nothing. The
+ *    alternative (making every point a trailing-window max) would invent readings for
+ *    empty months; suppressing only ever makes the series say LESS, never something
+ *    that was not measured. Months with no qualifying effort stay null for the same
+ *    reason: only a fraction of runs carry the cached detail payload best efforts
+ *    come from, so an empty month means "nothing measured", not "fitness went to zero".
+ *
+ * Both ends are bounded. Efforts after `asOf` are dropped everywhere, so a
+ * future-dated row (watch clock skew, or the UTC shift below) cannot feed the tile
+ * while having no month to land in. Every window is a subset of the 12-month span, so
+ * `current` is non-null only if the span's best-reading month is plotted too: the
+ * tile and the chart can never disagree about the same dataset.
+ *
+ * DATES ARE MIXED, knowingly: rows carry COALESCE(started_at_local, started_at) and
+ * started_at_local is NULL for 97 of the 103 live rows, so most days are read off a
+ * UTC "...Z" stamp while `asOf`'s month keys and window edges are server-local. Every
+ * other date read in the repo does the same (listFastestBestEfforts, db/benchmarks.ts,
+ * periodTotals), so it is left consistent rather than made locally correct here.
+ * Consequence: a run started 22:00 BRT on 30 June is stored as 2026-07-01T01:00Z and
+ * buckets into July.
+ */
+export function vdotTrend(efforts: readonly VdotEffort[], asOf: Date): VdotTrend {
+  const starts: Date[] = [];
+  for (let back = VDOT_TREND_MONTHS - 1; back >= 0; back--) {
+    starts.push(new Date(asOf.getFullYear(), asOf.getMonth() - back, 1));
+  }
+  const asOfKey = localDateInputValue(asOf);
+  const readings = vdotReadings(efforts, localDateInputValue(starts[0]), asOfKey);
+
+  const months: VdotMonth[] = starts.map((start) => {
+    const month = localDateInputValue(start).slice(0, 7);
+    // A month still running is only measured as far as it has actually happened.
+    const lastDay = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    const end = lastDay > asOf ? asOf : lastDay;
+    const endKey = localDateInputValue(end);
+    const own = bestBetween(readings, localDateInputValue(start), endKey);
+    if (own === null) return { month, vdot: null };
+    // The trailing window CONTAINS the month, so its best is never below the month's
+    // own; strictly higher means the month's best was beaten inside the window.
+    const trailing = bestBetween(readings, windowStartKey(end), endKey);
+    return { month, vdot: trailing !== null && trailing > own ? null : own };
+  });
+
+  return { current: bestBetween(readings, windowStartKey(asOf), asOfKey), months };
+}
+
+/**
+ * Just the current VDOT, for callers that want the tile's number and not the chart
+ * (the zones agent's evidence). Reads only the trailing window instead of building
+ * twelve months of history to throw eleven of them away; identical by construction to
+ * `vdotTrend(...).current`, which maxes over the same window of the same rows.
+ */
+export function currentVdot(efforts: readonly VdotEffort[], asOf: Date): number | null {
+  const from = windowStartKey(asOf);
+  const to = localDateInputValue(asOf);
+  return bestBetween(vdotReadings(efforts, from, to), from, to);
 }

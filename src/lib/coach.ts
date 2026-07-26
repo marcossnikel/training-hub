@@ -547,10 +547,15 @@ export function buildZonesContext(input: {
   }
 
   // The computed VDOT, so the agent's VO2max estimate starts from Daniels-Gilbert
-  // arithmetic on a real segment effort rather than a guess off the list above.
+  // arithmetic on a real segment effort rather than a guess off the list above. Under
+  // its OWN header: it is derived from a SUB-SEGMENT inside a run, and nothing marks
+  // that segment as a maximal effort, so it must not be read as one more row of the
+  // whole-activity race list above. Skipped entirely when nothing qualifies.
   if (s.currentVdot !== null) {
+    lines.push("");
+    lines.push("COMPUTED VDOT (Daniels-Gilbert, from a sub-segment inside a run)");
     lines.push(
-      `- Computed VDOT (Daniels-Gilbert, best stored segment effort of the last ${VDOT_CURRENT_WINDOW_DAYS} days): ${s.currentVdot.toFixed(1)}`
+      `- Best stored segment effort of the last ${VDOT_CURRENT_WINDOW_DAYS} days: VDOT ${s.currentVdot.toFixed(1)}. Not necessarily a maximal effort, so treat it as a floor on aerobic fitness, not a test result.`
     );
   }
 

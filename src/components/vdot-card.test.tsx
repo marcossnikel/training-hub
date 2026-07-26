@@ -25,9 +25,16 @@ describe("VdotCard", () => {
   it("shows the current VDOT to one decimal with its window", () => {
     renderCard(trend(49.81, { "2026-07": 49.81 }));
     expect(screen.getByText("Current VDOT")).toBeTruthy();
-    // The tile, plus the two axis labels of a one-month series at the same value.
-    expect(screen.getAllByText("49.8")).toHaveLength(3);
+    // The tile, plus ONE chart label: a single measured month has no span, so the
+    // sparkline draws it down the middle and there are no extremes to name. Two
+    // labels here would print the same number at two heights the dot is not at.
+    expect(screen.getAllByText("49.8")).toHaveLength(2);
     expect(screen.getByText("Best of the last 90 days")).toBeTruthy();
+  });
+
+  it("names the qualifying floor from the constant that enforces it", () => {
+    renderCard(trend(49.81, { "2026-07": 49.81 }));
+    expect(screen.getByText(/Efforts under 1500 m are ignored/)).toBeTruthy();
   });
 
   it("draws one dot per measured month and breaks the line at the empty ones", () => {

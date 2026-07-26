@@ -561,7 +561,7 @@ export const en = {
     predictedTime: "Predicted",
     vdot: "VDOT",
     vdotBody:
-      "Daniels-Gilbert VDOT from the best efforts inside your runs: the pace you hold and how long you hold it, as one fitness number that compares across distances. Efforts under 1.5 km are ignored — they are too anaerobic to read aerobic fitness off.",
+      "Daniels-Gilbert VDOT from the best efforts inside your runs: the pace you hold and how long you hold it, as one fitness number that compares across distances. Efforts under {m} m are ignored — they are too anaerobic to read aerobic fitness off. A month whose best effort was beaten in the {days} days before it is left blank: VDOT only reads off a maximal effort, so that month measured nothing.",
     vdotCurrent: "Current VDOT",
     vdotWindow: "Best of the last {days} days",
     vdotNoRecent: "No qualifying effort in the last {days} days",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bestEffortRecords,
   bestEffortsByDistance,
+  currentVdot,
   estimateCriticalSpeed,
   pickReferenceEffort,
   predictRaceTimes,
@@ -401,6 +402,15 @@ describe("vdotFromEffort (Daniels-Gilbert)", () => {
     expect(vdotFromEffort(21200, 21.2 * 279)).toBeCloseTo(46.2, 0);
   });
 
+  it("pins the fast-decaying term of the sustainable-fraction curve", () => {
+    // An anchor at the SHORT end, right on the qualifying floor: 1500 m in 5:00.
+    // 0.2989558·e^(-0.1932605·t) contributes ~0.114 of the denominator at 5 minutes
+    // but only ~0.006 at 20, so with 20-minute-plus anchors alone that coefficient
+    // could be wrong by 17% (0.35) with every other assertion still green. Value
+    // computed from the published curves, not looked up in a table.
+    expect(vdotFromEffort(1500, 5 * 60)).toBeCloseTo(54.46, 1);
+  });
+
   it("rises with speed at a fixed distance and falls as the same pace is held longer", () => {
     expect(vdotFromEffort(5000, 19 * 60)).toBeGreaterThan(vdotFromEffort(5000, 20 * 60));
     // 4:00/km for 10k is a harder effort than 4:00/km for 5k.
@@ -436,8 +446,25 @@ describe("vdotTrend", () => {
   });
 
   it("keeps the 1500 m boundary itself", () => {
-    const trend = vdotTrend([vdotEffort("2026-07-20T07:00:00", MIN_VDOT_DISTANCE_M, 300)], asOf);
+    // The literal, not the constant: fed MIN_VDOT_DISTANCE_M this test passes at any
+    // value the constant might drift to, and the 1000 m test above only catches 800.
+    const trend = vdotTrend([vdotEffort("2026-07-20T07:00:00", 1500, 300)], asOf);
     expect(trend.current).not.toBeNull();
+  });
+
+  it("pins the qualifying floor at 1500 m", () => {
+    // The VALUE itself, because /performance generates its "efforts under N m are
+    // ignored" copy from this constant and nothing else asserts what N is.
+    expect(MIN_VDOT_DISTANCE_M).toBe(1500);
+  });
+
+  it("counts both ends of the 90-day window, and no day more", () => {
+    // 90 days ending 24 Jul 2026 runs from 26 Apr 2026 inclusive. The edge day counts;
+    // the day before it — the 91st — does not.
+    const edge = vdotTrend([vdotEffort("2026-04-26T07:00:00", 5000, 20 * 60)], asOf);
+    expect(edge.current).toBeCloseTo(49.8, 1);
+    const outside = vdotTrend([vdotEffort("2026-04-25T07:00:00", 5000, 20 * 60)], asOf);
+    expect(outside.current).toBeNull();
   });
 
   it("returns 12 months ending in the current one, oldest first", () => {
@@ -450,10 +477,14 @@ describe("vdotTrend", () => {
   });
 
   it("keeps each month's best and leaves months with no effort null", () => {
+    // The month's BEST effort is listed FIRST and its worst last, because
+    // listBestEffortsForVdot returns rows date ASC: with the better one last, a
+    // last-row-wins bug would pass this test and silently turn the trend into a
+    // "most recent run" chart.
     const { months } = vdotTrend(
       [
-        vdotEffort("2026-07-20T07:00:00", 5000, 21 * 60),
         vdotEffort("2026-07-02T07:00:00", 5000, 20 * 60), // the month's best
+        vdotEffort("2026-07-20T07:00:00", 5000, 21 * 60), // later, slower
         vdotEffort("2026-04-12T07:00:00", 10000, 44 * 60),
       ],
       asOf
@@ -464,6 +495,65 @@ describe("vdotTrend", () => {
     // Sparse coverage is the norm, so the untouched months stay explicitly empty.
     expect(byMonth.get("2026-05")).toBeNull();
     expect(byMonth.get("2026-06")).toBeNull();
+  });
+
+  it("gaps a month whose best effort was beaten inside the trailing window", () => {
+    // The live June 2026 shape: a strong April, then a submaximal month. VDOT is only
+    // defined for maximal efforts and fitness cannot fall 10 points and recover in
+    // four weeks, so June is missing data, not a collapse — it must not be plotted.
+    const { months, current } = vdotTrend(
+      [
+        vdotEffort("2026-04-12T07:00:00", 21097, 5887), // ~46.1, genuine
+        vdotEffort("2026-06-27T07:00:00", 20000, 6977), // ~35.4, easy long run
+        vdotEffort("2026-07-05T07:00:00", 30000, 8726), // ~45.1, genuine
+      ],
+      asOf
+    );
+    const byMonth = new Map(months.map((m) => [m.month, m.vdot]));
+    expect(byMonth.get("2026-04")).toBeCloseTo(46.13, 1);
+    expect(byMonth.get("2026-06")).toBeNull();
+    expect(byMonth.get("2026-07")).toBeCloseTo(45.11, 1);
+    // The chart's floor is now a real reading, so the four-point series stays legible.
+    const plotted = months.filter((m) => m.vdot !== null).map((m) => m.vdot as number);
+    expect(Math.min(...plotted)).toBeGreaterThan(45);
+    // The last plotted month is the same number the tile shows: same window, same rows.
+    expect(byMonth.get("2026-07")).toBe(current);
+  });
+
+  it("still shows a month that is lower than a LATER one, which is progression", () => {
+    // The look-back must not become a look-ahead: an April below July is exactly what
+    // improving looks like, and suppressing it would erase the trend it exists to show.
+    const { months } = vdotTrend(
+      [
+        vdotEffort("2026-01-10T07:00:00", 5000, 23 * 60),
+        vdotEffort("2026-07-10T07:00:00", 5000, 20 * 60),
+      ],
+      asOf
+    );
+    const byMonth = new Map(months.map((m) => [m.month, m.vdot]));
+    expect(byMonth.get("2026-01")).toBeCloseTo(vdotFromEffort(5000, 23 * 60), 6);
+    expect(byMonth.get("2026-07")).toBeCloseTo(vdotFromEffort(5000, 20 * 60), 6);
+  });
+
+  it("ignores efforts dated after asOf, so the tile and the chart see one dataset", () => {
+    // A skewed watch clock (or the UTC/local mix in the row dates) can date a row past
+    // today. Unbounded, it would feed `current` with no month to land in, and the card
+    // would vanish while the zones agent was still handed the value.
+    const { months, current } = vdotTrend([vdotEffort("2026-08-02T07:00:00", 5000, 18 * 60)], asOf);
+    expect(current).toBeNull();
+    expect(months.every((m) => m.vdot === null)).toBe(true);
+  });
+
+  it("reports the same current value whether or not the trend is built", () => {
+    // The zones agent reads `currentVdot` and /performance reads `vdotTrend`; the two
+    // must never quote the athlete different numbers.
+    const rows = [
+      vdotEffort("2026-07-05T07:00:00", 30000, 8726),
+      vdotEffort("2026-06-27T07:00:00", 20000, 6977),
+      vdotEffort("2026-04-12T07:00:00", 21097, 5887),
+    ];
+    expect(currentVdot(rows, asOf)).toBe(vdotTrend(rows, asOf).current);
+    expect(currentVdot([], asOf)).toBeNull();
   });
 
   it("drops efforts outside the 12-month window and undated rows", () => {

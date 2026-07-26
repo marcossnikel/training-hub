@@ -558,7 +558,7 @@ export const pt: Dict = {
     predictedTime: "Previsto",
     vdot: "VDOT",
     vdotBody:
-      "VDOT de Daniels-Gilbert a partir dos melhores trechos dentro das suas corridas: o ritmo que você sustenta e por quanto tempo sustenta, como um único número de condicionamento comparável entre distâncias. Trechos abaixo de 1,5 km são ignorados — são anaeróbicos demais para indicar condicionamento aeróbico.",
+      "VDOT de Daniels-Gilbert a partir dos melhores trechos dentro das suas corridas: o ritmo que você sustenta e por quanto tempo sustenta, como um único número de condicionamento comparável entre distâncias. Trechos abaixo de {m} m são ignorados — são anaeróbicos demais para indicar condicionamento aeróbico. Um mês cujo melhor trecho foi superado nos {days} dias anteriores fica em branco: o VDOT só se lê de um esforço máximo, então aquele mês não mediu nada.",
     vdotCurrent: "VDOT atual",
     vdotWindow: "Melhor dos últimos {days} dias",
     vdotNoRecent: "Nenhum esforço elegível nos últimos {days} dias",

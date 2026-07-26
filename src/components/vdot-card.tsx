@@ -5,7 +5,7 @@
 // out and formats.
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { VDOT_CURRENT_WINDOW_DAYS, type VdotTrend } from "@/lib/benchmarks";
+import { MIN_VDOT_DISTANCE_M, VDOT_CURRENT_WINDOW_DAYS, type VdotTrend } from "@/lib/benchmarks";
 import { monthShort } from "@/lib/format";
 import { fillStr, type Dict, type Lang } from "@/lib/i18n";
 import { sparkline } from "@/lib/sparkline";
@@ -61,6 +61,10 @@ export function VdotCard({ trend, lang, t }: { trend: VdotTrend; lang: Lang; t: 
   // series without a dot or a line through them.
   const plotted = trend.months.filter((m) => m.vdot !== null);
   const values = plotted.map((m) => m.vdot as number);
+  // The plotted range, which is flat (hi === lo) for a single measured month or a
+  // series that never moved — the one case the axis labels must not claim a spread.
+  const hi = Math.max(...values);
+  const lo = Math.min(...values);
   const first = trend.months[0].month;
   const last = trend.months[trend.months.length - 1].month;
 
@@ -68,7 +72,14 @@ export function VdotCard({ trend, lang, t }: { trend: VdotTrend; lang: Lang; t: 
     <Card>
       <CardHeader>
         <CardTitle>{tp.vdot}</CardTitle>
-        <CardDescription>{tp.vdotBody}</CardDescription>
+        {/* The qualifying floor and the window are filled in from the constants that
+            enforce them, so the copy cannot drift from the code. */}
+        <CardDescription>
+          {fillStr(tp.vdotBody, {
+            m: MIN_VDOT_DISTANCE_M,
+            days: VDOT_CURRENT_WINDOW_DAYS,
+          })}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
@@ -107,27 +118,46 @@ export function VdotCard({ trend, lang, t }: { trend: VdotTrend; lang: Lang; t: 
             />
             {/* The plotted extremes sit exactly at these two heights (the inset
                 bounds the sparkline box), so each label names the value at its own
-                y instead of an axis the series only approaches. */}
-            <text
-              x={PAD_L - 5}
-              y={TOP + INSET + 3}
-              textAnchor="end"
-              fontSize={LABEL_FONT}
-              fill="var(--muted-foreground)"
-              className="font-mono"
-            >
-              {fmtVdot(Math.max(...values))}
-            </text>
-            <text
-              x={PAD_L - 5}
-              y={TOP + PLOT_H - INSET + 3}
-              textAnchor="end"
-              fontSize={LABEL_FONT}
-              fill="var(--muted-foreground)"
-              className="font-mono"
-            >
-              {fmtVdot(Math.min(...values))}
-            </text>
+                y instead of an axis the series only approaches. When every measured
+                month holds the SAME value the sparkline has no span and draws them
+                all down the middle: two extreme labels would then print one number
+                twice at heights nothing is plotted at, so the value is named once,
+                at the height it is actually drawn. */}
+            {hi === lo ? (
+              <text
+                x={PAD_L - 5}
+                y={TOP + PLOT_H / 2 + 3}
+                textAnchor="end"
+                fontSize={LABEL_FONT}
+                fill="var(--muted-foreground)"
+                className="font-mono"
+              >
+                {fmtVdot(hi)}
+              </text>
+            ) : (
+              <>
+                <text
+                  x={PAD_L - 5}
+                  y={TOP + INSET + 3}
+                  textAnchor="end"
+                  fontSize={LABEL_FONT}
+                  fill="var(--muted-foreground)"
+                  className="font-mono"
+                >
+                  {fmtVdot(hi)}
+                </text>
+                <text
+                  x={PAD_L - 5}
+                  y={TOP + PLOT_H - INSET + 3}
+                  textAnchor="end"
+                  fontSize={LABEL_FONT}
+                  fill="var(--muted-foreground)"
+                  className="font-mono"
+                >
+                  {fmtVdot(lo)}
+                </text>
+              </>
+            )}
             <g transform={`translate(${PAD_L}, ${TOP})`}>
               {/* One polyline per run of measured months: a gap in the middle of
                   the year must read as missing data, not as a slide between two

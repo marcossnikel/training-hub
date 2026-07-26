@@ -202,3 +202,88 @@ describe("listFastestBestEfforts", () => {
     expect(own).toMatchObject({ moving_time_s: 1100, activity_name: "Just synced" });
   });
 });
+
+describe("listBestEffortsForVdot", () => {
+  // One activity of every kind the shared road-run filter has an opinion about, each
+  // carrying a "2 mile" row (a name no earlier test uses). The four that must be
+  // REJECTED are all faster than the one that must survive, so a leak shows up as the
+  // winner changing rather than as a row nobody looks at.
+  const ELIGIBLE_S = 700;
+  const REJECTED_S = [660, 620, 640, 630];
+  let eligibleId = 0;
+  let pendingId = 0;
+
+  beforeAll(async () => {
+    async function insert(name: string, sportType: string, status: string): Promise<number> {
+      const row = await db.client.execute({
+        sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, is_race)
+              VALUES (?, ?, '2026-05-05T09:00:00Z', 21, ?, 0)`,
+        args: [name, sportType, status],
+      });
+      return Number(row.lastInsertRowid);
+    }
+    eligibleId = await insert("Road tempo", "Run", "confirmed");
+    pendingId = await insert("Unreviewed tempo", "Run", "pending_review");
+    const ride = await insert("Fast spin", "Ride", "confirmed");
+    const trailSport = await insert("Serra alta", "TrailRun", "confirmed");
+    const trailName = await insert("Vale Trail loop", "Run", "confirmed");
+
+    const ids = [eligibleId, pendingId, ride, trailSport, trailName];
+    const times = [ELIGIBLE_S, ...REJECTED_S];
+    for (let i = 0; i < ids.length; i++) {
+      await db.upsertActivityBestEfforts(ids[i], [
+        {
+          name: "2 mile",
+          distance_m: 3219,
+          elapsed_time_s: times[i] + 5,
+          moving_time_s: times[i],
+          pr_rank: null,
+        },
+      ]);
+    }
+    // A second row on the eligible run: the VDOT read wants EVERY effort, not one
+    // winner per distance name the way the ladder does.
+    await db.upsertActivityBestEfforts(eligibleId, [
+      { name: "20K", distance_m: 20000, elapsed_time_s: 4805, moving_time_s: 4800, pr_rank: null },
+    ]);
+  });
+
+  it("draws exactly the population the ladder read draws", async () => {
+    // The point of ROAD_RUN_EFFORT_SQL: rides, trail runs (by sport OR by name) and
+    // unconfirmed activities are invisible to BOTH reads, so /performance's distance
+    // ladder and its VDOT trend can never be computed off different sets of runs.
+    const ladder = (await db.listFastestBestEfforts()).find((row) => row.name === "2 mile");
+    expect(ladder).toMatchObject({ moving_time_s: ELIGIBLE_S, activity_name: "Road tempo" });
+
+    const vdotTimes = (await db.listBestEffortsForVdot())
+      .filter((row) => row.distance_m === 3219)
+      .map((row) => row.moving_time_s);
+    expect(vdotTimes).toEqual([ELIGIBLE_S]);
+    for (const rejected of REJECTED_S) expect(vdotTimes).not.toContain(rejected);
+  });
+
+  it("returns every stored effort of an eligible run, oldest first", async () => {
+    const rows = await db.listBestEffortsForVdot();
+    expect(
+      rows.filter((row) => row.moving_time_s === ELIGIBLE_S || row.distance_m === 20000)
+    ).toEqual([
+      { distance_m: 3219, moving_time_s: ELIGIBLE_S, date: "2026-05-05T09:00:00Z" },
+      { distance_m: 20000, moving_time_s: 4800, date: "2026-05-05T09:00:00Z" },
+    ]);
+    const dates = rows.map((row) => row.date as string);
+    expect([...dates].sort()).toEqual(dates);
+  });
+
+  it("never admits a pending activity, the one gate the two reads differ on", async () => {
+    // The ladder can be asked for one named activity's own rows (the PR badge on a
+    // freshly synced run). The VDOT trend has no such caller and no such escape hatch,
+    // so this divergence is the only one, and it is deliberate.
+    const own = (await db.listFastestBestEfforts({ includeActivityId: pendingId })).find(
+      (row) => row.name === "2 mile"
+    );
+    expect(own).toMatchObject({ moving_time_s: 660, activity_name: "Unreviewed tempo" });
+
+    const vdot = await db.listBestEffortsForVdot();
+    expect(vdot.map((row) => row.moving_time_s)).not.toContain(660);
+  });
+});

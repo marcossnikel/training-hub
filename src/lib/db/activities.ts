@@ -327,14 +327,16 @@ export async function listBestEffortCounts(activityId?: number): Promise<BestEff
 }
 
 /**
- * The fastest stored effort at each distance name ("5K", "Half-Marathon", …), one row
- * per name, from confirmed ROAD RUNS. This is what both readers of
- * `activity_best_efforts` need: /performance ranks the distance ladder from it and the
- * activity page uses it to demote a stale `pr_rank = 1` that another run has beaten.
+ * The rows of `activity_best_efforts` that count as ROAD-RUN efforts, as SQL over the
+ * aliases `e` (efforts) and `a` (activities). ONE definition, shared by both readers
+ * of the table, because two hand-copies would let a future trail-exclusion or
+ * sport-gate change land in one and not the other — and then /performance's distance
+ * ladder and its VDOT trend would be quoting numbers off different sets of runs.
  *
- * The population is filtered to match the whole-activity half of the /performance merge
+ * It filters the population to match the whole-activity half of the /performance merge
  * exactly (`listRunEfforts` + `raceCategory`), so the two halves can never disagree
  * about which activities count:
+ *  - usable measurements only — a zero distance or time is not an effort;
  *  - run sports only — `cacheBestEfforts` writes whatever a payload carries without
  *    checking the sport, so the sport gate has to live at READ time;
  *  - no trail, by name or sport — `raceCategory` returns "trail" for those, which
@@ -343,8 +345,24 @@ export async function listBestEffortCounts(activityId?: number): Promise<BestEff
  * The LIKE conditions mirror those predicates: `sportCategory(sport) === "run"` is
  * lower(sport) containing "run", and the trail test is lower(name) or lower(sport)
  * containing "trail". They are expressed in SQL because the filter has to run BEFORE
- * the ranking below — filtering afterwards would drop a whole distance name rather
- * than fall through to the next-fastest eligible row.
+ * the per-name ranking below — filtering afterwards would drop a whole distance name
+ * rather than fall through to the next-fastest eligible row.
+ *
+ * The review-status gate is deliberately NOT here: the two reads differ on it by
+ * design (see `includeActivityId` below), and hiding that difference inside a shared
+ * fragment would make it invisible at each call site.
+ */
+const ROAD_RUN_EFFORT_SQL = `e.moving_time_s > 0 AND e.distance_m > 0
+         AND LOWER(COALESCE(a.sport_type, '')) LIKE '%run%'
+         AND LOWER(COALESCE(a.sport_type, '')) NOT LIKE '%trail%'
+         AND LOWER(COALESCE(a.name, '')) NOT LIKE '%trail%'`;
+
+/**
+ * The fastest stored effort at each distance name ("5K", "Half-Marathon", …), one row
+ * per name, from confirmed ROAD RUNS (`ROAD_RUN_EFFORT_SQL` defines that population).
+ * This is what both readers of `activity_best_efforts` need: /performance ranks the
+ * distance ladder from it and the activity page uses it to demote a stale
+ * `pr_rank = 1` that another run has beaten.
  *
  * `includeActivityId` additionally admits one activity's own rows whatever its review
  * status. The activity page passes the activity being viewed: a freshly synced run is
@@ -379,10 +397,7 @@ export async function listFastestBestEfforts(options?: {
        FROM activity_best_efforts e
        JOIN activities a ON a.id = e.activity_id
        WHERE (a.status = 'confirmed' OR a.id = ?)
-         AND e.moving_time_s > 0 AND e.distance_m > 0
-         AND LOWER(COALESCE(a.sport_type, '')) LIKE '%run%'
-         AND LOWER(COALESCE(a.sport_type, '')) NOT LIKE '%trail%'
-         AND LOWER(COALESCE(a.name, '')) NOT LIKE '%trail%'
+         AND ${ROAD_RUN_EFFORT_SQL}
      )
      WHERE rn = 1
      ORDER BY distance_m ASC`,
@@ -395,8 +410,8 @@ export async function listFastestBestEfforts(options?: {
  * EVERY stored effort with its date, from the same confirmed road runs
  * `listFastestBestEfforts` ranks — the VDOT trend needs one point per effort per
  * month, not one winner per distance name, so it cannot read that query's output.
- * The population filter is duplicated rather than shared so the two reads stay
- * independently readable; both mirror `listRunEfforts` + `raceCategory`.
+ * "The same" is enforced, not asserted: both reads apply `ROAD_RUN_EFFORT_SQL`, and
+ * db.best-efforts.test.ts pins that they admit and reject the same activities.
  *
  * Unwindowed and unaggregated on purpose: ~103 rows exist today and the engine owns
  * both the qualifying distance and the 12-month window (`vdotTrend`), so no window
@@ -410,10 +425,7 @@ export async function listBestEffortsForVdot(): Promise<VdotEffort[]> {
      FROM activity_best_efforts e
      JOIN activities a ON a.id = e.activity_id
      WHERE a.status = 'confirmed'
-       AND e.moving_time_s > 0 AND e.distance_m > 0
-       AND LOWER(COALESCE(a.sport_type, '')) LIKE '%run%'
-       AND LOWER(COALESCE(a.sport_type, '')) NOT LIKE '%trail%'
-       AND LOWER(COALESCE(a.name, '')) NOT LIKE '%trail%'
+       AND ${ROAD_RUN_EFFORT_SQL}
      ORDER BY date ASC`
   );
 }
