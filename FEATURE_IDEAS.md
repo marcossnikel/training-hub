@@ -37,6 +37,9 @@ Read 1 to 6 as a single cheap, high-return block: they are almost all pure math 
 pulls, and several of them fix correctness problems the app already knows it has (placeholder FTP,
 assumed threshold, avg-HR zone estimates). Do those before any integration work.
 
+Status (July 2026): items 1 to 6, 9 and 10 have since shipped or been superseded. Each one carries a
+pointer to the task that did it in its theme section below.
+
 ---
 
 ## Theme 1: Advanced analytics
@@ -54,6 +57,11 @@ assumed threshold, avg-HR zone estimates). Do those before any integration work.
   the window. Streams are fetched lazily today, so this depends on a one-time rate-limited backfill
   (already contemplated in the roadmap). Logic is a rolling-max sweep per duration bucket.
 - **Priority:** high. It is the foundation several other ideas stand on.
+- **Shipped:** mean-max curves render per sport on `/performance` (selected window against all-time)
+  off an `activity_curve_points` table. Run buckets are seeded from stored best efforts so the curve
+  was useful before any stream work, and deepen as full-resolution streams are fetched; the power
+  panel hides until enough rides carry real power.
+  -> docs/intervals-icu-upgrade-plan.md T27
 
 ### 1.2 Critical Speed / Critical Power model and auto-threshold (mFTP-style)
 - **What it is:** fit a 2- or 3-parameter critical-power/critical-speed model to the duration curve to
@@ -69,6 +77,11 @@ assumed threshold, avg-HR zone estimates). Do those before any integration work.
   few genuinely hard efforts in the window for the fit to be valid) and should stay a *suggestion* that
   the existing Settings threshold card accepts.
 - **Priority:** high. Directly fixes a known data-quality weakness.
+- **Shipped, half of it:** Critical Speed already suggests threshold pace, and a Monod-Scherrer eFTP
+  fit over 3 to 20 minute powers now suggests FTP with the same apply-button pattern. It reads a fixed
+  90-day window and hides itself below its fit-quality floor, so with only two real-power rides in the
+  history (both VirtualRide) the card shows nothing today and the 150 W placeholder stands. That is the
+  intended behaviour, not a gap. -> docs/intervals-icu-upgrade-plan.md T28
 
 ### 1.3 Aerobic decoupling and efficiency factor per activity
 - **What it is:** efficiency factor is output per heartbeat (pace-or-power to HR ratio). Decoupling is
@@ -82,6 +95,10 @@ assumed threshold, avg-HR zone estimates). Do those before any integration work.
 - **Complexity / data:** pure compute on the HR plus pace/power streams the app already normalizes.
   Best shown as a per-activity value plus a trend line for steady runs.
 - **Priority:** high. Cheap, and genuinely diagnostic for a base-building runner.
+- **Shipped:** EF, decoupling and intensity-factor tiles sit on the activity page, computed once in
+  `stream-metrics.ts` and persisted on `activity_metrics` by the derived-metrics pipeline. A run's EF
+  is measured against grade-adjusted speed since T26. The cross-block trend line is still not built.
+  -> docs/intervals-icu-upgrade-plan.md T12
 
 ### 1.4 Grade Adjusted Pace (GAP)
 - **What it is:** pace normalized for gradient, so uphill splits convert to an equivalent flat pace.
@@ -92,6 +109,13 @@ assumed threshold, avg-HR zone estimates). Do those before any integration work.
 - **Complexity / data:** pure compute on the pace and altitude streams already present, using a standard
   gradient-cost curve. Medium-low.
 - **Priority:** high (it also quietly improves several existing features).
+- **Shipped:** whole-activity GAP is a per-sample integration of Strava's `grade_smooth` channel
+  through a Minetti cost curve, with an altitude-derived fallback for the streams cached before that
+  channel was requested (those rows are never re-fetched). It shows as a stat beside average pace, as
+  a dashed overlay on the pace panel, and feeds a run's efficiency factor; the average is persisted on
+  `activity_metrics`. Per-kilometre GAP in the splits table uses Strava's own grade-adjusted speed.
+  Load is untouched: rTSS still reads raw average pace, and moving it to GAP is a separate decision.
+  -> docs/intervals-icu-upgrade-plan.md T26 (which deleted T15's linear approximation)
 
 ### 1.5 Precise per-second time-in-zone for every activity
 - **What it is:** actual time spent in each HR (and pace, and power) zone from the per-second stream,
@@ -104,6 +128,12 @@ assumed threshold, avg-HR zone estimates). Do those before any integration work.
   does exactly this for the two races). The only cost is having streams backfilled for the block's
   activities, which is the rate-limited part.
 - **Priority:** high, and it lands almost for free once streams are backfilled for 1.1.
+- **Shipped:** the activity page has a per-second time-in-zone card, and the derived-metrics pipeline
+  persists the HR and pace zone splits on `activity_metrics`, so `blocks.ts` prefers a real per-sample
+  distribution and falls back to the avg-HR estimate only for activities without one. Blocks therefore
+  read truer as the fetch pass covers more history.
+  Stored splits do go stale when thresholds move, see 6.6.
+  -> docs/intervals-icu-upgrade-plan.md T11 and T24
 
 ### 1.6 VO2max estimate / fitness trend without a Garmin
 - **What it is:** an estimated VO2max trend, either race-derived (Daniels VDOT from best efforts) or the
@@ -117,6 +147,9 @@ assumed threshold, avg-HR zone estimates). Do those before any integration work.
   medium and needs clean steady runs with HR.
 - **Priority:** medium. The race-derived VDOT is worth it; the noisy regression version is lower value at
   n=1.
+- **Shipped:** the race-derived half. A card on `/performance` shows today's Daniels VDOT from the
+  best-effort ladder against a monthly-max trend. The HR-to-pace regression version was not built.
+  -> docs/intervals-icu-upgrade-plan.md T23
 
 ### 1.7 Running dynamics (ground contact, vertical oscillation, cadence balance)
 - **What it is:** form metrics from a compatible watch/pod: ground contact time and balance, vertical
@@ -146,6 +179,9 @@ can supply.
 - **Complexity / data:** pure compute on the daily loads already stored. Note ACWR uses a 28-day chronic
   window, distinct from the 42-day CTL, so it is a small addition, not a relabel.
 - **Priority:** high.
+- **Shipped:** an ACWR tile with the risk bands sits in the `/fitness` tile row and a ramp-rate lane
+  runs under the TSB panel, both off the daily loads already stored. Foster monotony and strain
+  followed in T04. -> docs/intervals-icu-upgrade-plan.md T03
 
 ### 2.2 HRV status and resting-HR trend
 - **What it is:** overnight HRV trend against a personal baseline, plus a daily resting-HR trend line.
@@ -158,6 +194,12 @@ can supply.
   open API pulls HRV, resting HR, sleep, weight from Garmin/COROS/Oura/Whoop), or manual entry, and it
   needs the athlete to actually wear something overnight that measures HRV.
 - **Priority:** medium (high if a wearable with HRV is already in use; otherwise blocked on hardware).
+- **Shipped, and not through intervals.icu:** a standalone daily Garmin Connect sync service posts a
+  trailing window of overnight HRV, resting HR and sleep into `health_metrics` through the app's ingest
+  endpoint. `/health` shows the trends and a readiness snapshot built on them, and the PMC now carries
+  optional wellness lanes for the same three metrics underneath it. The intervals.icu bridge (4.2) is
+  therefore optional rather than the only route into this theme.
+  -> docs/intervals-icu-upgrade-plan.md T08
 
 ### 2.3 Training readiness score
 - **What it is:** a single morning 0 to 100 readiness number combining sleep, HRV, recent load, and
@@ -221,6 +263,11 @@ forward-looking plan at all.
 - **Complexity / data:** medium. The PMC engine exists; this needs planned daily load (from 3.1/3.2 or a
   simple weekly-ramp assumption) and a forward projection plus a taper solver.
 - **Priority:** medium (high once planning exists).
+- **Superseded for the part that mattered:** the fitness page projects CTL/ATL/TSB forward in closed
+  form from a steady daily load and from rest, and reads out the form the next race lands on. That
+  answers the taper question without a planning system, so what is left here is only the planned-load
+  version, which stays downstream of 3.1 and 3.2.
+  -> docs/intervals-icu-upgrade-plan.md T05
 
 ### 3.4 Annual training plan / periodization view
 - **What it is:** a season-level plan that lays out base/build/peak/taper phases around A/B/C races with
@@ -263,7 +310,8 @@ forward-looking plan at all.
   realistic route to the entire recovery/readiness theme (2.2 to 2.4) and a cross-check on the app's own
   load numbers.
 - **Complexity / data:** medium (one authenticated API client plus a wellness table).
-- **Priority:** medium, and the unlock for Theme 2.
+- **Priority:** downgraded to low. The Garmin sync service (2.2) already fills the wellness table, so
+  this is now a cross-check and a backup source, not the unlock for Theme 2.
 
 ### 4.3 Running power (Stryd) support
 - **What it is:** treat running watts as a first-class signal: power zones, power-based TSS for runs, and
@@ -342,6 +390,10 @@ forward-looking plan at all.
   and something the app has no equivalent of today.
 - **Complexity / data:** pure compute once streams are available. Low.
 - **Priority:** medium (rides on 1.1).
+- **Shipped:** best-effort chips on run activities, an `activity_best_efforts` table mirrored from
+  Strava's detail payload with a resumable backfill, a best-efforts card on `/performance` and a PR
+  badge on the chips. Records are derived from the stored times rather than from Strava's rank, for
+  the reason in 6.8. -> docs/intervals-icu-upgrade-plan.md T10 and T22
 
 ### 6.2 Calendar / consistency heatmap
 - **What it is:** a year-view heatmap of daily training (GitHub-contributions style) plus streaks.
@@ -350,6 +402,8 @@ forward-looking plan at all.
   streaks obvious at a glance.
 - **Complexity / data:** pure compute on data already present. Low.
 - **Priority:** medium. Cheap and motivating.
+- **Shipped:** a 53-week load heatmap on `/fitness` with the current streak and active days per week
+  beside its title. -> docs/intervals-icu-upgrade-plan.md T21
 
 ### 6.3 Installable PWA / offline read
 - **What it is:** an installable app icon and offline access to already-synced data.
@@ -376,6 +430,53 @@ forward-looking plan at all.
   historical points.
 - **Complexity / data:** low, pure compute.
 - **Priority:** low, but nearly free and improves an existing feature.
+
+### 6.6 Threshold invalidation for stored zone splits (carried forward from T24)
+- **What it is:** `hr_zone_secs` and `pace_zone_secs` on `activity_metrics` are frozen at the thresholds
+  in force when the row was computed, and `saveAthleteThresholds` has no invalidation hook. Every reader
+  that prefers a stored split over computing one is showing the zones of the day the stream was fetched.
+- **Who has it:** n/a, internal correctness debt. Recorded here because a code comment is not a backlog.
+- **Why it is still open:** a refresh can only read the cached 400-point downsample, since re-fetching
+  full resolution costs a Strava call per activity and a delete of the cached stream first. That is
+  honest for a version-1 row and a downgrade for a version-2 or version-3 one: it either strands the
+  `np_w` and `avg_gap_s_per_km` that only a full-resolution fetch produces, or leaves `metrics_version`
+  claiming a provenance the zone arrays no longer have. Refreshing per column-group therefore needs its
+  own provenance record (a second version, or a zones-computed-at stamp), which is a data-model change
+  rather than a rider on another task.
+- **Complexity / data:** detecting staleness needs no migration (`activity_metrics.computed_at` against
+  `athlete_thresholds.updated_at`), but the right response differs per read site: the activity page has
+  an exact live fallback, so ignoring a stale row is strictly better there, while `blocks.ts` falls back
+  to a whole-session average-HR estimate that a slightly stale stream split still beats.
+- **Stopgap:** `scripts/backfill-metrics.ts --recompute`, which refreshes version-1 rows only.
+  Thresholds move rarely. The full reasoning sits beside the data in `src/lib/db/metrics.ts`.
+- **Priority:** medium, and it wants its own task.
+  -> docs/intervals-icu-upgrade-plan.md T24 and T25
+
+### 6.7 One day-key convention for the /fitness load series
+- **What it is:** `dailyLoadSeries` and `weeklySportLoad` bucket by `started_at` read with local getters,
+  which is the server's timezone, while the training log, `/insights` and the totals table bucket by
+  `localStartedAt`, the athlete's own calendar day. As `started_at_local` fills in on synced rows, the
+  weekly load bar on `/fitness` can drift from the totals table by a period boundary.
+- **Who has it:** n/a, internal consistency debt.
+- **Why for this athlete:** two numbers for the same week in two places on the same app is the kind of
+  small wrongness that costs trust in every other number.
+- **Complexity / data:** the change itself is small, but converging the conventions rewrites PMC
+  history, so it is a task with its own validation pass rather than a drive-by. Note the consistency
+  heatmap deliberately follows the `dailyLoadSeries` key because it paints those exact loads; it moves
+  with them, it is not a third convention to fix. Documented in code in `src/lib/totals.ts` and
+  `src/lib/consistency.ts`.
+- **Priority:** low-to-medium.
+
+### 6.8 Stored `pr_rank` is not current truth
+- **What it is:** the `pr_rank` mirrored into `activity_best_efforts` is Strava's rank at the moment an
+  activity's detail was first fetched, and detail is written only once. The stored ranks are already
+  provably stale (the live table has two different activities both claiming rank 1 at several
+  distances), and every deepening of that table multiplies the collisions.
+- **Who has it:** n/a, a data caveat rather than a feature.
+- **Why it is recorded:** the readers that matter already avoid it. Records are derived from the stored
+  times, and the PR badge checks this activity's rows against the stored ladder instead of trusting the
+  rank. The rule to keep is simply that no new surface presents a stored rank as a current record.
+- **Priority:** none as a build item. Recorded so the column is never wired into a PR board.
 
 ---
 

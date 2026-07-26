@@ -117,6 +117,7 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T27 Mean-max curves on /performance: done 2026-07-26, committed direct to main
 - ICU-T25 Stream-integrated hrTSS with explicit recompute action: done 2026-07-26, committed direct to main
 - ICU-T28 Cycling eFTP with apply button: done 2026-07-26, committed direct to main
+- ICU-T29 Backlog doc coherence pass: done 2026-07-26, committed direct to main
 
 **Open, carried forward from T24 (deliberately not done in T25): threshold invalidation for `activity_metrics`.** `hr_zone_secs` and `pace_zone_secs` are frozen at the thresholds in force when the row was written, and nothing refreshes them when thresholds change. T25's recompute action was the obvious owner and is the wrong one: it rewrites `activity_load`, and folding a second bulk rewrite of a different table into the same button would hide it. Three things have to be settled first.
 
@@ -124,4 +125,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - Refreshing per column-group therefore needs its own provenance record (a second version, or a zones-computed-at stamp). That is a data-model change, not a rider on another task.
 - Detecting staleness needs no migration at all (`computed_at` against `athlete_thresholds.updated_at`), but the right response differs per read site: the activity page has an exact live fallback, so ignoring a stale row is strictly better there, while `blocks.ts` falls back to a whole-session avg-HR estimate that a slightly stale stream split still beats.
 
-Stopgap in the meantime: `scripts/backfill-metrics.ts --recompute`, which refreshes version-1 rows only. Thresholds move rarely. Full reasoning lives beside the data in `src/lib/db/metrics.ts`.
+Stopgap in the meantime: `scripts/backfill-metrics.ts --recompute`, which refreshes version-1 rows only. Thresholds move rarely. Full reasoning lives beside the data in `src/lib/db/metrics.ts`. Carried forward as a planning item by ICU-T29: FEATURE_IDEAS.md 6.6.

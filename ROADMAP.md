@@ -72,5 +72,8 @@ The feature the big platforms will not tailor to one athlete: put two (or more) 
 
 - Is the Garmin app tied to an actual Garmin device in use, or just installed? (Determines whether Garmin matters at all.)
 - Thresholds for the engine: current max HR, resting HR, LTHR, FTP, threshold pace.
-- Should the fitness dashboard replace `/` or live as its own tab?
+- Should the fitness dashboard replace `/` or live as its own tab? **Answered: its own tab.** The log
+  stays home, and instead of moving it, the log gained a form strip at the top (today's form and
+  fitness, a CTL sparkline, this week's load against its trailing average) that links into `/fitness`.
+  The daily open shows form without costing the log its place. -> docs/intervals-icu-upgrade-plan.md T19
 - Race block comparison: default block length before a race (12 or 16 weeks)? Which race distances does the user actually run (half, full, other)? Which past races to seed as comparison targets?
