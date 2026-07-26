@@ -362,6 +362,33 @@ const MIGRATIONS: Migration[] = [
       await addColumnIfMissing("activity_metrics", "avg_gap_s_per_km", "REAL");
     },
   },
+
+  // Migration 13: mean-max curve points — one activity's best pace over each
+  // standard distance ('pace', seconds per km) and best average power over each
+  // standard duration ('power', watts). The bucket set lives in
+  // src/lib/curves.ts; `bucket` is plain TEXT rather than a CHECK-constrained
+  // enum so adding a bucket stays a code change, not a table rebuild. The
+  // composite PRIMARY KEY is the upsert key: a full-resolution stream scan
+  // rewrites a bucket in place, while the best-effort seed only fills absent ones.
+  //
+  // No secondary index. Reads filter by `kind` and the PK leads with
+  // activity_id, so they scan — but the whole table is at most six rows per
+  // activity (~7 400 once every activity is covered), which SQLite scans in far
+  // less than the Turso round trip carrying the query.
+  {
+    version: 13,
+    up: async () => {
+      await client.execute(
+        `CREATE TABLE IF NOT EXISTS activity_curve_points (
+           activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+           kind TEXT NOT NULL,
+           bucket TEXT NOT NULL,
+           value REAL NOT NULL,
+           PRIMARY KEY (activity_id, kind, bucket)
+         )`
+      );
+    },
+  },
 ];
 
 async function currentSchemaVersion(): Promise<number> {

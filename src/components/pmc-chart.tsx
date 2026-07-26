@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { extent } from "@/components/activity-chart-series";
+import { keyIndex } from "@/lib/chart-keys";
 import { fill } from "@/lib/i18n";
 import { fmtDayMonth, fmtTsb, parseLocalDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -148,22 +149,6 @@ const PROJECTED_DASH = "4 3";
 /** Wellness lane values read to one decimal: 62 ms, 47 bpm, 7.4 h. */
 function laneValue(value: number): string {
   return String(Math.round(value * 10) / 10);
-}
-
-/**
- * Keyboard index stepping shared by both hover-able SVGs (the PMC panels and
- * the weekly bars), mirroring activity-chart: arrows step the active index
- * (from no selection, ArrowRight/Left land on the ends), Home/End jump to the
- * first/last. Returns null for keys this chart does not handle.
- */
-function keyIndex(key: string, current: number | null, count: number): number | null {
-  if (count === 0) return null;
-  if (key === "ArrowRight") return Math.min(count - 1, (current == null ? -1 : current) + 1);
-  // From no selection, step back from the count so we land on the LAST index.
-  if (key === "ArrowLeft") return Math.max(0, (current == null ? count : current) - 1);
-  if (key === "Home") return 0;
-  if (key === "End") return count - 1;
-  return null;
 }
 
 function niceMax(value: number): number {

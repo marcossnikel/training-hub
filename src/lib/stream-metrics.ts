@@ -13,6 +13,7 @@
 
 import { computeDecoupling, computeEf, efBasisFor } from "./analysis";
 import { isRideSport, rideMetrics } from "./cycling";
+import { PACE_BUCKETS, POWER_BUCKETS, type CurvePoint } from "./curves";
 import { hrZones, paceZones, zoneSeconds, type AthleteThresholds } from "./fitness";
 import type { ActivityStreams } from "./streams";
 import type { Activity } from "./types";
@@ -131,28 +132,38 @@ const NP_WINDOW_S = 30;
  * the recorded riding actually cost. Capped at the rolling window, so no single
  * sample can ever outweigh the window it feeds, and the trace either side of a
  * gap is spliced together rather than bridged.
+ *
+ * It is also, for {@link elapsedTrace}, the definition of a gap: one number
+ * decides where the recording stopped, so the two clocks below can only disagree
+ * about what to DO with a gap, never about where one is.
  */
 const MAX_SAMPLE_SPAN_S = NP_WINDOW_S;
 
+/** A watts channel reduced to the samples worth reading: `w[i]` recorded at `t[i]`. */
+interface PowerSamples {
+  t: number[];
+  w: number[];
+}
+
 /**
- * Normalized power: a 30-second rolling average of the power trace, then the
- * mean of those averages raised to the fourth, then the fourth root. The fourth
- * power is what makes it read as "the steady wattage that would have cost the
- * same", since physiological cost rises far faster than power does — a surging
- * ride normalizes well above its plain average, a perfectly steady one lands
- * exactly on it.
- *
- * Time-weighted rather than per-sample, so a stream with gaps or a non-1 Hz
- * recording rate is not silently mis-averaged, and no sample is credited for
- * more than {@link MAX_SAMPLE_SPAN_S} (see there). Null when the trace is
- * shorter than one window, which is why this can only be computed at full
- * resolution: the 400-point downsample of an hour-long ride steps ~9 seconds at
- * a time and would average away exactly the surges the metric exists to capture.
+ * A power trace as the rolling scans below read it: `c` is the clock the average
+ * runs on, `w[i]` the wattage holding over `[c[i], c[i+1])`.
  */
-export function normalizedPower(
+interface PowerTrace {
+  c: number[];
+  w: number[];
+}
+
+/**
+ * Compacts a raw watts channel: unusable samples dropped and time forced to
+ * advance. Shared by both clocks below, so they can disagree about TIME and
+ * never about which samples exist. Null when fewer than two survive, since one
+ * sample spans no time at all.
+ */
+function powerSamples(
   timeS: readonly (number | null)[],
   watts: readonly (number | null)[]
-): number | null {
+): PowerSamples | null {
   const t: number[] = [];
   const w: number[] = [];
   const n = Math.min(timeS.length, watts.length);
@@ -165,29 +176,80 @@ export function normalizedPower(
     t.push(time);
     w.push(power);
   }
-  if (t.length < 2) return null;
+  return t.length < 2 ? null : { t, w };
+}
 
-  // The clock the integration runs on: elapsed recorded time, with every step
-  // capped at MAX_SAMPLE_SPAN_S so a recording gap is closed rather than filled
-  // in at the last wattage. Identical to raw elapsed time on a stream that
-  // recorded continuously, which is every stream without a pause or a dropout.
+/**
+ * The gap-SPLICED clock, which is normalized power's: every step capped at
+ * {@link MAX_SAMPLE_SPAN_S}, so a recording gap is closed rather than filled in
+ * at the last wattage and the trace either side of it is joined. Identical to
+ * raw elapsed time on a stream that recorded continuously, which is every stream
+ * without a pause or a dropout.
+ *
+ * Correct for NP, which is defined over PEDALLING time: a ride is not made
+ * easier by the traffic light in the middle of it.
+ */
+function splicedTrace({ t, w }: PowerSamples): PowerTrace {
   const c: number[] = new Array(t.length);
   c[0] = 0;
   for (let i = 1; i < t.length; i++) {
     c[i] = c[i - 1] + Math.min(t[i] - t[i - 1], MAX_SAMPLE_SPAN_S);
   }
-  if (c[c.length - 1] < NP_WINDOW_S) return null;
+  return { c, w };
+}
 
+/**
+ * The RAW elapsed clock, which is the mean-max curve's: wall clock from the
+ * first sample, with a recording gap (a step past {@link MAX_SAMPLE_SPAN_S})
+ * credited at ZERO watts rather than spliced away.
+ *
+ * Both halves follow from what a mean-max point is — the best average over a
+ * CONTIGUOUS duration — and both are the opposite of what NP wants. Splicing
+ * would let "20-minute power" be assembled from intervals never held back to
+ * back: 12 x 2 min at 350 W with auto-paused rests (24 min of pedalling over 57
+ * min of wall clock) would report 350 W at every bucket, while the SAME workout
+ * recorded without auto-pause — zeros through the rests — reports 140 W, so the
+ * number would depend on nothing but a watch setting. Zeroing the gap instead of
+ * holding the last wattage across it is what makes those two recordings agree,
+ * and it is the conservative reading of "no data": the athlete is not credited
+ * with wattage nobody recorded.
+ *
+ * So a curve point and the ride's NP are free to disagree, and on a stop-start
+ * ride they will. That is the honest answer to two different questions.
+ */
+function elapsedTrace({ t, w }: PowerSamples): PowerTrace {
+  return {
+    c: t.map((time) => time - t[0]),
+    // The last sample holds over no span at all, so its wattage is never read.
+    w: w.map((power, i) => (i + 1 < t.length && t[i + 1] - t[i] > MAX_SAMPLE_SPAN_S ? 0 : power)),
+  };
+}
+
+/**
+ * Visits the trailing `windowS`-second average of the trace at every sample the
+ * window fully fits behind, with the duration that average holds for. One scan
+ * over whichever clock the caller built (see the two above).
+ *
+ * Nothing is visited when the trace is shorter than one window, which is why a
+ * curve point (and normalized power) can only come from full resolution: the
+ * 400-point downsample of an hour-long ride steps ~9 seconds at a time and would
+ * average away exactly the surges both metrics exist to capture.
+ */
+function forEachRollingAverage(
+  trace: PowerTrace,
+  windowS: number,
+  visit: (rolling: number, dt: number) => void
+): void {
+  const { c, w } = trace;
+  if (c[c.length - 1] < windowS) return;
   // Sample i's power holds over [c[i], c[i+1]). `acc` is the integral of power
   // over the segments ending at or before the cursor, from c[lo] onwards; `lo`
-  // trails just far enough back that the 30 s window starts inside segment lo.
+  // trails just far enough back that the window starts inside segment lo.
   let acc = 0;
   let lo = 0;
-  let quartic = 0;
-  let weight = 0;
   for (let i = 1; i < c.length; i++) {
     acc += w[i - 1] * (c[i] - c[i - 1]);
-    const windowStart = c[i] - NP_WINDOW_S;
+    const windowStart = c[i] - windowS;
     while (c[lo + 1] <= windowStart) {
       acc -= w[lo] * (c[lo + 1] - c[lo]);
       lo++;
@@ -195,15 +257,40 @@ export function normalizedPower(
     if (windowStart < c[0]) continue;
     // Segment lo straddles the window start; drop only the part before it.
     const partial = w[lo] * (windowStart - c[lo]);
-    const rolling = (acc - partial) / NP_WINDOW_S;
-    const dt = c[i] - c[i - 1];
+    visit((acc - partial) / windowS, c[i] - c[i - 1]);
+  }
+}
+
+/**
+ * Normalized power: a 30-second rolling average of the power trace, then the
+ * mean of those averages raised to the fourth, then the fourth root. The fourth
+ * power is what makes it read as "the steady wattage that would have cost the
+ * same", since physiological cost rises far faster than power does — a surging
+ * ride normalizes well above its plain average, a perfectly steady one lands
+ * exactly on it.
+ *
+ * Time-weighted rather than per-sample, so a stream with gaps or a non-1 Hz
+ * recording rate is not silently mis-averaged, and no sample is credited for
+ * more than {@link MAX_SAMPLE_SPAN_S} (see there). Null when the trace is
+ * shorter than one window (see {@link forEachRollingAverage}).
+ */
+export function normalizedPower(
+  timeS: readonly (number | null)[],
+  watts: readonly (number | null)[]
+): number | null {
+  const samples = powerSamples(timeS, watts);
+  if (!samples) return null;
+  const trace = splicedTrace(samples);
+  let quartic = 0;
+  let weight = 0;
+  forEachRollingAverage(trace, NP_WINDOW_S, (rolling, dt) => {
     // The fourth power and the matching fourth root ARE normalized power: a
     // square/square-root pair would be a root-mean-square and a 1/1 pair the
     // plain average, both of which under-read a surging ride. Pinned by the
     // exact-value tests in stream-metrics.test.ts.
     quartic += rolling ** 4 * dt;
     weight += dt;
-  }
+  });
   if (weight <= 0) return null;
   return (quartic / weight) ** 0.25;
 }
@@ -402,9 +489,21 @@ export function gapPaceSeries(streams: ActivityStreams): (number | null)[] | nul
 }
 
 /**
- * Fastest a segment may read, seconds per km, before its grade is thrown away:
- * quicker than 2 min/km is a GPS jump that no human runs, over any distance, and
- * it would contribute its fabricated slope with a lot of distance behind it.
+ * Fastest a segment of a distance trace may read, seconds per km, before it is
+ * an artefact rather than running: quicker than 2 min/km is a GPS jump that no
+ * human covers, over any distance.
+ *
+ * The single owner of the FAST bound, exactly as `stream-range.ts`'s
+ * STOPPED_S_PER_KM is the single owner of the slow one. It stays here rather
+ * than moving beside that sibling because both of its readers are in this file
+ * and nothing over there asks the question; one constant, one home, two callers:
+ *
+ * - {@link gradeAdjustmentRatio} throws the segment's SLOPE away. A jump would
+ *   contribute a fabricated grade with a lot of distance behind it.
+ * - {@link paceCurvePoints} treats it as a BREAK in the trace. A mean-max window
+ *   may not span a teleport, and a jump left in place fabricates a permanent
+ *   all-time PB — the curve is a MIN across all history, so one bad sample in
+ *   one activity wins its bucket forever.
  *
  * There is deliberately no slow bound to match. A stalled or dawdling segment
  * covers almost no ground, and the sum below weights by ground, so it already
@@ -417,7 +516,7 @@ export function gapPaceSeries(streams: ActivityStreams): (number | null)[] | nul
  * STOPPED_S_PER_KM is for — deciding whether the athlete was moving, on the
  * TIME-weighted averages over there — and this integral is not that question.
  */
-const MIN_GAP_SEGMENT_PACE_S_PER_KM = 120;
+const MIN_PLAUSIBLE_PACE_S_PER_KM = 120;
 
 /**
  * How much further the athlete would have got on the flat for the same effort,
@@ -455,7 +554,7 @@ function gradeAdjustmentRatio(streams: ActivityStreams): number | null {
     const dt = t1 - t0;
     const dd = d1 - d0;
     if (dt <= 0 || dd <= 0) continue;
-    if (dt / dd < MIN_GAP_SEGMENT_PACE_S_PER_KM) continue;
+    if (dt / dd < MIN_PLAUSIBLE_PACE_S_PER_KM) continue;
     // The grade of the sample the segment leaves, the same sample whose pace it
     // is; a null there is an unmeasurable slope, taken as flat rather than
     // dropping ground that was genuinely covered.
@@ -488,6 +587,158 @@ export function avgGapSPerKm(
   if (paceSPerKm <= 0) return null;
   const ratio = gradeAdjustmentRatio(streams);
   return ratio == null ? null : paceSPerKm * ratio;
+}
+
+// ---------------------------------------------------------------------------
+// Mean-max curve points
+// ---------------------------------------------------------------------------
+
+/** A contiguous stretch of a run's trace: `d[i]` metres covered at `t[i]` seconds. */
+interface PaceSegment {
+  d: number[];
+  t: number[];
+}
+
+/**
+ * The distance/time trace cut into the stretches whose advance is physically
+ * possible, dropping the samples that carry no reading and the ones whose clock
+ * does not move. Distance may STALL inside a segment — a stop still costs time,
+ * and paying for it is the whole point — but it may not run backwards and it may
+ * not outrun {@link MIN_PLAUSIBLE_PACE_S_PER_KM}.
+ *
+ * Cutting rather than dropping, because Strava's `distance` channel is
+ * CUMULATIVE and does teleport: a GPS reacquisition after a tunnel adds 200 m to
+ * one sample. Skipping that sample would only move the jump onto the next
+ * segment, and skipping the samples that walk it back (the old `metres < d[last]`
+ * guard) kept the spike and threw the correction away, which is worse. Ending
+ * the segment at the jump and starting the next one after it means no window can
+ * ever span the discontinuity, however the stream jitters around it.
+ */
+function paceSegments(streams: ActivityStreams): PaceSegment[] {
+  const segments: PaceSegment[] = [];
+  let d: number[] = [];
+  let t: number[] = [];
+  const close = () => {
+    // One sample spans no ground, so it can only start a segment, never be one.
+    if (d.length >= 2) segments.push({ d, t });
+    d = [];
+    t = [];
+  };
+  for (let i = 0; i < streams.n; i++) {
+    const km = streams.distanceKm[i];
+    const time = streams.timeS[i];
+    if (km == null || time == null) continue;
+    const metres = km * METRES_PER_KM;
+    if (t.length > 0) {
+      const dt = time - t[t.length - 1];
+      if (dt <= 0) continue;
+      const dd = metres - d[d.length - 1];
+      if (dd < 0 || (dd > 0 && (dt * METRES_PER_KM) / dd < MIN_PLAUSIBLE_PACE_S_PER_KM)) close();
+    }
+    d.push(metres);
+    t.push(time);
+  }
+  close();
+  return segments;
+}
+
+/**
+ * The quickest this segment covered exactly `target` metres, seconds, or
+ * Infinity when it never covers that much ground. One two-pointer sweep, so a
+ * 6-bucket curve costs six linear passes per segment and no sorting.
+ *
+ * The window is trimmed to EXACTLY the bucket distance: the sweep leaves one
+ * that overshoots by less than a single sample's ground, and the overshoot is
+ * removed at the entry step's own speed. Without that, a stream sampling every
+ * 30 m would report a 400 m best over up to 430 m and read several seconds per
+ * km fast on the shortest bucket, which is the one a track interval lands in.
+ */
+function fastestOverM({ d, t }: PaceSegment, target: number): number {
+  const n = d.length;
+  if (d[n - 1] - d[0] < target) return Infinity;
+  let lo = 0;
+  let bestS = Infinity;
+  for (let hi = 1; hi < n; hi++) {
+    // Shrink from the left while the window still covers the distance, so
+    // [lo, hi] is the tightest window ending at hi that reaches it.
+    while (d[hi] - d[lo + 1] >= target) lo++;
+    const covered = d[hi] - d[lo];
+    if (covered < target) continue;
+    const step = d[lo + 1] - d[lo];
+    const excess = covered - target;
+    // `excess` is strictly less than `step` (otherwise lo would have moved on),
+    // so this only ever removes part of the entry step.
+    const elapsed = t[hi] - t[lo] - (step > 0 ? (excess / step) * (t[lo + 1] - t[lo]) : 0);
+    if (elapsed > 0 && elapsed < bestS) bestS = elapsed;
+  }
+  return bestS;
+}
+
+/**
+ * The fastest average pace, seconds per km, this run held over each bucket
+ * distance.
+ *
+ * Timed on RAW elapsed time, exactly as the power scan is ({@link elapsedTrace})
+ * and for the same reason: a best effort is a distance covered between two
+ * moments, and standing at a crossing in the middle of it means you did not hold
+ * that pace. This also puts the stream scan on the same clock as the best-effort
+ * seed (`seedCurvePoints`), so the two sources of a pace bucket are comparable.
+ *
+ * Buckets longer than the run are simply absent from the result.
+ */
+export function paceCurvePoints(streams: ActivityStreams): CurvePoint[] {
+  const segments = paceSegments(streams);
+  const points: CurvePoint[] = [];
+  for (const bucket of PACE_BUCKETS) {
+    const target = bucket.distanceM;
+    let bestS = Infinity;
+    for (const segment of segments) bestS = Math.min(bestS, fastestOverM(segment, target));
+    if (Number.isFinite(bestS)) {
+      points.push({ kind: "pace", bucket: bucket.key, value: bestS / (target / METRES_PER_KM) });
+    }
+  }
+  return points;
+}
+
+/**
+ * The highest average power this ride held for each bucket duration, over the
+ * raw elapsed clock ({@link elapsedTrace}) rather than the spliced one
+ * normalized power runs on: a mean-max point is by definition a CONTIGUOUS
+ * duration, so it is allowed — required, on a stop-start ride — to disagree with
+ * the ride's NP. Buckets longer than the ride are absent.
+ */
+export function powerCurvePoints(streams: ActivityStreams): CurvePoint[] {
+  if (!streams.watts) return [];
+  const samples = powerSamples(streams.timeS, streams.watts);
+  if (!samples) return [];
+  const trace = elapsedTrace(samples);
+  const points: CurvePoint[] = [];
+  for (const bucket of POWER_BUCKETS) {
+    let best = -Infinity;
+    forEachRollingAverage(trace, bucket.durationS, (rolling) => {
+      if (rolling > best) best = rolling;
+    });
+    if (Number.isFinite(best)) points.push({ kind: "power", bucket: bucket.key, value: best });
+  }
+  return points;
+}
+
+/**
+ * One activity's mean-max curve points, gated by sport exactly as the metrics
+ * above are: pace for runs, power for rides with a REAL meter. `hasRealPower`
+ * alone is not that gate — Strava sets `device_watts` on 266 of these runs, where
+ * the wattage is a watch's model of pace rather than a meter reading, and a
+ * power-duration curve built from it would be a pace curve wearing watts.
+ *
+ * Pass the FULL-RESOLUTION stream. Nothing here is honest on the 400-point
+ * downsample: it steps ~9 s on an hour-long ride (there goes the 5 s bucket) and
+ * ~58 m on a 22 km run (there goes 400 m), so the only caller is the fetch-time
+ * hook, which sees the stream as recorded.
+ */
+export function curvePoints(streams: ActivityStreams, activity: MetricsActivity): CurvePoint[] {
+  if (isRunSport(activity.sportType)) return paceCurvePoints(streams);
+  if (isRideSport(activity.sportType) && activity.hasRealPower) return powerCurvePoints(streams);
+  return [];
 }
 
 /**

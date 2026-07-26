@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   avgGapSPerKm,
   computeStreamMetrics,
+  curvePoints,
   fullResMetricsVersion,
   gapPaceSeries,
   gradePctSeries,
@@ -11,7 +12,9 @@ import {
   metricsActivityOf,
   normalizedPower,
   paceAdjustmentFactor,
+  paceCurvePoints,
   parseZoneSecs,
+  powerCurvePoints,
   serializeZoneSecs,
   type MetricsActivity,
 } from "./stream-metrics";
@@ -779,6 +782,259 @@ describe("avgGapSPerKm", () => {
     });
     expect(avgGapSPerKm(stream, { avgPaceSPerKm: null })).toBeNull();
     expect(avgGapSPerKm(stream, { avgPaceSPerKm: 0 })).toBeNull();
+  });
+});
+
+/**
+ * A synthetic run at 1 Hz whose pace is a function of the ground already
+ * covered, so a fast stretch can be placed at an exact distance. Speed is held
+ * constant within each second, which is what a full-resolution Strava distance
+ * stream looks like.
+ */
+function runOf(paceAtM: (distanceM: number) => number, totalM: number): ActivityStreams {
+  const timeS: number[] = [0];
+  const distanceKm: number[] = [0];
+  let d = 0;
+  for (let t = 1; d < totalM; t++) {
+    d += 1000 / paceAtM(d);
+    timeS.push(t);
+    distanceKm.push(d / 1000);
+  }
+  return {
+    n: timeS.length,
+    timeS,
+    distanceKm,
+    heartrate: null,
+    paceSPerKm: null,
+    watts: null,
+    cadence: null,
+    altitudeM: null,
+    gradePct: null,
+  };
+}
+
+/** The bucket values of a curve, keyed by bucket, for compact assertions. */
+function byBucket(points: { bucket: string; value: number }[]): Record<string, number> {
+  return Object.fromEntries(points.map((p) => [p.bucket, p.value]));
+}
+
+describe("paceCurvePoints", () => {
+  it("gives every reachable bucket the same pace for a constant-speed run", () => {
+    const values = byBucket(paceCurvePoints(runOf(() => 300, 12_000)));
+    expect(Object.keys(values)).toEqual(["400m", "1k", "1mi", "5k", "10k"]);
+    for (const value of Object.values(values)) expect(value).toBeCloseTo(300, 1);
+  });
+
+  it("omits buckets longer than the run", () => {
+    const values = byBucket(paceCurvePoints(runOf(() => 300, 900)));
+    expect(Object.keys(values)).toEqual(["400m"]);
+  });
+
+  it("shows a single fast kilometre in the 1k bucket, not in the 5k", () => {
+    // 5 km at 360 s/km with the third kilometre run at 240.
+    const values = byBucket(
+      paceCurvePoints(runOf((m) => (m >= 2000 && m < 3000 ? 240 : 360), 5000))
+    );
+    expect(values["1k"]).toBeCloseTo(240, 0);
+    expect(values["400m"]).toBeCloseTo(240, 0);
+    // Whole-run average: four kilometres at 360 and one at 240.
+    expect(values["5k"]).toBeCloseTo(336, 0);
+  });
+
+  it("counts a mid-effort stop against the pace it interrupts", () => {
+    // 1 km at 300 s/km, then 120 s standing, then 1 km more. The best kilometre
+    // is one of the halves and is untouched; a mile cannot be run without
+    // crossing the stop, and pays for it.
+    const timeS: number[] = [];
+    const distanceKm: number[] = [];
+    for (let t = 0; t <= 300; t++) {
+      timeS.push(t);
+      distanceKm.push((t * (1000 / 300)) / 1000);
+    }
+    const stoppedKm = distanceKm[distanceKm.length - 1];
+    for (let t = 301; t <= 420; t++) {
+      timeS.push(t);
+      distanceKm.push(stoppedKm);
+    }
+    for (let t = 421; t <= 720; t++) {
+      timeS.push(t);
+      distanceKm.push(stoppedKm + ((t - 420) * (1000 / 300)) / 1000);
+    }
+    const values = byBucket(
+      paceCurvePoints({
+        n: timeS.length,
+        timeS,
+        distanceKm,
+        heartrate: null,
+        paceSPerKm: null,
+        watts: null,
+        cadence: null,
+        altitudeM: null,
+        gradePct: null,
+      })
+    );
+    expect(values["1k"]).toBeCloseTo(300, 1);
+    // The mile cannot avoid the 120 s stop inside a 2 km run split 1 km / 1 km.
+    expect(values["1mi"]).toBeGreaterThan(300);
+  });
+
+  it("is empty without a distance trace", () => {
+    expect(paceCurvePoints(streamOf({ durationS: 3600, hr: () => 150 }))).toEqual([]);
+  });
+
+  // Strava's `distance` channel is CUMULATIVE and it teleports: a GPS
+  // reacquisition after a tunnel lands 200 m up the road in one sample. The
+  // athlete curve is a MIN across all history, so a fabricated bucket here is a
+  // permanent all-time PB that no later fetch can correct.
+  describe("a GPS jump", () => {
+    const SPEED_M_PER_S = 1000 / 360;
+    const N = 4000;
+    const JUMP_AT = 1800;
+    const JUMP_M = 200;
+
+    /** An 11 km run at 6:00/km, 1 Hz, with `offset` metres added at each sample. */
+    const jumpyRun = (offset: (i: number) => number): ActivityStreams => {
+      const timeS = Array.from({ length: N + 1 }, (_, i) => i);
+      return {
+        n: timeS.length,
+        timeS,
+        distanceKm: timeS.map((i) => (i * SPEED_M_PER_S + offset(i)) / 1000),
+        heartrate: null,
+        paceSPerKm: null,
+        watts: null,
+        cadence: null,
+        altitudeM: null,
+        gradePct: null,
+      };
+    };
+
+    it("cannot fabricate a bucket by jumping forward", () => {
+      // Every sample from the jump onwards carries the extra 200 m, as a
+      // cumulative channel does. Unbounded, this reads 182.5 s/km at 400 m
+      // (3:02/km) and 289 s/km at 1 km on a run held at 360 throughout.
+      const values = byBucket(paceCurvePoints(jumpyRun((i) => (i >= JUMP_AT ? JUMP_M : 0))));
+      expect(Object.keys(values)).toEqual(["400m", "1k", "1mi", "5k"]);
+      for (const value of Object.values(values)) expect(value).toBeCloseTo(360, 1);
+    });
+
+    it("cannot fabricate one by jumping forward and back either", () => {
+      // One sample spikes and the next returns to the truth. The old backwards
+      // guard made this WORSE than the plain spike — it dropped the corrective
+      // samples and kept the spike, reading 2 s/km at 400 m.
+      const values = byBucket(paceCurvePoints(jumpyRun((i) => (i === JUMP_AT ? JUMP_M : 0))));
+      expect(Object.keys(values)).toEqual(["400m", "1k", "1mi", "5k"]);
+      for (const value of Object.values(values)) expect(value).toBeCloseTo(360, 1);
+    });
+  });
+});
+
+describe("powerCurvePoints", () => {
+  it("gives every reachable bucket the same wattage for a constant trace", () => {
+    const values = byBucket(powerCurvePoints(streamOf({ durationS: 3600, watts: () => 200 })));
+    expect(Object.keys(values)).toEqual(["5s", "1m", "5m", "8m", "20m", "60m"]);
+    for (const value of Object.values(values)) expect(value).toBeCloseTo(200, 6);
+  });
+
+  it("puts a short spike in the short buckets only", () => {
+    // 30 minutes at 200 W with a 10 s sprint at 700 W.
+    const stream = streamOf({
+      durationS: 1800,
+      watts: (t) => (t >= 600 && t < 610 ? 700 : 200),
+    });
+    const values = byBucket(powerCurvePoints(stream));
+    expect(values["5s"]).toBeCloseTo(700, 6);
+    expect(values["1m"]).toBeCloseTo(200 + (500 * 10) / 60, 6);
+    expect(values["20m"]).toBeLessThan(210);
+    expect(values["60m"]).toBeUndefined();
+  });
+
+  it("is empty without a power trace", () => {
+    expect(powerCurvePoints(streamOf({ durationS: 3600, hr: () => 150 }))).toEqual([]);
+  });
+
+  // The same session recorded two ways. A mean-max point is a CONTIGUOUS
+  // duration, so which of these two files the watch produced must not change a
+  // single bucket — on the gap-spliced clock normalized power runs on, the
+  // auto-paused file reported 350 W at every bucket up to 20 minutes.
+  describe("12 x 2 min at 350 W with 3 min rests", () => {
+    const WORK_S = 120;
+    const PERIOD_S = 300;
+    const REPS = 12;
+    const LAST_S = (REPS - 1) * PERIOD_S + WORK_S;
+
+    const traceOf = (timeS: number[], watts: (t: number) => number): ActivityStreams => ({
+      n: timeS.length,
+      timeS,
+      distanceKm: timeS.map(() => null),
+      heartrate: null,
+      paceSPerKm: null,
+      watts: timeS.map(watts),
+      cadence: null,
+      altitudeM: null,
+      gradePct: null,
+    });
+
+    // Auto-pause on: the rests are not recorded at all, so the clock jumps.
+    const autoPaused = traceOf(
+      Array.from({ length: REPS }, (_, rep) =>
+        Array.from({ length: WORK_S + 1 }, (_, s) => rep * PERIOD_S + s)
+      ).flat(),
+      () => 350
+    );
+    // Auto-pause off: the same session at 1 Hz throughout, zeros in the rests.
+    const continuous = traceOf(
+      Array.from({ length: LAST_S + 1 }, (_, s) => s),
+      (t) => (t % PERIOD_S < WORK_S ? 350 : 0)
+    );
+
+    it("reads the same whatever the watch's auto-pause setting was", () => {
+      const paused = byBucket(powerCurvePoints(autoPaused));
+      expect(paused).toEqual(byBucket(powerCurvePoints(continuous)));
+      // 24 minutes of pedalling over 57 minutes of wall clock: every window
+      // longer than one rep pays for the rests it has to cross.
+      expect(paused["5s"]).toBeCloseTo(350, 6);
+      expect(paused["1m"]).toBeCloseTo(350, 6);
+      expect(paused["5m"]).toBeCloseTo(140, 6);
+      expect(paused["8m"]).toBeCloseTo(175, 6);
+      expect(paused["20m"]).toBeCloseTo(140, 6);
+      // 60 minutes is longer than the 57 the ride spans.
+      expect(paused["60m"]).toBeUndefined();
+    });
+
+    it("leaves normalized power on the spliced clock, free to disagree", () => {
+      // NP is defined over PEDALLING time, so it reads the rests out and lands
+      // near the work wattage. The curve reads them in. Both are correct.
+      const np = normalizedPower(autoPaused.timeS, autoPaused.watts!)!;
+      expect(np).toBeGreaterThan(340);
+      expect(byBucket(powerCurvePoints(autoPaused))["20m"]).toBeLessThan(150);
+    });
+  });
+});
+
+describe("curvePoints sport gating", () => {
+  const stream = streamOf({ durationS: 3600, watts: () => 200 });
+
+  it("never builds a power curve from a watch's run power", () => {
+    // Strava sets device_watts on 266 production runs; the wattage there is a
+    // model of pace, not a meter reading.
+    const runWithWatts = { ...RUN, hasRealPower: true };
+    expect(curvePoints(stream, runWithWatts)).toEqual([]);
+  });
+
+  it("builds a power curve for a ride with a real meter", () => {
+    expect(curvePoints(stream, RIDE).map((p) => p.kind)).toEqual(Array(6).fill("power"));
+  });
+
+  it("skips a ride with no real meter", () => {
+    expect(curvePoints(stream, { ...RIDE, hasRealPower: false })).toEqual([]);
+  });
+
+  it("builds a pace curve for a run", () => {
+    const points = curvePoints(
+      runOf(() => 300, 5000),
+      RUN
+    );
+    expect(points.map((p) => p.kind)).toEqual(Array(4).fill("pace"));
   });
 });
 

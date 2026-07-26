@@ -3,6 +3,7 @@ import type { SportCategory } from "../sports";
 import type { RaceCategory } from "../races";
 import type { MetricGroup } from "../health";
 import type { ReadinessBand, ReadinessComponentKey } from "../readiness";
+import type { CurveBucketKey } from "../curves";
 
 export const en = {
   nav: {
@@ -571,6 +572,33 @@ export const en = {
     vdotWindow: "Best of the last {days} days",
     vdotNoRecent: "No qualifying effort in the last {days} days",
     vdotTrendLabel: "Best VDOT per month over the last {n} months",
+    windows: { "90d": "90 days", "6m": "6 months", "1y": "1 year" } satisfies Record<
+      "90d" | "6m" | "1y",
+      string
+    >,
+    paceCurve: "Pace curve",
+    paceCurveBody:
+      "The fastest pace you have held over each distance, taken from every run rather than from one. The selected window sits over your all-time best, so a gap between the two lines is ground you have lost or not covered lately. Distances read from Strava's best efforts are timed on the wall clock, so any standing inside the effort counts against it.",
+    powerCurve: "Power curve",
+    powerCurveBody:
+      "The highest average power you have held for each duration, from rides with a real power meter only. Watch-estimated run power is deliberately excluded — it models pace, it does not measure force.",
+    curveAllTime: "All time",
+    paceCurveLabel: "Best pace per distance",
+    powerCurveLabel: "Best average power per duration",
+    curveBuckets: {
+      "400m": "400 m",
+      "1k": "1 km",
+      "1mi": "1 mi",
+      "5k": "5 km",
+      "10k": "10 km",
+      half: "Half",
+      "5s": "5 s",
+      "1m": "1 min",
+      "5m": "5 min",
+      "8m": "8 min",
+      "20m": "20 min",
+      "60m": "60 min",
+    } satisfies Record<CurveBucketKey, string>,
   },
   fitness: {
     title: "Fitness",

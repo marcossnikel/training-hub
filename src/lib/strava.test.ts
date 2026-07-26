@@ -327,6 +327,45 @@ describe("derived metrics are written from the fetched stream", () => {
     expect(gap!).toBeCloseTo(300 / 1.36863, 2);
   });
 
+  it("overwrites a seeded curve bucket with the value it measures", async () => {
+    // The precedence between the table's two writers, at the call site that
+    // decides it. `backfill-curve-points.ts` is insert-only so the two converge
+    // whichever runs first; flipped to insert-only here, a seeded wall-clock
+    // pace would silently outlive the stream measurement of the same bucket,
+    // and nothing would ever correct it — this fetch is the only moment full
+    // resolution exists.
+    await connectWithFreshToken();
+    const inserted = await db.client.execute({
+      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+                                    avg_pace_s_per_km, status, strava_id)
+            VALUES ('Seeded run', 'Run', '2026-01-07T12:00:00Z', 0.8, 240, 300, 'confirmed', 77702)`,
+      args: [],
+    });
+    const activityId = Number(inserted.lastInsertRowid);
+    await db.saveActivityCurvePoints(activityId, [{ kind: "pace", bucket: "400m", value: 999 }], {
+      overwrite: false,
+    });
+
+    // 800 m at 300 s/km, 1 Hz: one reachable bucket, at a pace nothing else has.
+    const seconds = Array.from({ length: 241 }, (_, i) => i);
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        time: { data: seconds },
+        distance: { data: seconds.map((s) => (s * 1000) / 300) },
+      })
+    ) as unknown as typeof fetch;
+
+    await strava.ensureActivityStreams({ id: activityId, strava_id: 77702 });
+
+    const stored = await db.client.execute({
+      sql: "SELECT bucket, value FROM activity_curve_points WHERE activity_id = ?",
+      args: [activityId],
+    });
+    expect(stored.rows).toHaveLength(1);
+    expect(stored.rows[0].bucket).toBe("400m");
+    expect(Number(stored.rows[0].value)).toBeCloseTo(300, 6);
+  });
+
   it("caches the stream even when the metrics cannot be derived", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({

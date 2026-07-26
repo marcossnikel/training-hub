@@ -11,6 +11,7 @@ import {
   insertSyncedActivity,
   latestSyncedStartEpoch,
   listBestEffortCounts,
+  saveActivityCurvePoints,
   saveActivityDetail,
   saveActivityStreams,
   saveStravaAuth,
@@ -21,7 +22,12 @@ import {
 import { bestEffortRows, type StravaBestEffort } from "./best-efforts";
 import { isRideSport } from "./cycling";
 import { logger } from "./telemetry";
-import { computeStreamMetrics, fullResMetricsVersion, hasAnyMetric } from "./stream-metrics";
+import {
+  computeStreamMetrics,
+  curvePoints,
+  fullResMetricsVersion,
+  hasAnyMetric,
+} from "./stream-metrics";
 import { FULL_RESOLUTION, normalizeStreams, type ActivityStreams } from "./streams";
 import type { Activity } from "./types";
 import { round2 } from "./format";
@@ -423,13 +429,22 @@ export async function ensureActivityDetail(
 // ---------------------------------------------------------------------------
 
 /**
- * Derives and stores an activity's metrics from the stream Strava just returned,
- * at the resolution it was recorded at, stamped with the version the payload
- * earned (`fullResMetricsVersion`: 3 with real grade, 2 without). Called from the
- * FETCH branch only: a cached read returns before it, so viewing an activity
- * whose stream is already stored still issues no write. Nothing here may take the
- * stream cache down with it — a failed metric is a missing tile, a failed cache
- * write is another API call — so every error is logged and swallowed.
+ * Derives and stores everything an activity's stream is worth keeping, from the
+ * payload Strava just returned at the resolution it was recorded at: the derived
+ * metrics (stamped with the version the payload earned — `fullResMetricsVersion`:
+ * 3 with real grade, 2 without) and the mean-max curve points.
+ *
+ * This is the ONLY moment full resolution exists — the fetch stores a 400-point
+ * downsample and `ensureActivityStreams` never re-fetches over its own cache — so
+ * both are computed here or not at all. Called from the FETCH branch only: a
+ * cached read returns before it, so viewing an activity whose stream is already
+ * stored still issues no write.
+ *
+ * The two writes are independent: an activity with nothing computable (no heart
+ * rate, no pace, no power) still gets its curve points, and a failed metrics
+ * write must not swallow them. Nothing here may take the stream cache down with
+ * it — a failed metric is a missing tile, a failed cache write is another API
+ * call — so every error is logged and swallowed.
  */
 async function cacheStreamMetrics(
   activityId: number,
@@ -441,8 +456,14 @@ async function cacheStreamMetrics(
     const activity = await getMetricsActivity(activityId);
     if (!activity) return;
     const metrics = computeStreamMetrics({ streams, activity }, await getAthleteThresholds());
-    if (!hasAnyMetric(metrics)) return;
-    await upsertActivityMetrics(activityId, metrics, fullResMetricsVersion(streams));
+    if (hasAnyMetric(metrics)) {
+      await upsertActivityMetrics(activityId, metrics, fullResMetricsVersion(streams));
+    }
+    // Overwriting: the stream scan takes precedence over anything the
+    // best-effort seed may already have put in these buckets, whichever ran
+    // first (see `saveActivityCurvePoints`). Pinned in strava.test.ts — flipped,
+    // a seeded bucket would silently outlive the measurement of it.
+    await saveActivityCurvePoints(activityId, curvePoints(streams, activity), { overwrite: true });
   } catch (error) {
     logger.error("strava.cacheStreamMetrics", { error, activityId });
   }

@@ -22,6 +22,7 @@
     "seed:clear": "tsx scripts/seed.ts --clear",
     "backfill:load": "tsx scripts/backfill-load.ts",
     "backfill:best-efforts": "tsx scripts/backfill-best-efforts.ts",
+    "backfill:curve-points": "tsx scripts/backfill-curve-points.ts",
     "backfill:metrics": "tsx scripts/backfill-metrics.ts",
     "fetch:history": "tsx scripts/fetch-history.ts"
   },

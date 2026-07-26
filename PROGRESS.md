@@ -114,3 +114,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T23 VDOT trend from best efforts: done 2026-07-25, committed direct to main
 - ICU-T24 Derived-metrics pipeline (activity_metrics + full-res compute, one decoupling implementation): done 2026-07-25, committed direct to main
 - ICU-T26 grade_smooth ingestion and real GAP: done 2026-07-26, committed direct to main
+- ICU-T27 Mean-max curves on /performance: done 2026-07-26, committed direct to main

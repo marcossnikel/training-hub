@@ -2,12 +2,16 @@ import { GaugeIcon, MedalIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { ApplyThresholdPaceButton } from "@/components/apply-threshold-pace";
+import { FilterPill } from "@/components/filter-pill";
+import { MeanMaxCurve } from "@/components/mean-max-curve";
 import { ZonesPanel } from "@/components/zones-panel";
 import { VdotCard } from "@/components/vdot-card";
 import {
+  countCurveActivities,
   getAthleteThresholds,
   getTrainingZones,
   listBestEffortsForVdot,
+  listCurveBests,
   listFastestBestEfforts,
   listRunEfforts,
 } from "@/lib/db";
@@ -20,10 +24,17 @@ import {
   predictRaceTimes,
   vdotTrend,
 } from "@/lib/benchmarks";
+import { curveSeries, curveWindowStart, showPowerCurve } from "@/lib/curves";
 import { fmtDate, fmtDuration, fmtKm, fmtPace } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
+import { timeWindows } from "@/lib/windows";
 
 export const metadata = { title: "Performance" };
+
+// Windows the curve overlay offers. "All" is deliberately absent: all-time is
+// already the second series, so selecting it would draw one line twice.
+const CURVE_WINDOWS = timeWindows(["90d", "6m", "1y"]);
+const DEFAULT_CURVE_WINDOW = CURVE_WINDOWS[0];
 
 function StatTile({
   label,
@@ -49,7 +60,8 @@ function StatTile({
   );
 }
 
-export default async function PerformancePage() {
+export default async function PerformancePage({ searchParams }: PageProps<"/performance">) {
+  const params = await searchParams;
   const { lang, t } = await getDict();
   const tp = t.performance;
 
@@ -70,6 +82,31 @@ export default async function PerformancePage() {
   // VDOT reads EVERY stored segment effort with its date (not just the fastest per
   // name), because the trend is per month: the same effort table, a different shape.
   const vdot = vdotTrend(await listBestEffortsForVdot(), new Date());
+
+  // Mean-max curves (T27). Both series are aggregated in SQL from
+  // `activity_curve_points`, so this costs a handful of small reads and never
+  // touches a stream. The window pill is the only thing the URL selects on this
+  // page. Issued together: they are independent, so serializing them would pay
+  // five Turso round trips end to end for no ordering anyone needs. The power
+  // reads go out with them rather than behind the ride-count check — one extra
+  // read of an empty table beats a serial round trip.
+  const rawWindow = typeof params.window === "string" ? params.window : DEFAULT_CURVE_WINDOW.key;
+  const curveWindow = CURVE_WINDOWS.find((w) => w.key === rawWindow) ?? DEFAULT_CURVE_WINDOW;
+  const since = curveWindowStart(curveWindow.days, new Date());
+  const [paceWindowed, paceAllTime, powerWindowed, powerAllTime, powerRides] = await Promise.all([
+    listCurveBests("pace", since),
+    listCurveBests("pace", null),
+    listCurveBests("power", since),
+    listCurveBests("power", null),
+    countCurveActivities("power"),
+  ]);
+  const paceCurve = curveSeries("pace", paceWindowed, paceAllTime);
+  const powerCurve = showPowerCurve(powerRides)
+    ? curveSeries("power", powerWindowed, powerAllTime)
+    : [];
+  const curveWindowLabel = tp.windows[curveWindow.key];
+  const curveHref = (key: string) =>
+    key === DEFAULT_CURVE_WINDOW.key ? "/performance" : `/performance?window=${key}`;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -244,6 +281,47 @@ export default async function PerformancePage() {
           {/* Riegel predicts times from one effort; VDOT turns the same efforts into
               a single fitness number over time. They read as a pair. */}
           <VdotCard trend={vdot} lang={lang} t={t} />
+
+          {/* Mean-max curves. The window pills drive both panels, so they sit
+              above the pair rather than inside either card. */}
+          {paceCurve.length > 0 || powerCurve.length > 0 ? (
+            <>
+              <nav aria-label="Time window" className="flex flex-wrap items-center gap-1.5">
+                {CURVE_WINDOWS.map((w) => (
+                  <FilterPill
+                    key={w.key}
+                    href={curveHref(w.key)}
+                    active={curveWindow.key === w.key}
+                    label={tp.windows[w.key]}
+                  />
+                ))}
+              </nav>
+
+              {paceCurve.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{tp.paceCurve}</CardTitle>
+                    <CardDescription>{tp.paceCurveBody}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <MeanMaxCurve kind="pace" points={paceCurve} windowLabel={curveWindowLabel} />
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {powerCurve.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{tp.powerCurve}</CardTitle>
+                    <CardDescription>{tp.powerCurveBody}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <MeanMaxCurve kind="power" points={powerCurve} windowLabel={curveWindowLabel} />
+                  </CardContent>
+                </Card>
+              ) : null}
+            </>
+          ) : null}
         </div>
       )}
     </div>
