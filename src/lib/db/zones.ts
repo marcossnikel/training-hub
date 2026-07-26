@@ -3,9 +3,11 @@ import { listBestEffortsForVdot } from "./activities";
 import { getMeta, setMeta } from "./meta";
 import { getAthleteThresholds } from "./load";
 import { getResolvedNumericSeries } from "./health";
+import { computeDecouplingHalves } from "../analysis";
 import { currentVdot } from "../benchmarks";
 import { localDateInputValue } from "../format";
 import type { AthleteThresholds } from "../fitness";
+import type { ActivityStreams } from "../streams";
 import type { DerivedZones } from "../zones";
 
 // Assembles the athlete's REAL running field signals for the zones agent — the
@@ -168,7 +170,7 @@ export async function getRunningFieldSignals(): Promise<FieldSignals> {
       n: arr.length,
     }));
 
-  const decoupling = await computeDecoupling(
+  const decoupling = await decouplingSamples(
     runs.filter((r) => r.distanceKm >= 15 && r.hasStreams)
   );
 
@@ -195,9 +197,24 @@ export async function getRunningFieldSignals(): Promise<FieldSignals> {
   };
 }
 
-/** Pa:Hr aerobic decoupling (first vs second half) on long runs with streams. */
-async function computeDecoupling(
-  longs: { id: number; date: string; distanceKm: number; paceSPerKm: number | null }[]
+/**
+ * Pa:Hr aerobic decoupling (first vs second half) on long runs with streams, as
+ * evidence for the zones agent and the coach.
+ *
+ * The reading itself is `computeDecouplingHalves` — the same function, with the
+ * same warm-up exclusion and the same split, that the activity page shows and the
+ * metrics pipeline persists. This used to carry its own older variant (drop the
+ * first kilometre, split at the sample-index midpoint), so the coach could quote a
+ * drift the activity page did not show. One implementation, one number.
+ */
+async function decouplingSamples(
+  longs: {
+    id: number;
+    date: string;
+    distanceKm: number;
+    timeS: number;
+    paceSPerKm: number | null;
+  }[]
 ): Promise<DecouplingSample[]> {
   const out: DecouplingSample[] = [];
   for (const run of longs.slice(0, 6)) {
@@ -206,40 +223,25 @@ async function computeDecoupling(
       [run.id]
     );
     if (row.length === 0) continue;
-    let s: { heartrate?: (number | null)[]; paceSPerKm?: (number | null)[]; distanceKm?: number[] };
+    let streams: ActivityStreams | null;
     try {
-      s = JSON.parse(row[0].json);
+      streams = JSON.parse(row[0].json) as ActivityStreams | null;
     } catch {
       continue;
     }
-    const hr = s.heartrate ?? [];
-    const pace = s.paceSPerKm ?? [];
-    const dist = s.distanceKm ?? [];
-    const pts: { hr: number; spd: number }[] = [];
-    for (let i = 0; i < hr.length; i++) {
-      const h = hr[i];
-      const p = pace[i];
-      // drop the first km (warmup) and invalid samples
-      if (h && h > 0 && p && p > 0 && p < 900 && (dist[i] ?? 0) > 1) {
-        pts.push({ hr: h, spd: 60000 / p });
-      }
-    }
-    if (pts.length < 20) continue;
-    const mid = Math.floor(pts.length / 2);
-    const eff = (arr: { hr: number; spd: number }[]) => {
-      const h = arr.reduce((sum, x) => sum + x.hr, 0) / arr.length;
-      const v = arr.reduce((sum, x) => sum + x.spd, 0) / arr.length;
-      return { h, e: v / h };
-    };
-    const a1 = eff(pts.slice(0, mid));
-    const a2 = eff(pts.slice(mid));
+    const halves = computeDecouplingHalves({
+      streams,
+      basis: "speed",
+      movingTimeS: run.timeS,
+    });
+    if (!halves) continue;
     out.push({
       date: run.date,
       distanceKm: run.distanceKm,
       paceSPerKm: run.paceSPerKm,
-      firstHalfHr: Math.round(a1.h),
-      secondHalfHr: Math.round(a2.h),
-      driftPct: Math.round(((a1.e - a2.e) / a1.e) * 1000) / 10,
+      firstHalfHr: Math.round(halves.firstHalfHr),
+      secondHalfHr: Math.round(halves.secondHalfHr),
+      driftPct: Math.round(halves.driftPct * 10) / 10,
     });
   }
   return out;

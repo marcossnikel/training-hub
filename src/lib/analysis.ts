@@ -5,6 +5,7 @@
 // can reuse them as-is. Sport gates live here rather than in the UI, so run-only
 // math can never be applied to a walk or a swim.
 
+import { isRideSport } from "./cycling";
 import type { ActivityStreams } from "./streams";
 import { isRunSport } from "./validate";
 
@@ -27,6 +28,19 @@ type EfInput =
 
 const SECONDS_PER_MINUTE = 60;
 const METRES_PER_KM = 1000;
+
+/**
+ * Which output signal an activity's aerobic quality can be measured against, or
+ * null when it has none. Rides need a real power meter (`device_watts`); runs are
+ * measured on speed. Every other sport — a walk, a swim, a lift, and a ride whose
+ * wattage Strava merely estimated — gets no efficiency factor and no decoupling,
+ * so the one place that decision is made lives here beside the two functions that
+ * consume it rather than being restated by each caller.
+ */
+export function efBasisFor(sportType: string | null, hasRealPower: boolean): EfBasis | null {
+  if (isRideSport(sportType)) return hasRealPower ? "power" : null;
+  return isRunSport(sportType) ? "speed" : null;
+}
 
 /**
  * Efficiency factor: aerobic output per heartbeat — watts per bpm on a ride,
@@ -75,9 +89,24 @@ function mean(values: number[]): number {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
-/** Output per heartbeat for one half of the effort. */
-function halfEf(half: Sample[]): number {
-  return mean(half.map((s) => s.output)) / mean(half.map((s) => s.hr));
+/** Mean heart rate and output per heartbeat for one half of the effort. */
+function halfEf(half: Sample[]): { hr: number; ef: number } {
+  const hr = mean(half.map((s) => s.hr));
+  return { hr, ef: mean(half.map((s) => s.output)) / hr };
+}
+
+/**
+ * The two halves an aerobic-decoupling reading is made of. The percentage alone
+ * answers "did efficiency fall?"; the half heart rates answer "at what cost?",
+ * which is what the coach prompt quotes for a long run.
+ */
+export interface DecouplingHalves {
+  /** Mean heart rate of the first half, bpm. */
+  firstHalfHr: number;
+  /** Mean heart rate of the second half, bpm. */
+  secondHalfHr: number;
+  /** `(ef1 - ef2) * 100 / ef1`, unrounded. */
+  driftPct: number;
 }
 
 /**
@@ -92,6 +121,17 @@ function halfEf(half: Sample[]): number {
  * cached stream is sampled evenly, so half averages are accurate enough.
  */
 export function computeDecoupling(input: DecouplingInput): number | null {
+  return computeDecouplingHalves(input)?.driftPct ?? null;
+}
+
+/**
+ * The full reading behind {@link computeDecoupling}: the same split, the same
+ * warm-up exclusion and the same null cases, plus each half's mean heart rate.
+ * THE single decoupling implementation in the app — the activity page, the
+ * persisted metrics pipeline and the coach's field signals all land here, so a
+ * change to the semantics can never move one of them without the others.
+ */
+export function computeDecouplingHalves(input: DecouplingInput): DecouplingHalves | null {
   const { streams, basis } = input;
   if (!streams) return null;
   if ((input.movingTimeS ?? 0) < MIN_DECOUPLING_MOVING_S) return null;
@@ -119,9 +159,14 @@ export function computeDecoupling(input: DecouplingInput): number | null {
   const second = kept.filter((s) => s.t > midpoint);
   if (first.length === 0 || second.length === 0) return null;
 
-  const ef1 = halfEf(first);
-  if (!(ef1 > 0)) return null;
-  return ((ef1 - halfEf(second)) * 100) / ef1;
+  const firstHalf = halfEf(first);
+  const secondHalf = halfEf(second);
+  if (!(firstHalf.ef > 0)) return null;
+  return {
+    firstHalfHr: firstHalf.hr,
+    secondHalfHr: secondHalf.hr,
+    driftPct: ((firstHalf.ef - secondHalf.ef) * 100) / firstHalf.ef,
+  };
 }
 
 /**

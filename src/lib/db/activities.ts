@@ -6,6 +6,7 @@ import type { VdotEffort } from "../benchmarks";
 import type { BestEffortRow, StoredBestEffort } from "../best-efforts";
 import type { BlockActivity } from "../blocks";
 import type { SessionStart } from "../consistency";
+import { parseZoneSecs } from "../stream-metrics";
 import type { TotalsActivity } from "../totals";
 import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
 
@@ -96,17 +97,69 @@ export async function listRaceMarkers(): Promise<RaceMarkerRow[]> {
   );
 }
 
-/** Confirmed activities in [fromIso, toIso), oldest first, for block analysis. */
+/**
+ * Confirmed activities in [fromIso, toIso), oldest first, for block analysis.
+ * Each row carries its persisted heart-rate zone seconds when the activity has
+ * them, so the block's time-in-zone is measured for those sessions instead of
+ * estimated from their average heart rate.
+ */
 export async function listBlockActivities(
   fromIso: string,
   toIso: string
 ): Promise<BlockActivity[]> {
-  return many<BlockActivity>(
-    `SELECT started_at, sport_type, distance_km, moving_time_s, avg_hr, avg_pace_s_per_km
-     FROM activities
-     WHERE status = 'confirmed' AND started_at >= ? AND started_at < ?
-     ORDER BY started_at ASC`,
+  const rows = await many<BlockActivityRow>(
+    `SELECT a.started_at, a.sport_type, a.distance_km, a.moving_time_s, a.avg_hr,
+            a.avg_pace_s_per_km, m.hr_zone_secs
+     FROM activities a
+     LEFT JOIN activity_metrics m ON m.activity_id = a.id
+     WHERE a.status = 'confirmed' AND a.started_at >= ? AND a.started_at < ?
+     ORDER BY a.started_at ASC`,
     [fromIso, toIso]
+  );
+  return rows.map(({ hr_zone_secs, ...activity }) => ({
+    ...activity,
+    hrZoneSec: parseZoneSecs(hr_zone_secs),
+  }));
+}
+
+/** A block row as it comes back from SQL, zone seconds still JSON text. */
+type BlockActivityRow = Omit<BlockActivity, "hrZoneSec"> & { hr_zone_secs: string | null };
+
+/** A confirmed activity whose Strava detail, streams, or both were never fetched. */
+export interface ActivityMissingStravaData {
+  id: number;
+  strava_id: number;
+  name: string | null;
+  started_at: string;
+  /** 1 when `detail_json` is empty, so the detail endpoint has to be called. */
+  needs_detail: number;
+  /** 1 when no `activity_streams` row exists, so the streams endpoint has to be called. */
+  needs_streams: number;
+}
+
+/**
+ * Confirmed activities still missing their Strava detail or streams, NEWEST
+ * FIRST — the order the historical fetch pass walks, so the most useful history
+ * lands first and an interrupted run has already covered the recent months.
+ * Manual activities (no `strava_id`) can never be fetched and are excluded.
+ *
+ * The two flags say which endpoints an activity actually needs, so the caller can
+ * budget its API calls before spending them.
+ */
+export async function listActivitiesMissingStravaData(
+  limit: number
+): Promise<ActivityMissingStravaData[]> {
+  return many<ActivityMissingStravaData>(
+    `SELECT a.id, a.strava_id, a.name, a.started_at,
+            CASE WHEN a.detail_json IS NULL THEN 1 ELSE 0 END AS needs_detail,
+            CASE WHEN s.activity_id IS NULL THEN 1 ELSE 0 END AS needs_streams
+     FROM activities a
+     LEFT JOIN activity_streams s ON s.activity_id = a.id
+     WHERE a.status = 'confirmed' AND a.strava_id IS NOT NULL
+       AND (a.detail_json IS NULL OR s.activity_id IS NULL)
+     ORDER BY a.started_at DESC, a.id DESC
+     LIMIT ?`,
+    [limit]
   );
 }
 

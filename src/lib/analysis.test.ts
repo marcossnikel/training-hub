@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeDecoupling, computeEf, splitGap } from "./analysis";
+import {
+  computeDecoupling,
+  computeDecouplingHalves,
+  computeEf,
+  efBasisFor,
+  splitGap,
+} from "./analysis";
 import type { ActivityStreams } from "./streams";
 
 /**
@@ -144,6 +150,55 @@ describe("computeDecoupling", () => {
   it("is null when the samples carry no usable pace", () => {
     const stopped = streamOf({ durationS: HOUR_S, hr: () => 150, paceSPerKm: () => null });
     expect(computeDecoupling({ streams: stopped, basis: "speed", movingTimeS: HOUR_S })).toBeNull();
+  });
+});
+
+describe("computeDecouplingHalves", () => {
+  it("reports each half's mean heart rate beside the drift", () => {
+    const streams = streamOf({
+      durationS: HOUR_S,
+      hr: (t) => (t <= 1950 ? 150 : 160),
+      paceSPerKm: () => 300,
+    });
+    const halves = computeDecouplingHalves({ streams, basis: "speed", movingTimeS: HOUR_S });
+    expect(halves).not.toBeNull();
+    expect(halves!.firstHalfHr).toBeCloseTo(150, 6);
+    expect(halves!.secondHalfHr).toBeCloseTo(160, 6);
+    expect(halves!.driftPct).toBeCloseTo(6.25, 2);
+  });
+
+  it("agrees with computeDecoupling on every input, being the same reading", () => {
+    const streams = streamOf({
+      durationS: HOUR_S,
+      hr: (t) => 150 + t / 600,
+      paceSPerKm: () => 300,
+    });
+    const input = { streams, basis: "speed" as const, movingTimeS: HOUR_S };
+    expect(computeDecouplingHalves(input)!.driftPct).toBe(computeDecoupling(input));
+    const short = { streams, basis: "speed" as const, movingTimeS: 600 };
+    expect(computeDecouplingHalves(short)).toBeNull();
+    expect(computeDecoupling(short)).toBeNull();
+  });
+});
+
+describe("efBasisFor", () => {
+  it("measures a run on speed", () => {
+    expect(efBasisFor("Run", false)).toBe("speed");
+    expect(efBasisFor("TrailRun", false)).toBe("speed");
+  });
+
+  it("measures a ride on power only when the wattage was measured", () => {
+    expect(efBasisFor("Ride", true)).toBe("power");
+    expect(efBasisFor("VirtualRide", true)).toBe("power");
+    // Strava's estimate would restate speed with extra error.
+    expect(efBasisFor("Ride", false)).toBeNull();
+  });
+
+  it("gives every other sport no basis", () => {
+    expect(efBasisFor("Walk", false)).toBeNull();
+    expect(efBasisFor("Swim", false)).toBeNull();
+    expect(efBasisFor("WeightTraining", true)).toBeNull();
+    expect(efBasisFor(null, false)).toBeNull();
   });
 });
 

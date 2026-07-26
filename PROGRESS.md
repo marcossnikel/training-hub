@@ -60,7 +60,7 @@ Engine modelling choices (reversible; documented so you can veto):
 - `npm run build` clean (`/races/compare` registered), `npx eslint src` exit 0.
 - Screenshots (light + dark, viewed): `scratchpad/shots/compare-jundiai-athena-{light,dark}.png`, `compare-jundiai-asics-light.png`, `compare-default-light.png`.
 
-**Note:** block time-in-zone is estimated from each activity's average HR (labeled in-UI). Per-second zone time across a whole block would need streams backfilled for every block activity (rate-limited) — a future refinement; race-day analysis already uses full streams.
+**Note:** block time-in-zone is estimated from each activity's average HR (labeled in-UI). Per-second zone time across a whole block would need streams backfilled for every block activity (rate-limited) — a future refinement; race-day analysis already uses full streams. **Update (ICU-T24):** `buildBlock` now prefers the persisted per-sample distribution in `activity_metrics.hr_zone_secs` and falls back to the avg-HR estimate only for activities without one, so blocks read truer as the fetch pass covers more history.
 
 ## Phase 4 — AI coach (Claude API) ✅ shipped
 
@@ -112,3 +112,4 @@ Engine modelling choices (reversible; documented so you can veto):
 - ICU-T22a activity_best_efforts table and backfill (22a data half only; 22b UI card and PR badge still pending): done 2026-07-25, committed direct to main
 - ICU-T22b Best-efforts card prefers stored segment efforts, PR badge on activity chips: done 2026-07-25, committed direct to main
 - ICU-T23 VDOT trend from best efforts: done 2026-07-25, committed direct to main
+- ICU-T24 Derived-metrics pipeline (activity_metrics + full-res compute, one decoupling implementation): done 2026-07-25, committed direct to main

@@ -17,13 +17,14 @@ import {
   getActivity,
   getActivityLoad,
   getAthleteThresholds,
+  getActivityMetrics,
   listActivityChat,
   listBikes,
   listFastestBestEfforts,
   listShoes,
 } from "@/lib/db";
 import { effortTimeS, prBadgeEffortNames } from "@/lib/best-efforts";
-import { computeDecoupling, computeEf, splitGap, type EfBasis } from "@/lib/analysis";
+import { computeDecoupling, computeEf, efBasisFor, splitGap, type EfBasis } from "@/lib/analysis";
 import { analyzeRace } from "@/lib/blocks";
 import { isCoachConfigured } from "@/lib/coach";
 import {
@@ -484,18 +485,20 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
     : run
       ? { by: "pace", zones: paceZones(thresholds) }
       : null;
+  // Derived metrics (T24): computed once when the stream was fetched and read
+  // back as columns. Every field below falls through to the on-the-fly
+  // computation when it is absent, so an activity whose stream predates the
+  // pipeline still shows the same tiles — the persisted value is just cheaper,
+  // and (at metrics_version 2) taken at full resolution rather than off the
+  // 400-point downsample.
+  const storedMetrics = await getActivityMetrics(activity.id);
   // Aerobic quality (T12): rides read watts against HR, but only from a real
   // power meter; runs read speed against HR. Every other sport (and a ride with
   // estimated wattage) gets no basis, so its EF and decoupling tiles stay hidden.
-  const efBasis: EfBasis | null = ride
-    ? metrics?.hasRealPower
-      ? "power"
-      : null
-    : run
-      ? "speed"
-      : null;
+  const efBasis: EfBasis | null = efBasisFor(activity.sport_type, metrics?.hasRealPower ?? false);
   const ef =
-    efBasis === "power"
+    storedMetrics?.ef ??
+    (efBasis === "power"
       ? computeEf({
           basis: "power",
           watts: metrics?.normalizedPower ?? metrics?.avgPower ?? null,
@@ -508,21 +511,25 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
             movingTimeS: activity.moving_time_s,
             avgHr: activity.avg_hr,
           })
-        : null;
-  const decoupling = efBasis
-    ? computeDecoupling({ streams, basis: efBasis, movingTimeS: activity.moving_time_s })
-    : null;
+        : null);
+  const decoupling =
+    storedMetrics?.decouplingPct ??
+    (efBasis
+      ? computeDecoupling({ streams, basis: efBasis, movingTimeS: activity.moving_time_s })
+      : null);
   // Time in zone, integrated from the cached stream: heart rate for any sport
   // that recorded a trace, pace for runs. A bar is dropped when the threshold it
   // needs is unset or no sample landed in a zone.
   const hrZoneSec =
-    streams?.heartrate && thresholds.lthr > 0
+    storedMetrics?.hrZoneSecs ??
+    (streams?.heartrate && thresholds.lthr > 0
       ? zoneSeconds(streams.timeS, streams.heartrate, hrZones(thresholds))
-      : null;
+      : null);
   const paceZoneSec =
-    run && streams?.paceSPerKm && thresholds.thresholdPaceSPerKm > 0
+    storedMetrics?.paceZoneSecs ??
+    (run && streams?.paceSPerKm && thresholds.thresholdPaceSPerKm > 0
       ? zoneSeconds(streams.timeS, streams.paceSPerKm, paceZones(thresholds))
-      : null;
+      : null);
   const zoneDistributions: ZoneDistribution[] = [
     ...(hrZoneSec ? [{ key: "hr" as const, label: t.chart.heartRate, zoneSec: hrZoneSec }] : []),
     ...(paceZoneSec ? [{ key: "pace" as const, label: t.chart.pace, zoneSec: paceZoneSec }] : []),

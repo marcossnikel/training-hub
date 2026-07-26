@@ -7,6 +7,7 @@ export * from "./bikes";
 export * from "./activities";
 export * from "./strava-auth";
 export * from "./load";
+export * from "./metrics";
 export * from "./coach";
 export * from "./benchmarks";
 export * from "./health";

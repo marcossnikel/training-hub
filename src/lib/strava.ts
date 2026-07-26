@@ -4,7 +4,9 @@ import {
   findBikeIdByGear,
   findShoeIdByGear,
   getActivityStreamsJson,
+  getAthleteThresholds,
   getMeta,
+  getMetricsActivity,
   getStravaAuth,
   insertSyncedActivity,
   latestSyncedStartEpoch,
@@ -14,11 +16,13 @@ import {
   saveStravaAuth,
   setMeta,
   upsertActivityBestEfforts,
+  upsertActivityMetrics,
 } from "./db";
 import { bestEffortRows, type StravaBestEffort } from "./best-efforts";
 import { isRideSport } from "./cycling";
 import { logger } from "./telemetry";
-import { normalizeStreams, type ActivityStreams } from "./streams";
+import { computeStreamMetrics, hasAnyMetric, METRICS_VERSION_FULL_RES } from "./stream-metrics";
+import { FULL_RESOLUTION, normalizeStreams, type ActivityStreams } from "./streams";
 import type { Activity } from "./types";
 import { round2 } from "./format";
 import { isRunSport } from "./validate";
@@ -367,6 +371,31 @@ export async function ensureActivityDetail(
 // ---------------------------------------------------------------------------
 
 /**
+ * Derives and stores an activity's metrics from the stream Strava just returned,
+ * at the resolution it was recorded at (`metrics_version = 2`). Called from the
+ * FETCH branch only: a cached read returns before it, so viewing an activity
+ * whose stream is already stored still issues no write. Nothing here may take the
+ * stream cache down with it — a failed metric is a missing tile, a failed cache
+ * write is another API call — so every error is logged and swallowed.
+ */
+async function cacheStreamMetrics(
+  activityId: number,
+  raw: Record<string, { data: number[] }>
+): Promise<void> {
+  try {
+    const streams = normalizeStreams(raw, FULL_RESOLUTION);
+    if (!streams) return;
+    const activity = await getMetricsActivity(activityId);
+    if (!activity) return;
+    const metrics = computeStreamMetrics({ streams, activity }, await getAthleteThresholds());
+    if (!hasAnyMetric(metrics)) return;
+    await upsertActivityMetrics(activityId, metrics, METRICS_VERSION_FULL_RES);
+  } catch (error) {
+    logger.error("strava.cacheStreamMetrics", { error, activityId });
+  }
+}
+
+/**
  * Returns the cached, normalized streams for an activity, fetching and caching
  * them on first view. Mirrors ensureActivityDetail: one API call per activity
  * ever. Returns null for manual activities, when disconnected, or when the fetch
@@ -393,6 +422,9 @@ export async function ensureActivityStreams(
         key_by_type: "true",
       }
     );
+    // The payload is worth more than the chart's 400 points, so it is measured
+    // before it is downsampled — this is the only moment full resolution exists.
+    await cacheStreamMetrics(activity.id, raw);
     const streams = normalizeStreams(raw);
     // Persist even when null: JSON.stringify(null) === "null", a non-empty
     // marker that getActivityStreamsJson returns and the read above parses back

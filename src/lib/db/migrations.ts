@@ -326,6 +326,30 @@ const MIGRATIONS: Migration[] = [
       );
     },
   },
+  // 11: per-activity derived stream metrics — efficiency factor, aerobic
+  // decoupling, normalized power and time-in-zone, computed once when the streams
+  // are fetched instead of on every render. One row per activity, so the PRIMARY
+  // KEY doubles as the upsert key. `metrics_version` records what the numbers were
+  // computed FROM: 1 = the 400-point downsample (no normalized power, which needs
+  // full resolution), 2 = the full-resolution stream at fetch time. Zone seconds
+  // are JSON arrays of five numbers, Z1 to Z5.
+  {
+    version: 11,
+    up: async () => {
+      await client.execute(
+        `CREATE TABLE IF NOT EXISTS activity_metrics (
+           activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+           ef REAL,
+           decoupling_pct REAL,
+           np_w REAL,
+           hr_zone_secs TEXT,
+           pace_zone_secs TEXT,
+           metrics_version INTEGER NOT NULL,
+           computed_at TEXT
+         )`
+      );
+    },
+  },
 ];
 
 async function currentSchemaVersion(): Promise<number> {

@@ -183,6 +183,74 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
   });
 });
 
+describe("derived metrics are written from the fetched stream", () => {
+  it("stores a full-resolution row on the fetch and nothing on a cached view", async () => {
+    await connectWithFreshToken();
+    const inserted = await db.client.execute({
+      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+                                    avg_hr, status, strava_id)
+            VALUES ('Metrics run', 'Run', '2026-01-04T12:00:00Z', 10, 3000, 150, 'confirmed', 77777)`,
+      args: [],
+    });
+    const activityId = Number(inserted.lastInsertRowid);
+
+    // An hour of steady running: heart rate for the zone integration, velocity
+    // for the pace zones. 1 Hz, i.e. what full resolution actually looks like.
+    const seconds = Array.from({ length: 3600 }, (_, i) => i);
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        time: { data: seconds },
+        heartrate: { data: seconds.map(() => 150) },
+        velocity_smooth: { data: seconds.map(() => 3.2) },
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await strava.ensureActivityStreams({ id: activityId, strava_id: 77777 });
+
+    const stored = await db.getActivityMetrics(activityId);
+    expect(stored?.metricsVersion).toBe(2);
+    // Integrated across the whole hour, not the 400-point downsample.
+    expect(stored?.hrZoneSecs?.reduce((sum, s) => sum + s, 0)).toBe(3599);
+    expect(stored?.paceZoneSecs).not.toBeNull();
+    expect(stored?.ef).toBeCloseTo(200 / 150, 6);
+
+    // A second view reads the cache: no fetch, and no write of any kind.
+    const executeSpy = vi.spyOn(db.client, "execute");
+    await strava.ensureActivityStreams({ id: activityId, strava_id: 77777 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const statements: (string | { sql: string })[] = executeSpy.mock.calls.map((call) => call[0]);
+    for (const statement of statements) {
+      const sql = typeof statement === "string" ? statement : statement.sql;
+      expect(sql.trimStart().slice(0, 6).toUpperCase()).toBe("SELECT");
+    }
+    executeSpy.mockRestore();
+  });
+
+  it("caches the stream even when the metrics cannot be derived", async () => {
+    await connectWithFreshToken();
+    const inserted = await db.client.execute({
+      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES ('Cadence only', 'Workout', '2026-01-05T12:00:00Z', 0, 'confirmed', 66666)`,
+      args: [],
+    });
+    const activityId = Number(inserted.lastInsertRowid);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ time: { data: [0, 1, 2] }, cadence: { data: [80, 81, 82] } })
+      );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const streams = await strava.ensureActivityStreams({ id: activityId, strava_id: 66666 });
+
+    expect(streams?.cadence).toEqual([80, 81, 82]);
+    // Nothing computable from a cadence trace, so no row is invented for it.
+    expect(await db.getActivityMetrics(activityId)).toBeNull();
+  });
+});
+
 describe("best efforts are mirrored once, not on every view", () => {
   it("writes on the first cached-path view and skips the write on the next one", async () => {
     const detailJson = JSON.stringify({

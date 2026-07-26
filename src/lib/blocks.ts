@@ -17,6 +17,12 @@ export interface BlockActivity {
   moving_time_s: number | null;
   avg_hr: number | null;
   avg_pace_s_per_km: number | null;
+  /**
+   * Seconds actually spent in each heart-rate zone, from this activity's
+   * persisted stream metrics. Absent for activities whose stream was never
+   * fetched, which is what the average-HR estimate below covers.
+   */
+  hrZoneSec?: number[] | null;
 }
 
 export interface WeekBucket {
@@ -45,13 +51,19 @@ export interface BlockSummary {
 }
 
 /**
- * Buckets a block's activities into weekly totals aligned to the race and
- * estimates block-wide time-in-zone from each activity's average HR. The
- * window is [raceStart − weeks*7d, raceStart); an activity's week is
- * floor((start − blockStart) / 7d) clamped to [0, weeks-1]. weekly[0] is the
- * oldest week (weekIndex −weeks); weekly[weeks-1] is the race week (weekIndex
- * −1). Activities with no average HR still count toward volume totals but add
- * nothing to zone time.
+ * Buckets a block's activities into weekly totals aligned to the race and sums
+ * block-wide time-in-zone. The window is [raceStart − weeks*7d, raceStart); an
+ * activity's week is floor((start − blockStart) / 7d) clamped to [0, weeks-1].
+ * weekly[0] is the oldest week (weekIndex −weeks); weekly[weeks-1] is the race
+ * week (weekIndex −1).
+ *
+ * Zone time comes from the activity's persisted per-sample distribution when
+ * there is one, and otherwise from the old estimate: the whole session dropped
+ * into the single zone of its average heart rate. That estimate is what an
+ * interval session breaks — an average landing in Z2 hides every hard rep — so a
+ * block reads truer as stream coverage grows, without waiting for all of it.
+ * Activities with neither still count toward volume totals but add nothing to
+ * zone time.
  */
 export function buildBlock(
   activities: BlockActivity[],
@@ -98,11 +110,16 @@ export function buildBlock(
       if (km > week.longestRunKm) week.longestRunKm = km;
     }
 
-    if (a.avg_hr != null) {
+    const persisted = a.hrZoneSec;
+    if (persisted && persisted.length === zoneSec.length) {
+      for (let i = 0; i < zoneSec.length; i++) zoneSec[i] += persisted[i];
+    } else if (a.avg_hr != null) {
       const zi = zoneIndexOf(a.avg_hr, zones);
       if (zi >= 0) zoneSec[zi] += secs;
-      if (run && (z3Min == null || a.avg_hr >= z3Min)) qualityRuns += 1;
     }
+    // A quality run is still judged on the session's average: it asks whether the
+    // run as a whole was hard, which per-zone seconds do not answer.
+    if (run && a.avg_hr != null && (z3Min == null || a.avg_hr >= z3Min)) qualityRuns += 1;
   }
 
   const totalKm = weekly.reduce((s, w) => s + w.km, 0);

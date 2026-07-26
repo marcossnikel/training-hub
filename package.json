@@ -21,7 +21,9 @@
     "seed": "tsx scripts/seed.ts",
     "seed:clear": "tsx scripts/seed.ts --clear",
     "backfill:load": "tsx scripts/backfill-load.ts",
-    "backfill:best-efforts": "tsx scripts/backfill-best-efforts.ts"
+    "backfill:best-efforts": "tsx scripts/backfill-best-efforts.ts",
+    "backfill:metrics": "tsx scripts/backfill-metrics.ts",
+    "fetch:history": "tsx scripts/fetch-history.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.113.0",
