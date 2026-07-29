@@ -45,7 +45,7 @@ export function ZoneBar({
           return (
             <span
               key={i}
-              className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+              className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground"
             >
               <span
                 className="size-2 rounded-full"

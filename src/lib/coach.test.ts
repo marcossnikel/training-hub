@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildActivityContext, buildDigestContext, type CoachStreamSummary } from "@/lib/coach";
+import { buildActivityContext, type CoachStreamSummary } from "@/lib/coach";
 import type { AthleteThresholds } from "@/lib/fitness";
 import type { ActivityWithSplits } from "@/lib/types";
 
@@ -65,9 +65,7 @@ const streams: CoachStreamSummary = {
 function context(overrides: Partial<Parameters<typeof buildActivityContext>[0]> = {}): string {
   return buildActivityContext({
     activity: activity(),
-    load: null,
     thresholds,
-    pmc: null,
     streams,
     journal: { rpe: null, feeling: null, workoutNotes: null, healthNotes: null },
     goals: [],
@@ -85,34 +83,5 @@ describe("coach context cadence", () => {
 
   it("leaves a ride's cadence in rpm", () => {
     expect(context({ activity: activity({ sport_type: "Ride" }) })).toContain("cadence avg 88 rpm");
-  });
-});
-
-describe("coach context form", () => {
-  it("signs the TSB of the activity block so fresh cannot read as fatigued", () => {
-    expect(context({ pmc: { ctl: 60, atl: 52, tsb: 8 } })).toContain("TSB (form): +8");
-    expect(context({ pmc: { ctl: 60, atl: 68, tsb: -8 } })).toContain("TSB (form): -8");
-  });
-
-  it("signs both ends of the weekly digest's form movement", () => {
-    const digest = buildDigestContext({
-      activities: [],
-      thresholds,
-      now: { ctl: 60, atl: 68, tsb: -8 },
-      weekAgo: { ctl: 58, atl: 46, tsb: 12 },
-      week: { load7d: 400, monotony: null, strain: null },
-    });
-    expect(digest).toContain("TSB (form): +12 → -8");
-  });
-
-  it("signs the digest's single-day fallback", () => {
-    const digest = buildDigestContext({
-      activities: [],
-      thresholds,
-      now: { ctl: 60, atl: 52, tsb: 8 },
-      weekAgo: null,
-      week: { load7d: 400, monotony: null, strain: null },
-    });
-    expect(digest).toContain("TSB +8");
   });
 });

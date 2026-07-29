@@ -43,19 +43,44 @@ async function attachSplits(activities: Activity[]): Promise<ActivityWithSplits[
   return activities.map((a) => ({ ...a, splits: byActivity.get(a.id) ?? [] }));
 }
 
+/** Every column except the two JSON blobs, which the list views must not carry. */
+const ACTIVITY_COLUMNS = `a.id, a.strava_id, a.name, a.sport_type, a.started_at, a.started_at_local,
+     a.distance_km, a.moving_time_s, a.avg_pace_s_per_km, a.avg_hr, a.elevation_gain_m,
+     a.status, a.rpe, a.feeling, a.workout_notes, a.health_notes, a.created_at,
+     a.detail_synced_at, a.bike_id, a.is_race, a.goal_pace_s_per_km,
+     a.coach_insight, a.coach_insight_at`;
+
+/**
+ * The list query. `detail_json` is never selected — only the activity page reads
+ * it, and once the Strava detail backfill runs it is the largest column in the
+ * table. `raw_json` is selected ONLY for rides, the sole list-view consumer
+ * (`rideMetrics` reads average_watts/average_speed off it for the ride row);
+ * every other sport gets NULL. Selecting `a.*` here pulled ~1.7 MB of JSON on
+ * every render of a 1200-row log.
+ */
+const ACTIVITY_LIST_SELECT = `SELECT ${ACTIVITY_COLUMNS},
+     CASE
+       WHEN LOWER(COALESCE(a.sport_type,'')) LIKE '%ride%'
+         OR LOWER(COALESCE(a.sport_type,'')) LIKE '%velomobile%'
+       THEN a.raw_json
+     END AS raw_json,
+     b.name AS bike_name
+   FROM activities a LEFT JOIN bikes b ON b.id = a.bike_id`;
+
+/** The single-activity query: both blobs, since the detail page renders from them. */
 const ACTIVITY_SELECT =
   "SELECT a.*, b.name AS bike_name FROM activities a LEFT JOIN bikes b ON b.id = a.bike_id";
 
 export async function listConfirmedActivities(): Promise<ActivityWithSplits[]> {
   const rows = await many<ActivityRow>(
-    `${ACTIVITY_SELECT} WHERE a.status = 'confirmed' ORDER BY a.started_at DESC, a.id DESC`
+    `${ACTIVITY_LIST_SELECT} WHERE a.status = 'confirmed' ORDER BY a.started_at DESC, a.id DESC`
   );
   return attachSplits(rows.map(decodeActivity));
 }
 
 export async function listPendingActivities(): Promise<ActivityWithSplits[]> {
   const rows = await many<ActivityRow>(
-    `${ACTIVITY_SELECT} WHERE a.status = 'pending_review' ORDER BY a.started_at ASC, a.id ASC`
+    `${ACTIVITY_LIST_SELECT} WHERE a.status = 'pending_review' ORDER BY a.started_at ASC, a.id ASC`
   );
   return attachSplits(rows.map(decodeActivity));
 }
@@ -78,7 +103,7 @@ export async function getActivity(id: number): Promise<ActivityWithSplits | null
 
 export async function listRaces(): Promise<ActivityWithSplits[]> {
   const rows = await many<ActivityRow>(
-    `${ACTIVITY_SELECT} WHERE a.is_race = 1 ORDER BY a.started_at DESC, a.id DESC`
+    `${ACTIVITY_LIST_SELECT} WHERE a.is_race = 1 ORDER BY a.started_at DESC, a.id DESC`
   );
   return attachSplits(rows.map(decodeActivity));
 }
@@ -174,9 +199,8 @@ export async function listActivitiesMissingStravaData(
 export async function listTotalsActivities(fromDay: string): Promise<TotalsActivity[]> {
   return many<TotalsActivity>(
     `SELECT a.started_at, a.started_at_local, a.sport_type,
-            l.tss, a.moving_time_s, a.distance_km, a.elevation_gain_m
+            a.moving_time_s, a.distance_km, a.elevation_gain_m
      FROM activities a
-     LEFT JOIN activity_load l ON l.activity_id = a.id
      WHERE a.status = 'confirmed' AND a.started_at IS NOT NULL
        AND COALESCE(a.started_at_local, a.started_at) >= ?
      ORDER BY a.started_at ASC`,
@@ -557,9 +581,8 @@ export async function listRecentSessionsWithDetail(input: {
 }): Promise<RecentSessionRow[]> {
   return many<RecentSessionRow>(
     `SELECT a.id, a.strava_id, a.started_at, a.name, a.sport_type, a.distance_km, a.moving_time_s,
-            a.avg_hr, a.avg_pace_s_per_km, a.detail_json, l.tss
+            a.avg_hr, a.avg_pace_s_per_km, a.detail_json
      FROM activities a
-     LEFT JOIN activity_load l ON l.activity_id = a.id
      WHERE a.status = 'confirmed'
        AND a.id != ?
        AND LOWER(COALESCE(a.sport_type,'')) = LOWER(COALESCE(?, ''))

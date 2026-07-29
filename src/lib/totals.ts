@@ -17,7 +17,7 @@
 // rewrites PMC history and is its own task.
 
 import { localDateInputValue, localStartedAt, mondayOf, parseLocalDate } from "./format";
-import { loadSport, type LoadSport } from "./fitness";
+import { sportCategory } from "./sports";
 
 /** Which calendar period the totals table groups by. */
 export type TotalsPeriod = "weeks" | "months";
@@ -28,10 +28,21 @@ export const TOTALS_PERIODS: readonly TotalsPeriod[] = ["weeks", "months"];
 /** How many periods the table shows. */
 export const TOTALS_ROWS = 12;
 
+/**
+ * The sport buckets the filter offers. Runs and rides keep their own column;
+ * everything else folds into "other". Lived in fitness.ts until the training-load
+ * engine was removed; it is pure sport bucketing, nothing to do with load.
+ */
+export type TotalsSport = "run" | "bike" | "other";
+
+/** Buckets a raw Strava sport_type into the sport it filters under. */
+export function totalsSport(sport: string | null | undefined): TotalsSport {
+  const category = sportCategory(sport);
+  return category === "run" || category === "bike" ? category : "other";
+}
+
 /** One period's volume. Units are in the field names; nothing here is rounded. */
 export interface TotalsValues {
-  /** Training load (TSS) — the same sum the weekly load bars stack. */
-  load: number;
   seconds: number;
   km: number;
   elevationM: number;
@@ -39,13 +50,7 @@ export interface TotalsValues {
 }
 
 /** The value columns, in display order. */
-export const TOTALS_METRICS: readonly TotalsMetric[] = [
-  "load",
-  "seconds",
-  "km",
-  "elevationM",
-  "sessions",
-];
+export const TOTALS_METRICS: readonly TotalsMetric[] = ["seconds", "km", "elevationM", "sessions"];
 export type TotalsMetric = keyof TotalsValues;
 
 /** One confirmed activity, as the totals query hands it back. */
@@ -54,9 +59,8 @@ export interface TotalsActivity {
   started_at: string;
   /** Strava's naive-local wall-clock stamp, the day this row is bucketed by. */
   started_at_local: string | null;
-  /** Raw Strava sport, bucketed by `loadSport` for the sport filter. */
+  /** Raw Strava sport, bucketed by `totalsSport` for the sport filter. */
   sport_type: string | null;
-  tss: number | null;
   moving_time_s: number | null;
   distance_km: number | null;
   elevation_gain_m: number | null;
@@ -84,16 +88,15 @@ function activityDay(activity: TotalsActivity): string {
 }
 
 /**
- * The rows an active sport filter keeps. Bucketed with the same `loadSport`
- * helper the weekly load bars use, so a sport-filtered table and the bars agree
+ * The rows an active sport filter keeps.
  * on what counts as that sport instead of only roughly matching.
  */
 export function filterBySport(
   activities: TotalsActivity[],
-  sport: LoadSport | "all"
+  sport: TotalsSport | "all"
 ): TotalsActivity[] {
   if (sport === "all") return activities;
-  return activities.filter((activity) => loadSport(activity.sport_type) === sport);
+  return activities.filter((activity) => totalsSport(activity.sport_type) === sport);
 }
 
 /** The local day key of the start of the period containing `day`. */
@@ -136,13 +139,12 @@ export function periodTotals(
   const last = periodStart(localDateInputValue(now), period);
   let cursor = totalsFrom(period, rows, now);
   while (cursor <= last) {
-    buckets.set(cursor, { load: 0, seconds: 0, km: 0, elevationM: 0, sessions: 0 });
+    buckets.set(cursor, { seconds: 0, km: 0, elevationM: 0, sessions: 0 });
     cursor = shiftPeriod(cursor, period, 1);
   }
   for (const activity of activities) {
     const bucket = buckets.get(periodStart(activityDay(activity), period));
     if (!bucket) continue;
-    bucket.load += activity.tss ?? 0;
     bucket.seconds += activity.moving_time_s ?? 0;
     bucket.km += activity.distance_km ?? 0;
     bucket.elevationM += activity.elevation_gain_m ?? 0;

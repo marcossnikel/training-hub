@@ -4,8 +4,8 @@
 // is created lazily and every caller guards with isCoachConfigured().
 import Anthropic from "@anthropic-ai/sdk";
 import { VDOT_CURRENT_WINDOW_DAYS } from "./benchmarks";
-import type { DigestActivity, FieldSignals } from "./db";
-import type { AthleteThresholds, WeeklyMonotony } from "./fitness";
+import type { FieldSignals } from "./db";
+import type { AthleteThresholds } from "./fitness";
 import type { ActivityStreams } from "./streams";
 import type { ActivityWithSplits, Goal } from "./types";
 import type { DerivedZones } from "./zones";
@@ -17,7 +17,6 @@ import {
   fmtKm,
   fmtPace,
   fmtStepRate,
-  fmtTsb,
   localStartedAt,
 } from "./format";
 import { isRunSport } from "./validate";
@@ -38,18 +37,6 @@ function getClient(): Anthropic {
 // ---------------------------------------------------------------------------
 // Context inputs
 // ---------------------------------------------------------------------------
-
-export interface CoachLoad {
-  tss: number;
-  method: string | null;
-  intensityFactor: number | null;
-}
-
-export interface CoachPmc {
-  ctl: number;
-  atl: number;
-  tsb: number;
-}
 
 export interface CoachStreamSummary {
   avgHr: number | null;
@@ -85,7 +72,6 @@ export interface RecentSessionSummary {
   paceSPerKm: number | null;
   avgHr: number | null;
   maxHr: number | null;
-  tss: number | null;
   laps: LapSummary[];
 }
 
@@ -100,13 +86,6 @@ function lapLine(lap: LapSummary, index: number): string {
   ].filter(Boolean);
   return `  L${index + 1}: ${bits.join(", ")}`;
 }
-
-const METHOD_LABEL: Record<string, string> = {
-  power: "power",
-  pace: "pace",
-  hr: "heart rate",
-  rpe: "RPE",
-};
 
 function avg(arr: (number | null)[] | null): number | null {
   if (!arr) return null;
@@ -149,9 +128,7 @@ export function summarizeStreams(s: ActivityStreams): CoachStreamSummary {
 
 export function buildActivityContext(input: {
   activity: ActivityWithSplits;
-  load: CoachLoad | null;
   thresholds: AthleteThresholds;
-  pmc: CoachPmc | null;
   streams: CoachStreamSummary | null;
   journal: CoachJournal;
   goals: Goal[];
@@ -159,7 +136,7 @@ export function buildActivityContext(input: {
   laps: LapSummary[];
   recent: RecentSessionSummary[];
 }): string {
-  const { activity, load, thresholds, pmc, streams, journal, goals, zones, laps, recent } = input;
+  const { activity, thresholds, streams, journal, goals, zones, laps, recent } = input;
   const lines: string[] = [];
 
   lines.push("WORKOUT");
@@ -177,12 +154,6 @@ export function buildActivityContext(input: {
       ? `, goal pace ${fmtPace(activity.goal_pace_s_per_km)}`
       : "";
     lines.push(`- Marked as a race${goal}`);
-  }
-
-  if (load) {
-    const method = load.method ? ` (from ${METHOD_LABEL[load.method] ?? load.method})` : "";
-    const intensity = load.intensityFactor != null ? `, IF ${load.intensityFactor.toFixed(2)}` : "";
-    lines.push(`- Training load: ${load.tss.toFixed(0)} TSS${method}${intensity}`);
   }
 
   if (streams) {
@@ -228,17 +199,6 @@ export function buildActivityContext(input: {
   lines.push(`- LTHR: ${thresholds.lthr} bpm`);
   lines.push(`- Threshold pace: ${fmtPace(thresholds.thresholdPaceSPerKm)}`);
   lines.push(`- FTP: ${thresholds.ftpW} W${thresholds.ftpProvisional ? " (provisional)" : ""}`);
-
-  if (pmc) {
-    lines.push("");
-    lines.push("FITNESS TODAY (Performance Management Chart)");
-    lines.push(`- CTL (fitness): ${pmc.ctl.toFixed(0)}`);
-    lines.push(`- ATL (fatigue): ${pmc.atl.toFixed(0)}`);
-    // Signed, via the same formatter every UI surface uses: form is a direction
-    // before it is a magnitude, and an unsigned "8" reads as fresh when the
-    // athlete is actually 8 points into fatigue.
-    lines.push(`- TSB (form): ${fmtTsb(pmc.tsb)}`);
-  }
 
   const journalParts: string[] = [];
   if (journal.rpe != null) journalParts.push(`RPE ${journal.rpe}/10`);
@@ -290,7 +250,6 @@ export function buildActivityContext(input: {
         s.avgHr != null
           ? `avg HR ${Math.round(s.avgHr)}${s.maxHr != null ? `/${Math.round(s.maxHr)} max` : ""}`
           : null,
-        s.tss != null ? `${Math.round(s.tss)} TSS` : null,
       ].filter(Boolean);
       lines.push(
         `- ${fmtDateLong(s.date)} · ${s.name ?? "session"}${meta.length ? ` — ${meta.join(", ")}` : ""}`
@@ -302,117 +261,11 @@ export function buildActivityContext(input: {
   return lines.join("\n");
 }
 
-export function buildDigestContext(input: {
-  activities: DigestActivity[];
-  thresholds: AthleteThresholds;
-  now: CoachPmc | null;
-  weekAgo: CoachPmc | null;
-  week: WeeklyMonotony;
-}): string {
-  const { activities, thresholds, now, weekAgo, week } = input;
-  const lines: string[] = [];
-
-  lines.push("LAST 7 DAYS OF TRAINING");
-  if (activities.length === 0) {
-    lines.push("- No confirmed activities in the last 7 days.");
-  } else {
-    for (const a of activities) {
-      const bits: string[] = [];
-      if (a.distance_km != null) bits.push(fmtKm(a.distance_km, 1));
-      if (a.moving_time_s) bits.push(fmtDuration(a.moving_time_s));
-      if (a.avg_pace_s_per_km) bits.push(fmtPace(a.avg_pace_s_per_km));
-      if (a.avg_hr) bits.push(fmtHr(a.avg_hr));
-      const meta = bits.length > 0 ? ` — ${bits.join(", ")}` : "";
-      lines.push(
-        `- ${fmtDateLong(localStartedAt(a))} · ${a.sport_type ?? "activity"}: ${a.name ?? "Untitled"}${meta}`
-      );
-    }
-  }
-
-  if (now && weekAgo) {
-    lines.push("");
-    lines.push("FITNESS MOVEMENT (today vs 7 days ago)");
-    lines.push(`- CTL (fitness): ${weekAgo.ctl.toFixed(0)} → ${now.ctl.toFixed(0)}`);
-    lines.push(`- ATL (fatigue): ${weekAgo.atl.toFixed(0)} → ${now.atl.toFixed(0)}`);
-    lines.push(`- TSB (form): ${fmtTsb(weekAgo.tsb)} → ${fmtTsb(now.tsb)}`);
-  } else if (now) {
-    lines.push("");
-    lines.push("FITNESS TODAY");
-    lines.push(`- CTL ${now.ctl.toFixed(0)}, ATL ${now.atl.toFixed(0)}, TSB ${fmtTsb(now.tsb)}`);
-  }
-
-  if (week.monotony != null && week.strain != null) {
-    lines.push("");
-    lines.push("WEEKLY LOAD SHAPE (last 7 days)");
-    lines.push(
-      `- Monotony: ${week.monotony.toFixed(1)} (mean/stddev of daily load; above 2.0 is grindy, above 2.5 a warning)`
-    );
-    lines.push(
-      `- Strain: ${Math.round(week.strain)} (7-day load ${Math.round(week.load7d)} x monotony)`
-    );
-  }
-
-  lines.push("");
-  lines.push("ATHLETE THRESHOLDS");
-  lines.push(`- Max HR ${thresholds.maxHr} bpm, LTHR ${thresholds.lthr} bpm`);
-  lines.push(
-    `- Threshold pace ${fmtPace(thresholds.thresholdPaceSPerKm)}, FTP ${thresholds.ftpW} W`
-  );
-
-  return lines.join("\n");
-}
-
 // ---------------------------------------------------------------------------
 // Morning readiness narrative — reads the GENERIC health model only (readiness
 // score/components, recovery hours, resolved metric highlights). No Garmin/Coros
 // specifics reach here, so the coach is identical across a device switch.
 // ---------------------------------------------------------------------------
-
-export interface CoachReadiness {
-  score: number;
-  band: string;
-  components: { key: string; sub: number }[];
-  topNegative: string | null;
-  lowConfidence: boolean;
-  /** A short reason string when an acute red flag capped the band, else null. */
-  redFlag: string | null;
-}
-
-export function buildReadinessContext(input: {
-  readiness: CoachReadiness;
-  recoveryHours: number;
-  /** Pre-formatted "Label: value unit" lines for today's resolved signals. */
-  signals: string[];
-}): string {
-  const { readiness, recoveryHours, signals } = input;
-  const lines: string[] = [];
-
-  lines.push("READINESS TODAY (app-computed, 0-100)");
-  lines.push(
-    `- Score: ${readiness.score} / 100 (band: ${readiness.band})${readiness.lowConfidence ? " [low confidence — limited data]" : ""}`
-  );
-  if (readiness.redFlag) lines.push(`- Red flag: ${readiness.redFlag}`);
-  if (readiness.components.length > 0) {
-    lines.push(
-      `- Components: ${readiness.components.map((c) => `${c.key} ${Math.round(c.sub)}`).join(", ")}`
-    );
-  }
-  if (readiness.topNegative) lines.push(`- Most limiting factor: ${readiness.topNegative}`);
-
-  lines.push("");
-  lines.push("RECOVERY");
-  lines.push(
-    `- Recovery remaining: ${Math.round(recoveryHours)} h (app-computed, intensity-driven)`
-  );
-
-  if (signals.length > 0) {
-    lines.push("");
-    lines.push("TODAY'S SIGNALS");
-    for (const signal of signals) lines.push(`- ${signal}`);
-  }
-
-  return lines.join("\n");
-}
 
 // ---------------------------------------------------------------------------
 // Claude calls
@@ -429,25 +282,6 @@ When goals and real training zones are provided, coach like you know what they a
 If the athlete attaches an image (for example a screenshot from TrainingPeaks, Garmin or another tool), read the data in it — numbers, charts, splits, plans — and factor it into your answer, tying it back to this workout and their fitness. If the image is unrelated or unreadable, say so briefly.
 
 Write in plain prose and, where helpful, simple hyphen ("- ") bullet lines. Do NOT use Markdown syntax: no "#" headings, no "*"/"**" bold or italics, no backticks, no tables. The reply is shown as plain text, so any Markdown markers would appear literally.`;
-
-const DIGEST_SYSTEM_PROMPT = `You are an experienced endurance coach writing a short weekly training digest for the athlete you are talking to.
-
-You are given the athlete's confirmed activities from the last 7 days, how their fitness moved (CTL/ATL/TSB), and their thresholds. Summarize:
-- what the week did to their fitness (CTL/ATL/TSB movement, in plain terms),
-- the volume and one or two standout sessions,
-- one or two concrete, specific suggestions for the coming week.
-
-Keep it concise. Use metric units and write pace as m:ss/km. Reference the real numbers. If the week was empty or thin, say so plainly.
-
-Write in plain prose with simple hyphen ("- ") bullet lines and plain-text section labels (e.g. a short line ending in a colon). Do NOT use Markdown syntax: no "#" headings, no "*"/"**" bold or italics, no backticks, no tables. The digest is shown as plain text, so any Markdown markers would appear literally.`;
-
-const READINESS_SYSTEM_PROMPT = `You are an experienced endurance coach giving the athlete a short morning "how ready am I to train today" read.
-
-You are given an app-computed readiness score (0-100) with its band and component breakdown, the current recovery-remaining in hours, and today's health signals (sleep, HRV, resting HR, stress, etc.). These are source-agnostic — do not assume any specific device.
-
-Ground every statement in the actual numbers (quote them). In 3-5 sentences or short hyphen bullets: say how ready they are, name the one or two factors driving that most (especially the most-limiting one), and give a concrete recommendation for today's session (intensity and rough duration/type). If a red flag is present, lead with it. If confidence is low, say so briefly.
-
-Be concise and specific. Use metric units. No filler. Write in plain prose and simple hyphen ("- ") bullet lines only — no Markdown (#, *, **, backticks, tables), which would appear literally.`;
 
 /** Concatenates the text blocks of a Claude response into a plain string. */
 function extractText(res: Anthropic.Message): string {
@@ -499,30 +333,6 @@ export async function runCoachChat(
   return extractText(res);
 }
 
-export async function runReadinessSummary(context: string, language: string): Promise<string> {
-  const res = await getClient().messages.create({
-    model: COACH_MODEL,
-    max_tokens: 800,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium" },
-    system: `${READINESS_SYSTEM_PROMPT}\n\nWrite your reply in ${language}.`,
-    messages: [{ role: "user", content: context }],
-  });
-  return extractText(res);
-}
-
-export async function runWeeklyDigest(context: string): Promise<string> {
-  const res = await getClient().messages.create({
-    model: COACH_MODEL,
-    max_tokens: 1500,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium" },
-    system: DIGEST_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: context }],
-  });
-  return extractText(res);
-}
-
 // ---------------------------------------------------------------------------
 // Training-zones agent — derives HR + pace zones and LT1/LT2 from the athlete's
 // REAL field data (not an age formula), estimates VO2max from race times, ties
@@ -549,9 +359,7 @@ export function buildZonesContext(input: {
   const lines: string[] = [];
 
   lines.push(`ATHLETE FIELD DATA (running, last ${s.windowDays} days, ${s.runCount} runs)`);
-  lines.push(
-    `- Resting HR: ${s.restingHr} bpm${s.latestHrvMs ? ` · latest overnight HRV ${s.latestHrvMs} ms` : ""}`
-  );
+  lines.push(`- Resting HR: ${s.restingHr} bpm`);
   lines.push(
     `- Current stored thresholds: LTHR ${s.thresholds.lthr}, threshold pace ${fmtPace(s.thresholds.thresholdPaceSPerKm)}, max HR ${s.thresholds.maxHr}`
   );

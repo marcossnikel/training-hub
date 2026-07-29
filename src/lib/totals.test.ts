@@ -25,7 +25,6 @@ function activity(
     started_at: startedAt,
     started_at_local: null,
     sport_type: "Run",
-    tss: 50,
     moving_time_s: 3600,
     distance_km: 10,
     elevation_gain_m: 100,
@@ -61,16 +60,15 @@ describe("periodTotals", () => {
     expect(rows.map((r) => r.start)).toEqual(["2026-07-20", "2026-07-13", "2026-07-06"]);
     expect(rows[0].values.sessions).toBe(2);
     expect(rows[1].values.sessions).toBe(1);
-    expect(rows[2].values).toEqual({ load: 0, seconds: 0, km: 0, elevationM: 0, sessions: 0 });
+    expect(rows[2].values).toEqual({ seconds: 0, km: 0, elevationM: 0, sessions: 0 });
   });
 
   it("sums every metric over the period and treats missing numbers as zero", () => {
     const rows = periodTotals(
       [
-        activity(at(2026, 7, 20), { tss: 13, moving_time_s: 4372, distance_km: 0 }),
-        activity(at(2026, 7, 21), { tss: 60.8, moving_time_s: 3332, distance_km: 10.03 }),
+        activity(at(2026, 7, 20), { moving_time_s: 4372, distance_km: 0 }),
+        activity(at(2026, 7, 21), { moving_time_s: 3332, distance_km: 10.03 }),
         activity(at(2026, 7, 22), {
-          tss: null,
           moving_time_s: null,
           distance_km: null,
           elevation_gain_m: null,
@@ -81,7 +79,6 @@ describe("periodTotals", () => {
       now
     );
     expect(rows[0].values).toEqual({
-      load: 73.8,
       seconds: 7704,
       km: 10.03,
       elevationM: 200,
@@ -111,9 +108,9 @@ describe("periodTotals", () => {
   it("carries the previous period's totals for every row to compare against", () => {
     const rows = periodTotals(
       [
-        activity(at(2026, 7, 21), { tss: 60, moving_time_s: 3600, distance_km: 10 }),
-        activity(at(2026, 7, 14), { tss: 100, moving_time_s: 5400, distance_km: 15 }),
-        activity(at(2026, 7, 15), { tss: 20, moving_time_s: 1800, distance_km: 0 }),
+        activity(at(2026, 7, 21), { moving_time_s: 3600, distance_km: 10 }),
+        activity(at(2026, 7, 14), { moving_time_s: 5400, distance_km: 15 }),
+        activity(at(2026, 7, 15), { moving_time_s: 1800, distance_km: 0 }),
       ],
       "weeks",
       2,
@@ -121,7 +118,6 @@ describe("periodTotals", () => {
     );
     expect(rows[0].previous).toEqual(rows[1].values);
     expect(rows[0].previous).toEqual({
-      load: 120,
       seconds: 7200,
       km: 15,
       elevationM: 200,
@@ -129,7 +125,7 @@ describe("periodTotals", () => {
     });
     // The oldest displayed row compares against the extra period loaded behind
     // it, which is empty here.
-    expect(rows[1].previous).toEqual({ load: 0, seconds: 0, km: 0, elevationM: 0, sessions: 0 });
+    expect(rows[1].previous).toEqual({ seconds: 0, km: 0, elevationM: 0, sessions: 0 });
   });
 
   it("ignores activities outside the loaded range", () => {
@@ -139,7 +135,7 @@ describe("periodTotals", () => {
 
   it("offers weeks first, so weeks is the default pill", () => {
     expect(TOTALS_PERIODS[0]).toBe("weeks");
-    expect(TOTALS_METRICS).toEqual(["load", "seconds", "km", "elevationM", "sessions"]);
+    expect(TOTALS_METRICS).toEqual(["seconds", "km", "elevationM", "sessions"]);
   });
 });
 
@@ -165,7 +161,6 @@ describe("filterBySport", () => {
   it("totals only the filtered sport, so the table agrees with a sport-filtered page", () => {
     const runOnly = periodTotals(filterBySport(rows, "run"), "weeks", 2, now);
     expect(runOnly[0].values).toEqual({
-      load: 100,
       seconds: 7200,
       km: 20,
       elevationM: 200,

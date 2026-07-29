@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useState, useTransition } from "react";
 import { Loader2Icon, PlusIcon, TargetIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,8 +12,12 @@ import { fmtDate, fmtDuration } from "@/lib/format";
 import type { Goal } from "@/lib/types";
 
 export function GoalsManager({ goals }: { goals: Goal[] }) {
-  const router = useRouter();
   const { t, lang } = useI18n();
+  // Delete is a one-way row removal, so drop it from the list right away and let
+  // the revalidated server tree confirm (or restore it, if the action failed).
+  const [visibleGoals, hideGoal] = useOptimistic(goals, (current, id: number) =>
+    current.filter((goal) => goal.id !== id)
+  );
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [distance, setDistance] = useState("");
@@ -49,18 +52,14 @@ export function GoalsManager({ goals }: { goals: Goal[] }) {
       setTargetTime("");
       setNotes("");
       setPrimary(false);
-      router.refresh();
     });
   }
 
   function remove(id: number) {
     startTransition(async () => {
+      hideGoal(id);
       const result = await deleteGoalAction(id);
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      router.refresh();
+      if (!result.ok) toast.error(result.error);
     });
   }
 
@@ -68,9 +67,9 @@ export function GoalsManager({ goals }: { goals: Goal[] }) {
 
   return (
     <div className="space-y-5">
-      {goals.length > 0 ? (
+      {visibleGoals.length > 0 ? (
         <ul className="space-y-2">
-          {goals.map((goal) => {
+          {visibleGoals.map((goal) => {
             const meta = [
               goal.distance_km != null ? `${goal.distance_km} km` : null,
               goal.goal_time_s != null ? fmtDuration(goal.goal_time_s) : null,
@@ -97,21 +96,23 @@ export function GoalsManager({ goals }: { goals: Goal[] }) {
                     <p className="mt-0.5 text-xs text-muted-foreground">{goal.notes}</p>
                   ) : null}
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => remove(goal.id)}
                   disabled={pending}
                   aria-label={g.remove}
-                  className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground"
+                  className="shrink-0 text-muted-foreground"
                 >
-                  <XIcon className="size-4" />
-                </button>
+                  <XIcon />
+                </Button>
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground/70">{g.empty}</p>
+        <p className="text-sm text-muted-foreground">{g.empty}</p>
       )}
 
       <form onSubmit={submit} className="space-y-3 border-t pt-4">

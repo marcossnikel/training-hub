@@ -1,7 +1,6 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ import { THRESHOLD_PACE_RANGE } from "@/lib/fitness";
  * short label explains why.
  */
 export function ApplyThresholdPaceButton({ suggestedPaceSPerKm }: { suggestedPaceSPerKm: number }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
 
@@ -40,7 +38,6 @@ export function ApplyThresholdPaceButton({ suggestedPaceSPerKm }: { suggestedPac
         return;
       }
       toast.success(t.performance.applied);
-      router.refresh();
     });
   }
 

@@ -1,9 +1,19 @@
 "use client";
 
+import { useId } from "react";
 import { useRouter } from "next/navigation";
 import { MedalIcon } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ZoneBar } from "@/components/zone-bar";
 import { zoneLabels } from "@/lib/zones";
 import { cn } from "@/lib/utils";
@@ -46,9 +56,6 @@ function niceMax(value: number): number {
   const step = scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10;
   return step * pow;
 }
-
-const SELECT_CLASS =
-  "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 /** Two weekly series overlaid on one axis, aligned by weeks-to-race (−N…−1). */
 function OverlayChart({
@@ -180,9 +187,7 @@ function OverlayChart({
 function Tile({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </div>
+      <div className="label-micro">{label}</div>
       <div className="mt-0.5 font-display text-xl font-semibold tabular-nums">{value}</div>
     </div>
   );
@@ -208,27 +213,32 @@ function RacePicker({
   groups: CategoryGroup[];
   categoryLabels: Record<string, string>;
 }) {
+  // Radix Select renders a button, not a real <select>, so a wrapping <label>
+  // would not associate — the trigger points at the visible label instead.
+  const labelId = useId();
   return (
-    <label className="flex min-w-0 flex-1 flex-col gap-1">
-      <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <span id={labelId} className="label-micro">
         {label}
       </span>
-      <select
-        className={cn(SELECT_CLASS, "cursor-pointer")}
-        value={value}
-        onChange={(e) => onPick(Number(e.target.value))}
-      >
-        {groups.map((g) => (
-          <optgroup key={g.cat} label={categoryLabels[g.cat]}>
-            {g.items.map((o) => (
-              <option key={o.id} value={o.id} disabled={o.id === exclude}>
-                {o.name} · {o.startedAt.slice(0, 4)}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-    </label>
+      <Select value={String(value)} onValueChange={(v) => onPick(Number(v))}>
+        <SelectTrigger aria-labelledby={labelId} className="w-full min-w-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {groups.map((g) => (
+            <SelectGroup key={g.cat}>
+              <SelectLabel>{categoryLabels[g.cat]}</SelectLabel>
+              {g.items.map((o) => (
+                <SelectItem key={o.id} value={String(o.id)} disabled={o.id === exclude}>
+                  {o.name} · {o.startedAt.slice(0, 4)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -288,12 +298,8 @@ function SideColumn({
 
           <div>
             <div className="flex items-baseline justify-between">
-              <h4 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                {t.compare.timeInZones}
-              </h4>
-              <span className="text-[11px] text-muted-foreground/70">
-                {t.compare.estimatedFromAvgHr}
-              </span>
+              <h4 className="label-micro">{t.compare.timeInZones}</h4>
+              <span className="text-2xs text-muted-foreground">{t.compare.estimatedFromAvgHr}</span>
             </div>
             <div className="mt-2">
               <ZoneBar zoneSec={block.zoneSec} labels={zoneLabels} />
@@ -303,7 +309,7 @@ function SideColumn({
               <span className="font-mono tabular-nums text-foreground">
                 {block.polarization != null ? `${block.polarization.toFixed(1)} : 1` : "–"}
               </span>
-              <span className="ml-1 text-muted-foreground/70">
+              <span className="ml-1 text-muted-foreground">
                 ({t.compare.easy} / {t.compare.hard})
               </span>
             </p>
@@ -442,9 +448,7 @@ export function RaceCompare({
           categoryLabels={t.racesPage.categories}
         />
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-            {t.compare.blockLength}
-          </span>
+          <span className="label-micro">{t.compare.blockLength}</span>
           <div className="inline-flex overflow-hidden rounded-full border text-xs font-medium">
             {weekOptions.map((w) => (
               <button
@@ -504,9 +508,7 @@ export function RaceCompare({
         <Card>
           <CardContent className="space-y-8">
             <div>
-              <h4 className="mb-3 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                {t.compare.weeklyVolume}
-              </h4>
+              <h4 className="mb-3 label-micro">{t.compare.weeklyVolume}</h4>
               <OverlayChart
                 weeks={weeks}
                 seriesA={sideA.block.weekly.map((w) => w.runKm)}
@@ -516,9 +518,7 @@ export function RaceCompare({
               />
             </div>
             <div>
-              <h4 className="mb-3 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                {t.compare.longestRun}
-              </h4>
+              <h4 className="mb-3 label-micro">{t.compare.longestRun}</h4>
               <OverlayChart
                 weeks={weeks}
                 seriesA={sideA.block.weekly.map((w) => w.longestRunKm)}
@@ -527,23 +527,21 @@ export function RaceCompare({
                 ariaLabel={t.compare.longestRun}
               />
             </div>
-            <p className="text-center text-[11px] text-muted-foreground/70">
-              {t.compare.weeksToRace}
-            </p>
+            <p className="text-center text-2xs text-muted-foreground">{t.compare.weeksToRace}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Race head-to-head */}
       <div>
-        <h2 className="mb-3 font-display text-base font-medium italic">{t.compare.headToHead}</h2>
+        <h2 className="mb-3 font-display text-base font-medium">{t.compare.headToHead}</h2>
         <Card>
           <CardContent>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="py-1.5 pr-2 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase"></th>
-                  <th className="py-1.5 pl-2 text-right text-[11px] font-medium tracking-wider uppercase">
+                  <th className="py-1.5 pr-2 text-left label-micro"></th>
+                  <th className="py-1.5 pl-2 text-right text-2xs font-medium">
                     <span className="inline-flex items-center gap-1.5">
                       <span
                         className="size-2 rounded-full"
@@ -555,7 +553,7 @@ export function RaceCompare({
                       </span>
                     </span>
                   </th>
-                  <th className="py-1.5 pl-2 text-right text-[11px] font-medium tracking-wider uppercase">
+                  <th className="py-1.5 pl-2 text-right text-2xs font-medium">
                     <span className="inline-flex items-center gap-1.5">
                       <span
                         className="size-2 rounded-full"
@@ -575,7 +573,7 @@ export function RaceCompare({
                     <td className="py-2 pr-2 text-muted-foreground">
                       {row.label}
                       {row.sub ? (
-                        <span className="ml-1 text-xs text-muted-foreground/60">({row.sub})</span>
+                        <span className="ml-1 text-xs text-muted-foreground">({row.sub})</span>
                       ) : null}
                     </td>
                     <td className="py-2 pl-2 text-right font-mono tabular-nums">{row.a ?? "–"}</td>
@@ -587,9 +585,7 @@ export function RaceCompare({
 
             {showInRaceZones ? (
               <div className="mt-5 border-t pt-4">
-                <h4 className="mb-3 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                  {t.compare.timeInZones}
-                </h4>
+                <h4 className="mb-3 label-micro">{t.compare.timeInZones}</h4>
                 <div className="grid gap-5 md:grid-cols-2">
                   {sides.map(({ side, color }) =>
                     side.analysis.inRaceZoneSec != null ? (

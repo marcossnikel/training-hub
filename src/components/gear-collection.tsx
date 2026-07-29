@@ -23,7 +23,7 @@ export function GearCollection({
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl font-bold uppercase">{title}</h1>
+          <h1 className="font-display text-4xl font-bold">{title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{summary}</p>
         </div>
         {addTrigger}
@@ -40,7 +40,7 @@ export function GearCollection({
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{active}</div>
           {retired ? (
             <section className="mt-10">
-              <h2 className="font-display text-lg font-semibold italic text-muted-foreground">
+              <h2 className="font-display text-lg font-semibold text-muted-foreground">
                 {retired.label}
               </h2>
               <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{retired.cards}</div>

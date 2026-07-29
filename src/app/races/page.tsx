@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GitCompareIcon, MedalIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { FeelingBadge } from "@/components/feeling-badge";
 import { listRaces } from "@/lib/db";
@@ -35,7 +36,7 @@ export default async function RacesPage() {
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl font-bold uppercase">{t.racesPage.title}</h1>
+          <h1 className="font-display text-4xl font-bold">{t.racesPage.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {races.length === 0
               ? t.racesPage.empty
@@ -49,12 +50,12 @@ export default async function RacesPage() {
           </p>
         </div>
         {races.length >= 2 ? (
-          <Link
-            href="/races/compare"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
-          >
-            <GitCompareIcon className="size-3.5" aria-hidden /> {t.racesPage.compare}
-          </Link>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/races/compare">
+              <GitCompareIcon data-icon="inline-start" aria-hidden />
+              {t.racesPage.compare}
+            </Link>
+          </Button>
         ) : null}
       </div>
 
@@ -70,9 +71,7 @@ export default async function RacesPage() {
         <div className="mt-6 space-y-8">
           {groups.map((group) => (
             <section key={group.year}>
-              <h2 className="border-b pb-2 font-display text-base font-medium italic">
-                {group.year}
-              </h2>
+              <h2 className="border-b pb-2 font-display text-base font-medium">{group.year}</h2>
               <ul className="mt-1.5 divide-y divide-border/50">
                 {group.items.map((race) => {
                   const category = raceCategory(race);

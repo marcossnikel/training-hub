@@ -44,7 +44,7 @@
  * more than keeping normalized power on those activities.
  *
  * These flags remain the stopgap. The in-app "recompute loads" action on
- * /settings rewrites `activity_load` and deliberately does not touch
+ * /settings rewrites the thresholds and deliberately does not touch
  * `activity_metrics`: refreshing a zone split from the downsample is only honest
  * for a version-1 row, so an automatic invalidation needs per-column provenance
  * first. The reasoning is on StoredActivityMetrics in src/lib/db/metrics.ts.

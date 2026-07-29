@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useState, useTransition } from "react";
 import { Loader2Icon, PlusIcon, UnplugIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,6 @@ import { fillStr } from "@/lib/i18n";
 import type { GearOption, StravaGear } from "@/lib/types";
 
 export function DisconnectButton() {
-  const router = useRouter();
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
 
@@ -40,7 +38,6 @@ export function DisconnectButton() {
         return;
       }
       toast.success(t.toasts.disconnected);
-      router.refresh();
     });
   }
 
@@ -68,25 +65,36 @@ export function GearMatcher({
   gear: StravaGear[];
   kind: "shoe" | "bike";
 }) {
-  const router = useRouter();
   const { t } = useI18n();
+  const [pending, startTransition] = useTransition();
+  // The server prop stays the authority; this layer only carries the in-flight
+  // pick so the trigger shows the new gear right away instead of snapping back
+  // to the old label for the whole (Strava-backed) round-trip. Selecting also
+  // disables every trigger, so a second link cannot race the first.
+  const [optimisticItems, applyPick] = useOptimistic(
+    items,
+    (current, pick: { id: number; gearId: string | null }) =>
+      current.map((item) => (item.id === pick.id ? { ...item, gearId: pick.gearId } : item))
+  );
   const setGear = kind === "shoe" ? setShoeGearAction : setBikeGearAction;
 
   function link(id: number, value: string) {
     const gearId = value === NONE ? null : value;
-    setGear(id, gearId).then((result) => {
+    // useOptimistic only applies inside a transition, so the whole call sits in one.
+    startTransition(async () => {
+      applyPick({ id, gearId });
+      const result = await setGear(id, gearId);
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
       toast.success(gearId ? t.toasts.gearLinked : t.toasts.gearUnlinked);
-      router.refresh();
     });
   }
 
   return (
     <ul className="space-y-2.5">
-      {items.map((item) => (
+      {optimisticItems.map((item) => (
         <li key={item.id} className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{item.name}</p>
@@ -95,7 +103,7 @@ export function GearMatcher({
             ) : null}
           </div>
           <Select value={item.gearId ?? NONE} onValueChange={(value) => link(item.id, value)}>
-            <SelectTrigger size="sm" className="w-52 shrink-0">
+            <SelectTrigger size="sm" className="w-52 shrink-0" disabled={pending}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -112,7 +120,6 @@ export function GearMatcher({
 }
 
 export function ManualActivityForm({ shoes }: { shoes: GearOption[] }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [date, setDate] = useState(() => localDateInputValue());
   const [km, setKm] = useState("");
@@ -148,7 +155,6 @@ export function ManualActivityForm({ shoes }: { shoes: GearOption[] }) {
         })
       );
       setKm("");
-      router.refresh();
     });
   }
 

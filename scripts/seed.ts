@@ -6,7 +6,7 @@
  *   npm run seed        insert (re-runs replace previous seed data)
  *   npm run seed:clear  remove only seeded activities
  */
-import { client, ensureMigrated, recomputeAllLoads } from "../src/lib/db";
+import { client, ensureMigrated } from "../src/lib/db";
 import type { Feeling } from "../src/lib/types";
 
 const SEED_MARKER = '{"seed":true}';
@@ -321,12 +321,6 @@ async function main() {
       });
     }
   }
-
-  // Compute training load for the confirmed activities through the real write
-  // path (reuses the lib helper per G1.6), so the fitness PMC, readiness load
-  // component and the recovery engine have data to work with.
-  const loaded = await recomputeAllLoads();
-  console.log(`Computed training load for ${loaded.count} activities.`);
 
   const pending = ACTIVITIES.filter((a) => a.status === "pending_review").length;
   console.log(

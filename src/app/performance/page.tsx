@@ -6,6 +6,8 @@ import { ApplyThresholdPaceButton } from "@/components/apply-threshold-pace";
 import { FilterPill } from "@/components/filter-pill";
 import { MeanMaxCurve } from "@/components/mean-max-curve";
 import { ZonesPanel } from "@/components/zones-panel";
+import { ConsistencyHeatmapCard } from "@/components/consistency-heatmap";
+import { TotalsTable } from "@/components/totals-table";
 import { VdotCard } from "@/components/vdot-card";
 import {
   countCurveActivities,
@@ -15,9 +17,18 @@ import {
   listCurveBests,
   listFastestBestEfforts,
   listRunEfforts,
+  listSessionStarts,
+  listTotalsActivities,
 } from "@/lib/db";
 import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
+import {
+  consistencyHeatmap,
+  heatmapFrom,
+  minutesByDay,
+  sessionCountsByDay,
+} from "@/lib/consistency";
+import { periodTotals, totalsFrom, TOTALS_PERIODS, type TotalsPeriod } from "@/lib/totals";
 import {
   bestEffortRecords,
   estimateCriticalSpeed,
@@ -55,9 +66,7 @@ function StatTile({
 }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </div>
+      <div className="label-micro">{label}</div>
       <div className="mt-1 font-display text-3xl font-bold" style={color ? { color } : undefined}>
         {value}
       </div>
@@ -88,6 +97,24 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   // VDOT reads EVERY stored segment effort with its date (not just the fastest per
   // name), because the trend is per month: the same effort table, a different shape.
   const vdot = vdotTrend(await listBestEffortsForVdot(), new Date());
+
+  // Consistency and volume. Both are keyed by moving time rather than a training
+  // load: this app deliberately does not compute TSS (TrainingPeaks owns that
+  // number), and every recorded session has a duration, so a gym day counts as a
+  // trained day where a distance-keyed grid would read it as rest.
+  const period: TotalsPeriod = params.period === "months" ? "months" : "weeks";
+  const heatFrom = heatmapFrom();
+  const [sessionStarts, totalsActivities] = await Promise.all([
+    listSessionStarts(heatFrom),
+    listTotalsActivities(totalsFrom(period)),
+  ]);
+  // The minutes come from the totals rows on purpose: one read feeds both cards,
+  // and `minutesByDay` re-buckets them onto the heatmap's own day key.
+  const heatmap = consistencyHeatmap(
+    minutesByDay(totalsActivities, heatFrom),
+    sessionCountsByDay(sessionStarts)
+  );
+  const totals = periodTotals(totalsActivities, period);
 
   // Mean-max curves (T27). Both series are aggregated in SQL from
   // `activity_curve_points`, so this costs a handful of small reads and never
@@ -127,7 +154,7 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="font-display text-4xl font-bold uppercase">{tp.title}</h1>
+      <h1 className="font-display text-4xl font-bold">{tp.title}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{tp.subtitle}</p>
 
       <Card className="mt-6">
@@ -156,34 +183,24 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-x-3 gap-y-2 text-sm sm:gap-x-5">
-                <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                  {tp.distance}
-                </div>
-                <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                  {tp.time}
-                </div>
-                <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                  {tp.measured}
-                </div>
-                <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                  {tp.pace}
-                </div>
-                <div className="text-right text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                  {tp.date}
-                </div>
+                <div className="label-micro">{tp.distance}</div>
+                <div className="label-micro">{tp.time}</div>
+                <div className="label-micro">{tp.measured}</div>
+                <div className="label-micro">{tp.pace}</div>
+                <div className="text-right label-micro">{tp.date}</div>
                 {best.map((effort) => (
                   <div key={effort.distance} className="contents">
                     <div className="flex items-center gap-1.5 border-t border-border/50 pt-2 font-medium">
                       {t.racesPage.categories[effort.distance]}
                       {effort.isRace ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-3xs font-medium text-primary">
                           <MedalIcon className="size-2.5" aria-hidden />
                           {tp.raceTag}
                         </span>
                       ) : null}
                       {effort.source === "segment" ? (
                         <span
-                          className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                          className="rounded-full bg-muted px-1.5 py-0.5 text-3xs font-medium text-muted-foreground"
                           title={tp.segmentTagTitle}
                         >
                           {tp.segmentTag}
@@ -268,15 +285,9 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-2 text-sm sm:gap-x-6">
-                  <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                    {tp.distance}
-                  </div>
-                  <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                    {tp.predictedTime}
-                  </div>
-                  <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                    {tp.pace}
-                  </div>
+                  <div className="label-micro">{tp.distance}</div>
+                  <div className="label-micro">{tp.predictedTime}</div>
+                  <div className="label-micro">{tp.pace}</div>
                   {predictions.map((prediction) => (
                     <div key={prediction.distance} className="contents">
                       <div className="border-t border-border/50 pt-2 font-medium">
@@ -394,6 +405,28 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
           ) : null}
         </div>
       ) : null}
+
+      <ConsistencyHeatmapCard heatmap={heatmap} lang={lang} t={t} />
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>{t.fitness.totals.title}</CardTitle>
+          <CardDescription>{t.fitness.totals.subtitle}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <nav aria-label={t.fitness.totals.period} className="mb-3 flex items-center gap-1.5">
+            {TOTALS_PERIODS.map((key) => (
+              <FilterPill
+                key={key}
+                href={key === "weeks" ? "/performance" : `/performance?period=${key}`}
+                active={period === key}
+                label={t.fitness.totals[key]}
+              />
+            ))}
+          </nav>
+          <TotalsTable rows={totals} period={period} lang={lang} t={t} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

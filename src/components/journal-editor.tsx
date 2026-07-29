@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2Icon, PencilIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,20 +23,17 @@ function NoteBlock({
 }) {
   return (
     <div>
-      <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </div>
+      <div className="label-micro">{label}</div>
       {text ? (
-        <p className="mt-1 text-[15px] leading-relaxed italic whitespace-pre-wrap">{text}</p>
+        <p className="mt-1 text-sm leading-relaxed italic whitespace-pre-wrap">{text}</p>
       ) : (
-        <p className="mt-1 text-sm text-muted-foreground/60">{emptyText}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{emptyText}</p>
       )}
     </div>
   );
 }
 
 export function JournalEditor({ activity }: { activity: Activity }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [rpe, setRpe] = useState<number | null>(activity.rpe);
@@ -69,7 +65,6 @@ export function JournalEditor({ activity }: { activity: Activity }) {
       }
       toast.success(t.toasts.journalSaved);
       setEditing(false);
-      router.refresh();
     });
   }
 
@@ -92,7 +87,7 @@ export function JournalEditor({ activity }: { activity: Activity }) {
               </span>
             ) : null}
             {empty ? (
-              <span className="text-sm text-muted-foreground/60">{t.detail.noJournal}</span>
+              <span className="text-sm text-muted-foreground">{t.detail.noJournal}</span>
             ) : null}
           </div>
           <Button variant="ghost" size="sm" onClick={startEditing}>
@@ -122,24 +117,17 @@ export function JournalEditor({ activity }: { activity: Activity }) {
     <div className="space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label className="text-xs tracking-wider text-muted-foreground uppercase">
-            {t.review.effort}
-          </Label>
+          <Label className="label-micro">{t.review.effort}</Label>
           <RpeControl value={rpe} onChange={setRpe} />
         </div>
         <div className="space-y-2">
-          <Label className="text-xs tracking-wider text-muted-foreground uppercase">
-            {t.review.feeling}
-          </Label>
+          <Label className="label-micro">{t.review.feeling}</Label>
           <FeelingControl value={feeling} onChange={setFeeling} />
         </div>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label
-            htmlFor="edit-workout-notes"
-            className="text-xs tracking-wider text-muted-foreground uppercase"
-          >
+          <Label htmlFor="edit-workout-notes" className="label-micro">
             {t.review.workoutNotes}
           </Label>
           <Textarea
@@ -150,10 +138,7 @@ export function JournalEditor({ activity }: { activity: Activity }) {
           />
         </div>
         <div className="space-y-2">
-          <Label
-            htmlFor="edit-health-notes"
-            className="text-xs tracking-wider text-muted-foreground uppercase"
-          >
+          <Label htmlFor="edit-health-notes" className="label-micro">
             {t.review.healthNotes}
           </Label>
           <Textarea

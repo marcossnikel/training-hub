@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,28 +32,21 @@ export function SyncButton({
   connected: boolean;
   size?: "sm" | "default";
 }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
 
   function run() {
     startTransition(async () => {
-      const result = await syncNowAction();
-      announce(result, true, t);
-      if (result.ok) router.refresh();
+      announce(await syncNowAction(), true, t);
     });
   }
 
   const button = (
-    <Button
-      variant="outline"
-      size={size}
-      onClick={run}
-      disabled={!connected || pending}
-      aria-label={t.header.sync}
-    >
+    <Button variant="outline" size={size} onClick={run} disabled={!connected || pending}>
       <RefreshCwIcon className={pending ? "animate-spin" : undefined} />
-      {pending ? t.header.syncing : t.header.sync}
+      {/* Icon-only on a phone, where the header cannot afford the label. sr-only
+          rather than hidden so the button keeps its accessible name. */}
+      <span className="sr-only sm:not-sr-only">{pending ? t.header.syncing : t.header.sync}</span>
     </Button>
   );
 
@@ -73,7 +65,6 @@ export function SyncButton({
 
 /** Fires one background sync when the app loads and the last sync is stale. */
 export function AutoSync() {
-  const router = useRouter();
   const { t } = useI18n();
   const ran = useRef(false);
   const tRef = useRef(t);
@@ -86,11 +77,8 @@ export function AutoSync() {
     ran.current = true;
     syncNowAction().then((result) => {
       announce(result, false, tRef.current);
-      if (result.ok && (result.imported > 0 || result.pendingNew > 0)) {
-        router.refresh();
-      }
     });
-  }, [router]);
+  }, []);
 
   return null;
 }

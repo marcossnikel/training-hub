@@ -77,7 +77,7 @@ export default async function RaceComparePage({ searchParams }: PageProps<"/race
   if (races.length < 2) {
     return (
       <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-        <h1 className="font-display text-4xl font-bold uppercase">{t.compare.title}</h1>
+        <h1 className="font-display text-4xl font-bold">{t.compare.title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t.compare.subtitle}</p>
         <div className="mt-6">
           <EmptyState
@@ -121,7 +121,7 @@ export default async function RaceComparePage({ searchParams }: PageProps<"/race
         <ArrowLeftIcon className="size-3.5" aria-hidden /> {t.racesPage.title}
       </Link>
 
-      <h1 className="mt-5 font-display text-4xl font-bold uppercase">{t.compare.title}</h1>
+      <h1 className="mt-5 font-display text-4xl font-bold">{t.compare.title}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{t.compare.subtitle}</p>
 
       <RaceCompare

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { ArchiveIcon, ArchiveRestoreIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -46,7 +45,6 @@ type GearDialogProps = {
 
 export function GearDialog(props: GearDialogProps) {
   const { kind, gear, gearOptions, connected, children } = props;
-  const router = useRouter();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -67,7 +65,6 @@ export function GearDialog(props: GearDialogProps) {
       const added = kind === "shoe" ? t.toasts.shoeAdded : t.toasts.bikeAdded;
       toast.success(gear ? updated : added);
       setOpen(false);
-      router.refresh();
     });
   }
 
@@ -188,7 +185,6 @@ export function RetireGearButton(
   props: { kind: "shoe"; gear: Shoe } | { kind: "bike"; gear: Bike }
 ) {
   const { gear } = props;
-  const router = useRouter();
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
   const retired = !!gear.retired_at;
@@ -205,7 +201,6 @@ export function RetireGearButton(
       toast.success(
         fillStr(retired ? t.toasts.backInRotation : t.toasts.retired, { name: gear.name })
       );
-      router.refresh();
     });
   }
 

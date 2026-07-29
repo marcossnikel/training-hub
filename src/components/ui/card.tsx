@@ -33,9 +33,19 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * Renders an <h2> by default so a page built from Cards has a real document
+ * outline. Pass `as` to fit the surrounding hierarchy — e.g. `as="h1"` on a page
+ * whose Card title *is* the page title, or `as="h3"` for a Card nested under
+ * another heading.
+ */
+function CardTitle({
+  className,
+  as: Comp = "h2",
+  ...props
+}: React.ComponentProps<"h2"> & { as?: "h1" | "h2" | "h3" | "h4" | "div" }) {
   return (
-    <div
+    <Comp
       data-slot="card-title"
       className={cn(
         "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",

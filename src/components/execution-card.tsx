@@ -27,9 +27,7 @@ function ExecTile({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </dt>
+      <dt className="label-micro">{label}</dt>
       <dd
         className="mt-0.5 font-display text-2xl font-semibold tabular-nums"
         style={color ? { color } : undefined}
@@ -85,10 +83,8 @@ export function ExecutionCard({ analysis, t }: { analysis: RaceAnalysis; t: Dict
         {goalSec ? (
           <div>
             <div className="mb-2 flex items-baseline justify-between gap-3">
-              <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                {t.detail.vsGoal.title}
-              </span>
-              <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+              <span className="label-micro">{t.detail.vsGoal.title}</span>
+              <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                 {fmtPace(goalPaceSPerKm)}
               </span>
             </div>

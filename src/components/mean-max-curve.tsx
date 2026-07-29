@@ -321,7 +321,7 @@ export function MeanMaxCurve({
                     </span>
                   </div>
                   {row.best ? (
-                    <div className="truncate text-[11px] text-muted-foreground">
+                    <div className="truncate text-2xs text-muted-foreground">
                       {row.best.activityName ?? "–"} · {fmtDateWithYear(row.best.date, lang)}
                     </div>
                   ) : null}

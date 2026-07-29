@@ -11,12 +11,9 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { FeelingBadge } from "@/components/feeling-badge";
 import { FilterPill } from "@/components/filter-pill";
-import { FormStrip } from "@/components/form-strip";
 import { ReviewBanner } from "@/components/review-banner";
 import { SportIcon } from "@/components/sport-icon";
-import { buildPmc } from "@/lib/action-helpers";
 import { countPending, listConfirmedActivities } from "@/lib/db";
-import { formSnapshot, weekLoadVsTrailing } from "@/lib/fitness";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected, stravaConfigured } from "@/lib/strava";
 import {
@@ -124,11 +121,11 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
           </span>
         </span>
 
-        <span className="hidden min-w-0 truncate text-[13px] text-muted-foreground italic lg:block">
+        <span className="hidden min-w-0 truncate text-xs text-muted-foreground italic lg:block">
           {activity.workout_notes ?? ""}
         </span>
 
-        <span className="hidden min-w-0 truncate text-[13px] text-muted-foreground italic lg:block">
+        <span className="hidden min-w-0 truncate text-xs text-muted-foreground italic lg:block">
           {activity.health_notes ?? ""}
         </span>
 
@@ -145,7 +142,7 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
         <span className="hidden min-w-0 flex-wrap items-center gap-1 lg:flex">
           {ride && activity.bike_name ? (
             <span
-              className="max-w-full truncate rounded-full border bg-card px-2 py-0.5 text-[11px] text-muted-foreground"
+              className="max-w-full truncate rounded-full border bg-card px-2 py-0.5 text-2xs text-muted-foreground"
               title={activity.bike_name}
             >
               {activity.bike_name}
@@ -158,7 +155,7 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
             shoeSplits.map((split) => (
               <span
                 key={split.id}
-                className="max-w-full truncate rounded-full border bg-card px-2 py-0.5 text-[11px] text-muted-foreground"
+                className="max-w-full truncate rounded-full border bg-card px-2 py-0.5 text-2xs text-muted-foreground"
                 title={`${split.shoe_name} · ${fmtKm(split.km)}`}
               >
                 {split.shoe_name}
@@ -174,24 +171,18 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
   );
 }
 
+/** Rows the log renders before offering the rest. */
+const LOG_PAGE_SIZE = 150;
+
 export default async function TrainingLogPage({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
   const { lang, t } = await getDict();
-  // The form strip's PMC query is independent of the log's own reads, so it is
-  // an extra round trip run concurrently with the existing ones rather than
-  // after them.
-  const [pending, activities, connected, pmc] = await Promise.all([
+  const [pending, activities, connected] = await Promise.all([
     countPending(),
     listConfirmedActivities(),
     isStravaConnected(),
-    buildPmc(),
   ]);
   const configured = stravaConfigured();
-
-  // Form strip (T19): whole-history PMC, so today's TSB/CTL match the /fitness
-  // tiles exactly, plus this week's load against the trailing 4-week average.
-  const form = formSnapshot(pmc);
-  const weekLoad = weekLoadVsTrailing(pmc);
 
   const counts = new Map<SportCategory, number>();
   for (const activity of activities) {
@@ -206,10 +197,16 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
     ? (rawSport as SportCategory)
     : "all";
 
-  const visible =
+  const matching =
     filter === "all"
       ? activities
       : activities.filter((a) => sportCategory(a.sport_type) === filter);
+  // The log rendered every confirmed activity ever: 1229 rows, 4.8 MB of HTML on
+  // a single response. Show the most recent window by default and keep the whole
+  // history one click away.
+  const showAll = params.all === "1";
+  const visible = showAll ? matching : matching.slice(0, LOG_PAGE_SIZE);
+  const hiddenCount = matching.length - visible.length;
   const weeks = groupByWeek(visible, lang);
   const totalKm = visible.reduce((acc, a) => acc + (a.distance_km ?? 0), 0);
   const availableCategories = SPORT_CATEGORIES.filter((key) => (counts.get(key) ?? 0) > 0);
@@ -221,7 +218,7 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl font-bold uppercase">{t.log.title}</h1>
+          <h1 className="font-display text-4xl font-bold">{t.log.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {visible.length === 0 ? (
               t.log.empty
@@ -246,8 +243,6 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
           </p>
         </div>
       </div>
-
-      {form ? <FormStrip {...form} week={weekLoad} t={t} /> : null}
 
       {pending > 0 ? (
         <div className="mt-5">
@@ -326,7 +321,7 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
           {weeks.map((week, index) => (
             <details key={week.key} open={index < 4} className="group">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 border-b pb-2 select-none [&::-webkit-details-marker]:hidden">
-                <h2 className="flex items-center gap-1.5 font-display text-base font-medium italic">
+                <h2 className="flex items-center gap-1.5 font-display text-base font-medium">
                   <ChevronRightIcon
                     aria-hidden
                     className="size-3.5 shrink-0 text-muted-foreground/70 transition-transform group-open:rotate-90"
@@ -344,6 +339,15 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
               </ul>
             </details>
           ))}
+          {hiddenCount > 0 ? (
+            <div className="pt-2 text-center">
+              <Button asChild variant="outline" size="sm">
+                <Link href={filter === "all" ? "/?all=1" : `/?sport=${filter}&all=1`}>
+                  {fillStr(t.log.showOlder, { n: hiddenCount })}
+                </Link>
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

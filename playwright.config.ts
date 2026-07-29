@@ -44,7 +44,7 @@ export default defineConfig({
     // (src/proxy.ts) lets them through. Excludes the setup and the auth spec.
     {
       name: "chromium",
-      testIgnore: [/auth\.setup\.ts/, /auth\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /auth\.spec\.ts/, /mobile\.spec\.ts/],
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
       dependencies: ["setup"],
     },
@@ -53,6 +53,19 @@ export default defineConfig({
       name: "chromium-guest",
       testMatch: /auth\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
+    },
+    // A narrow viewport, because every project above is Desktop Chrome and so the
+    // gate could never catch a layout that only breaks on a phone. 375px is the
+    // narrowest width we support (iPhone SE / 13 mini).
+    {
+      name: "mobile",
+      testMatch: /mobile\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 375, height: 667 },
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ["setup"],
     },
   ],
   webServer: {

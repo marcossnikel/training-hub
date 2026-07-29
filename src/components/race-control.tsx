@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2Icon, MedalIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,12 +12,18 @@ import { fmtPaceShort, parsePace } from "@/lib/format";
 import type { Activity } from "@/lib/types";
 
 export function RaceControl({ activity }: { activity: Activity }) {
-  const router = useRouter();
   const { t } = useI18n();
   const isRace = activity.is_race;
   const [editing, setEditing] = useState(false);
   const [goal, setGoal] = useState(fmtPaceShort(activity.goal_pace_s_per_km));
   const [pending, startTransition] = useTransition();
+
+  // Re-seed from the prop on every open, so an abandoned draft (typed, then
+  // cancelled) can never be shown again or saved on the next edit.
+  function startEditing() {
+    setGoal(fmtPaceShort(activity.goal_pace_s_per_km));
+    setEditing(true);
+  }
 
   function submit(nextIsRace: boolean) {
     const goalPace = nextIsRace && goal.trim() ? parsePace(goal) : null;
@@ -37,14 +42,13 @@ export function RaceControl({ activity }: { activity: Activity }) {
         return;
       }
       setEditing(false);
-      router.refresh();
     });
   }
 
   // Not a race, not editing: a quiet button to mark it.
   if (!isRace && !editing) {
     return (
-      <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+      <Button variant="ghost" size="sm" onClick={startEditing}>
         <MedalIcon data-icon="inline-start" /> {t.detail.markRace}
       </Button>
     );
@@ -91,7 +95,7 @@ export function RaceControl({ activity }: { activity: Activity }) {
           </span>
         ) : null}
       </span>
-      <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+      <Button variant="ghost" size="sm" onClick={startEditing}>
         {t.detail.edit}
       </Button>
       <Button variant="ghost" size="sm" onClick={() => submit(false)} disabled={pending}>

@@ -84,9 +84,7 @@ export function VdotCard({ trend, lang, t }: { trend: VdotTrend; lang: Lang; t: 
       <CardContent>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
           <div className="min-w-0">
-            <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-              {tp.vdotCurrent}
-            </div>
+            <div className="label-micro">{tp.vdotCurrent}</div>
             <div
               className="mt-1 font-display text-3xl font-bold"
               style={trend.current === null ? undefined : { color: "var(--primary)" }}

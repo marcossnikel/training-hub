@@ -5,7 +5,6 @@
 // component so server pages and client charts can share exactly one copy.
 
 import type { Dict } from "@/lib/i18n";
-import type { FormStateKey } from "@/lib/fitness";
 
 export type ZoneConfidence = "low" | "medium" | "high";
 
@@ -66,10 +65,3 @@ export function zoneLabels(t: Dict): string[] {
  * strip). The PMC chart's decorative TSB background bands are a separate
  * palette; this one is for text.
  */
-export const STATE_COLOR: Record<FormStateKey, string> = {
-  transition: "var(--wear-worn)",
-  fresh: "var(--positive)",
-  neutral: "var(--muted-foreground)",
-  productive: "var(--primary)",
-  fatigued: "var(--wear-critical)",
-};

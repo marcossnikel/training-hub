@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useState, useTransition } from "react";
 import { Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,9 +23,7 @@ const paceRange = (a: number | null, b: number | null) =>
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </div>
+      <div className="label-micro">{label}</div>
       <div className="mt-0.5 font-display text-xl font-bold tabular-nums">{value}</div>
     </div>
   );
@@ -39,15 +36,18 @@ export function ZonesPanel({
   initial: DerivedZones | null;
   configured: boolean;
 }) {
-  const router = useRouter();
   const { t, lang } = useI18n();
-  const [zones, setZones] = useState<DerivedZones | null>(initial);
+  // The server prop is the source of truth: computeZonesAction persists the
+  // zones and revalidates, so its response already carries the new `initial`.
+  // The optimistic layer only shows the freshly computed zones for the tail of
+  // the transition, then hands back to the server tree.
+  const [zones, showZones] = useOptimistic(initial);
   const [extra, setExtra] = useState("");
   const [pending, startTransition] = useTransition();
   const z = t.zones;
 
   if (!configured) {
-    return <p className="text-sm text-muted-foreground/70">{z.notConfigured}</p>;
+    return <p className="text-sm text-muted-foreground">{z.notConfigured}</p>;
   }
 
   function compute() {
@@ -57,8 +57,7 @@ export function ZonesPanel({
         toast.error(result.error);
         return;
       }
-      setZones(result.zones);
-      router.refresh();
+      showZones(result.zones);
     });
   }
 
@@ -80,7 +79,7 @@ export function ZonesPanel({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs tracking-wide text-muted-foreground uppercase">
+                <tr className="text-left label-micro">
                   <th className="pb-2 font-medium">&nbsp;</th>
                   <th className="pb-2 font-medium">{z.hr}</th>
                   <th className="pb-2 font-medium">{z.pace}</th>

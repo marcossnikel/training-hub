@@ -17,7 +17,7 @@ export function FilterPill({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+        "focus-ring inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
         active
           ? "border-transparent bg-primary text-primary-foreground"
           : "border-border text-muted-foreground hover:border-ring hover:text-foreground"
@@ -27,8 +27,8 @@ export function FilterPill({
       {count != null ? (
         <span
           className={cn(
-            "font-mono text-[11px] tabular-nums",
-            active ? "text-primary-foreground/75" : "text-muted-foreground/70"
+            "font-mono text-2xs tabular-nums",
+            active ? "text-primary-foreground" : "text-muted-foreground"
           )}
         >
           {count}

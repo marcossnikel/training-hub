@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,6 @@ import { parseFiniteNumber } from "@/lib/validate";
 import type { AthleteThresholds } from "@/lib/fitness";
 
 export function ThresholdsForm({ thresholds }: { thresholds: AthleteThresholds }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [maxHr, setMaxHr] = useState(String(thresholds.maxHr));
   const [restingHr, setRestingHr] = useState(String(thresholds.restingHr));
@@ -57,7 +55,6 @@ export function ThresholdsForm({ thresholds }: { thresholds: AthleteThresholds }
         return;
       }
       toast.success(t.fitness.thresholds.saved);
-      router.refresh();
     });
   }
 

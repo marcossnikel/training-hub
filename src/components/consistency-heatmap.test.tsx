@@ -16,7 +16,7 @@ function saturday() {
 }
 
 function series(loads: Record<string, number> = {}) {
-  return eachDay("2025-07-21", "2026-07-25").map((date) => ({ date, load: loads[date] ?? 0 }));
+  return eachDay("2025-07-21", "2026-07-25").map((date) => ({ date, minutes: loads[date] ?? 0 }));
 }
 
 function renderCard(
@@ -93,11 +93,11 @@ describe.each(["UTC", "America/Santiago"])("ConsistencyHeatmapCard under TZ=%s",
     ]);
   });
 
-  it("titles each cell with its date, load and session count", () => {
+  it("titles each cell with its date, minutes and session count", () => {
     const { container } = renderCard(WEEK, { "2026-07-25": 2, "2026-07-24": 1 });
     const titles = [...container.querySelectorAll("title")].map((node) => node.textContent);
-    expect(titles).toContain("25 Jul 2026 · 60 TSS · 2 sessions");
-    expect(titles).toContain("24 Jul 2026 · 50 TSS · 1 session");
+    expect(titles).toContain("25 Jul 2026 · 60 min · 2 sessions");
+    expect(titles).toContain("24 Jul 2026 · 50 min · 1 session");
     expect(titles).toContain("21 Jul 2025 · rest day");
   });
 
@@ -128,14 +128,11 @@ describe.each(["UTC", "America/Santiago"])("ConsistencyHeatmapCard under TZ=%s",
     expect(screen.getByText("Sequência 6 d · 1.5 dias ativos/sem")).toBeTruthy();
     expect(screen.getByText("Dez")).toBeTruthy();
     const titles = [...container.querySelectorAll("title")].map((node) => node.textContent);
-    expect(titles).toContain("25 Jul 2026 · 60 TSS · 2 sessões");
+    expect(titles).toContain("25 Jul 2026 · 60 min · 2 sessões");
     expect(titles).toContain("21 Jul 2025 · dia de descanso");
   });
 
-  it("says a session without computable load carries no load, instead of 0 TSS", () => {
-    // A strength or soccer session with no TSS leaves the cell on --muted, because
-    // the grid paints load and the streak counts load. The title must not then
-    // claim "0 TSS" beside "1 session": empty square, "no load" tooltip.
+  it("says a session with no recorded time carries no minutes", () => {
     const { container } = renderCard(WEEK, { "2026-07-19": 1 });
     const titles = [...container.querySelectorAll("title")].map((node) => node.textContent);
     expect(titles).toContain("19 Jul 2026 · no load · 1 session");

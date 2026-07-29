@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { ClockIcon, Loader2Icon, PencilIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ export function SplitsSection({
   activity: ActivityWithSplits;
   shoes: ShoeOption[];
 }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [rows, setRows] = useState<SplitRow[]>([]);
@@ -71,7 +69,6 @@ export function SplitsSection({
       }
       toast.success(t.toasts.splitsSaved);
       setEditing(false);
-      router.refresh();
     });
   }
 
@@ -80,7 +77,7 @@ export function SplitsSection({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           {activity.splits.length === 0 ? (
-            <p className="text-sm text-muted-foreground/60">{t.detail.noSplits}</p>
+            <p className="text-sm text-muted-foreground">{t.detail.noSplits}</p>
           ) : (
             <ul className="min-w-0 flex-1 space-y-1.5">
               {activity.splits.map((split) => (

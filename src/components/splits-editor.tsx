@@ -86,7 +86,7 @@ export function SplitsEditor({
             <SelectTrigger
               className={cn(
                 "min-w-0 flex-1",
-                row.shoeId == null && "border-wear-worn text-muted-foreground"
+                row.shoeId == null && "border-destructive text-muted-foreground"
               )}
             >
               <SelectValue placeholder={t.splits.pickShoe} />

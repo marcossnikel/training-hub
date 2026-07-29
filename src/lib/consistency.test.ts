@@ -8,8 +8,7 @@ import {
   sessionCountsByDay,
   type SessionStart,
 } from "@/lib/consistency";
-import { dailyLoadSeries } from "@/lib/fitness";
-import { eachDay } from "@/lib/format";
+import { eachDay, localDateInputValue } from "@/lib/format";
 
 // Saturday 25 July 2026, built from local wall-clock components so it is the
 // same calendar day whatever timezone the process runs in (the totals.test.ts
@@ -18,7 +17,7 @@ const now = new Date(2026, 6, 25, 9);
 
 /** A gap-filled daily series over [from, to] with `loads` keyed by day. */
 function series(from: string, to: string, loads: Record<string, number> = {}) {
-  return eachDay(from, to).map((date) => ({ date, load: loads[date] ?? 0 }));
+  return eachDay(from, to).map((date) => ({ date, minutes: loads[date] ?? 0 }));
 }
 
 function session(startedAt: string, sport: string | null = "Run"): SessionStart {
@@ -124,7 +123,7 @@ for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo", "America/Santiago"])
       );
       const dstDay = heatmap.cells.filter((cell) => cell.date === "2026-09-06");
       expect(dstDay).toHaveLength(1);
-      expect(dstDay[0].load).toBe(40);
+      expect(dstDay[0].minutes).toBe(40);
       expect(heatmap.cells[heatmap.cells.length - 1]).toMatchObject({ date: "2026-09-08" });
     });
   });
@@ -187,7 +186,7 @@ describe("consistencyHeatmap levels", () => {
       now
     );
     expect(heatmap.cells.find((cell) => cell.date === "2026-07-22")?.level).toBe(4);
-    expect(heatmap.cells.every((cell) => cell.load > 0 || cell.level === 0)).toBe(true);
+    expect(heatmap.cells.every((cell) => cell.minutes > 0 || cell.level === 0)).toBe(true);
   });
 
   it("reads an all-equal year as all top days, not all faintest", () => {
@@ -202,7 +201,7 @@ describe("consistencyHeatmap levels", () => {
       new Map(),
       now
     );
-    const active = heatmap.cells.filter((cell) => cell.load > 0);
+    const active = heatmap.cells.filter((cell) => cell.minutes > 0);
     expect(active).toHaveLength(3);
     expect(active.every((cell) => cell.level === 4)).toBe(true);
   });
@@ -226,7 +225,7 @@ describe("consistencyHeatmap levels", () => {
       now
     );
     expect(heatmap.cells.find((cell) => cell.date === "2026-07-24")).toMatchObject({
-      load: 0,
+      minutes: 0,
       sessions: 1,
       level: 0,
     });
@@ -348,14 +347,14 @@ describe("sessionCountsByDay", () => {
 });
 
 // The landmine this task was corrected for: a heatmap cell paints a load that
-// `dailyLoadSeries` bucketed and a count that `sessionCountsByDay` bucketed, so
-// the two MUST key days identically. dailyLoadSeries reads the stored UTC instant
+// `` bucketed and a count that `sessionCountsByDay` bucketed, so
+// the two MUST key days identically.  reads the stored UTC instant
 // in the process timezone, so these fixtures are literal ISO instants and the
 // block is re-run pinned to three zones: switching the counts to the athlete's
 // local stamp (localStartedAt), to UTC getters, or to a SQL substr of started_at
 // fails at least one of them.
 for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo"]) {
-  describe(`session counts share dailyLoadSeries' day key under TZ=${tz}`, () => {
+  describe(`session counts share ' day key under TZ=${tz}`, () => {
     const originalTz = process.env.TZ;
     beforeAll(() => {
       process.env.TZ = tz;
@@ -373,22 +372,22 @@ for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo"]) {
       "Asia/Tokyo": "2026-07-26",
     };
 
-    it("keys a late-night session on the same day its load lands on", () => {
-      const loaded = dailyLoadSeries([{ started_at: lateNight, tss: 42 }]);
+    it("keys a late-night session on the same day its minutes land on", () => {
       const counts = sessionCountsByDay([session(lateNight)]);
-      const loadDay = loaded.find((day) => day.load > 0)?.date;
-      expect(loadDay).toBe(expected[tz]);
       expect(counts.get(expected[tz])).toBe(1);
       expect([...counts.keys()]).toEqual([expected[tz]]);
     });
 
-    it("paints load and count in the very same cell", () => {
+    it("paints minutes and count in the very same cell", () => {
       const rows = [
-        { started_at: lateNight, tss: 42 },
-        { started_at: "2026-07-24T13:00:00Z", tss: 30 },
+        { started_at: lateNight, minutes: 42 },
+        { started_at: "2026-07-24T13:00:00Z", minutes: 30 },
       ];
       const heatmap = consistencyHeatmap(
-        dailyLoadSeries(rows),
+        rows.map((r) => ({
+          date: localDateInputValue(new Date(r.started_at)),
+          minutes: r.minutes,
+        })),
         sessionCountsByDay(rows.map((row) => session(row.started_at))),
         new Date(2026, 6, 26, 9)
       );
@@ -396,7 +395,7 @@ for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo"]) {
         // No cell may carry one without the other: a load with no session (or a
         // session with no load) is exactly the one-day drift a mismatched key
         // would produce for this fixture.
-        expect(cell.load > 0).toBe(cell.sessions > 0);
+        expect(cell.minutes > 0).toBe(cell.sessions > 0);
       }
       expect(heatmap.cells.filter((cell) => cell.sessions > 0)).toHaveLength(2);
     });

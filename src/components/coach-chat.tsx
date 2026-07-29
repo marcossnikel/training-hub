@@ -1,7 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { ImagePlusIcon, Loader2Icon, SendIcon, SparklesIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +23,9 @@ interface Attachment {
   base64: string;
   dataUrl: string;
 }
+
+/** The only two shapes a client-side turn can take before the server answers. */
+type ChatUpdate = { type: "append"; message: CoachMessage } | { type: "clear" };
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 // Downscale on the client: keeps screenshots legible for the model while
@@ -66,10 +68,18 @@ export function CoachChat({
   insight: string | null;
   configured: boolean;
 }) {
-  const router = useRouter();
   const { t } = useI18n();
-  const [messages, setMessages] = useState<CoachMessage[]>(initial);
-  const [insight, setInsight] = useState<string | null>(initialInsight);
+  // The chat and the insight both live on the server (every coach action
+  // persists then revalidates, so the action response already carries the new
+  // props). These two layers exist only to show the in-flight turn — the user's
+  // bubble and a freshly generated insight — and are discarded the moment the
+  // server tree lands, which keeps the server the single authority.
+  const [messages, updateMessages] = useOptimistic(
+    initial,
+    (current: CoachMessage[], update: ChatUpdate) =>
+      update.type === "clear" ? [] : [...current, update.message]
+  );
+  const [insight, showInsight] = useOptimistic(initialInsight);
   const [input, setInput] = useState("");
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [pending, startTransition] = useTransition();
@@ -77,7 +87,7 @@ export function CoachChat({
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!configured) {
-    return <p className="text-sm text-muted-foreground/70">{t.coach.notConfigured}</p>;
+    return <p className="text-sm text-muted-foreground">{t.coach.notConfigured}</p>;
   }
 
   function generateInsight() {
@@ -87,8 +97,7 @@ export function CoachChat({
         toast.error(result.error);
         return;
       }
-      setInsight(result.text);
-      router.refresh();
+      showInsight(result.text);
     });
   }
 
@@ -111,10 +120,16 @@ export function CoachChat({
     const message = input.trim();
     if ((!message && !attachment) || pending) return;
     const img = attachment;
-    setMessages((prev) => [...prev, { role: "user", content: message, image: img?.dataUrl }]);
     setInput("");
     setAttachment(null);
     startTransition(async () => {
+      // Shows the user's bubble instantly; React reverts it when the transition
+      // settles, by which point the server tree holds the real turn (both the
+      // persisted user line and the reply), so neither is appended by hand.
+      updateMessages({
+        type: "append",
+        message: { role: "user", content: message, image: img?.dataUrl },
+      });
       const result = await sendCoachMessageAction({
         activityId,
         message,
@@ -122,39 +137,31 @@ export function CoachChat({
       });
       if (!result.ok) {
         toast.error(result.error);
-        setMessages((prev) => prev.slice(0, -1));
         setInput(message);
         setAttachment(img);
-        return;
       }
-      setMessages((prev) => [...prev, { role: "assistant", content: result.reply }]);
-      router.refresh();
     });
   }
 
   function clear() {
     startTransition(async () => {
+      updateMessages({ type: "clear" });
       const result = await clearCoachAction(activityId);
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      setMessages([]);
-      router.refresh();
+      if (!result.ok) toast.error(result.error);
     });
   }
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl border bg-muted/30 p-3.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        <div className="mb-1.5 flex items-center gap-1.5 label-micro">
           <SparklesIcon className="size-3.5 text-primary" aria-hidden />
           {t.coach.insightTitle}
         </div>
         {insight ? (
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{insight}</p>
         ) : (
-          <p className="text-sm text-muted-foreground/80">{t.coach.insightEmpty}</p>
+          <p className="text-sm text-muted-foreground">{t.coach.insightEmpty}</p>
         )}
         <Button
           variant={insight ? "ghost" : "default"}
@@ -209,7 +216,7 @@ export function CoachChat({
           ) : null}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground/70">{t.coach.empty}</p>
+        <p className="text-sm text-muted-foreground">{t.coach.empty}</p>
       )}
 
       <div className="space-y-2">

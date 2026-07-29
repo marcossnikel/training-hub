@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { ClockIcon, Loader2Icon, PencilIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,6 @@ export function BikeSection({
   activity: ActivityWithSplits;
   bikes: BikeOption[];
 }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [bikeId, setBikeId] = useState<number | null>(activity.bike_id);
@@ -49,7 +47,6 @@ export function BikeSection({
       }
       toast.success(t.toasts.bikeUpdated);
       setEditing(false);
-      router.refresh();
     });
   }
 
@@ -57,7 +54,7 @@ export function BikeSection({
     return (
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm">
-          {bikeName ?? <span className="text-muted-foreground/60">{t.detail.noBike}</span>}
+          {bikeName ?? <span className="text-muted-foreground">{t.detail.noBike}</span>}
         </p>
         <Button
           variant="ghost"

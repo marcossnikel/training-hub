@@ -15,7 +15,7 @@ export default async function LoginPage() {
           <div className="mb-1 flex size-9 items-center justify-center rounded-lg bg-muted">
             <LockIcon className="size-4.5 text-muted-foreground" />
           </div>
-          <CardTitle>{t.login.title}</CardTitle>
+          <CardTitle as="h1">{t.login.title}</CardTitle>
           <CardDescription>{t.login.subtitle}</CardDescription>
         </CardHeader>
         <CardContent>

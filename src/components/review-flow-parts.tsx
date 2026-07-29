@@ -13,9 +13,7 @@ import type { FormState, Summary } from "@/components/review-flow-form";
 export function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </div>
+      <div className="label-micro">{label}</div>
       <div className="mt-0.5 truncate font-display text-lg font-semibold">{value}</div>
     </div>
   );
@@ -40,7 +38,7 @@ export function ReviewSummaryScreen({
       {summary.count > 0 ? (
         <div className="flex flex-col items-center rounded-xl border bg-card px-6 py-14 text-center">
           <CheckCircle2Icon className="size-10 text-positive" aria-hidden />
-          <h2 className="mt-4 font-display text-3xl font-bold uppercase">{t.review.caughtUp}</h2>
+          <h2 className="mt-4 font-display text-3xl font-bold">{t.review.caughtUp}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {fillStr(t.review.confirmedSummary, {
               n: summary.count,

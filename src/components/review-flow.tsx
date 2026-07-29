@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -50,7 +49,6 @@ export function ReviewFlow({
   shoes: ShoeOption[];
   bikes: BikeOption[];
 }) {
-  const router = useRouter();
   const { lang, t } = useI18n();
   const [queue, setQueue] = useState<ActivityWithSplits[]>(serverItems);
   const [index, setIndex] = useState(0);
@@ -118,12 +116,12 @@ export function ReviewFlow({
         };
       });
       setHandledIds((prev) => new Set(prev).add(activity.id));
-      setQueue((q) => {
-        const nextQueue = q.filter((a) => a.id !== activity.id);
-        setIndex((i) => Math.min(i, Math.max(0, nextQueue.length - 1)));
-        return nextQueue;
-      });
-      router.refresh();
+      // Both updaters stay pure: the next queue is derived here, outside them,
+      // so nothing is scheduled from inside a state updater (React 19 double-
+      // invokes updaters in StrictMode).
+      const nextQueue = queue.filter((a) => a.id !== activity.id);
+      setQueue(nextQueue);
+      setIndex((i) => Math.min(i, Math.max(0, nextQueue.length - 1)));
     });
   }
 
@@ -231,9 +229,7 @@ export function ReviewFlow({
 
           {ride ? (
             <div className="space-y-2">
-              <Label className="text-xs tracking-wider text-muted-foreground uppercase">
-                {t.detail.bike}
-              </Label>
+              <Label className="label-micro">{t.detail.bike}</Label>
               <BikeSelect
                 value={form.bikeId}
                 onChange={(bikeId) => patchForm({ bikeId })}
@@ -243,11 +239,11 @@ export function ReviewFlow({
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label className="text-xs tracking-wider text-muted-foreground uppercase">
+                <Label className="label-micro">
                   {run ? t.review.shoes : t.review.shoesOptional}
                 </Label>
                 {hadUnmatchedShoe ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-wear-worn">
+                  <span className="inline-flex items-center gap-1 text-xs text-destructive">
                     <TriangleAlertIcon className="size-3.5" aria-hidden />
                     {t.review.noGearMatch}
                   </span>
@@ -268,25 +264,18 @@ export function ReviewFlow({
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-xs tracking-wider text-muted-foreground uppercase">
-                {t.review.effort}
-              </Label>
+              <Label className="label-micro">{t.review.effort}</Label>
               <RpeControl value={form.rpe} onChange={(rpe) => patchForm({ rpe })} />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs tracking-wider text-muted-foreground uppercase">
-                {t.review.feeling}
-              </Label>
+              <Label className="label-micro">{t.review.feeling}</Label>
               <FeelingControl value={form.feeling} onChange={(feeling) => patchForm({ feeling })} />
             </div>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label
-                htmlFor="workout-notes"
-                className="text-xs tracking-wider text-muted-foreground uppercase"
-              >
+              <Label htmlFor="workout-notes" className="label-micro">
                 {t.review.workoutNotes}
               </Label>
               <Textarea
@@ -298,10 +287,7 @@ export function ReviewFlow({
               />
             </div>
             <div className="space-y-2">
-              <Label
-                htmlFor="health-notes"
-                className="text-xs tracking-wider text-muted-foreground uppercase"
-              >
+              <Label htmlFor="health-notes" className="label-micro">
                 {t.review.healthNotes}
               </Label>
               <Textarea
@@ -327,18 +313,18 @@ export function ReviewFlow({
                 <CheckIcon data-icon="inline-start" />
               )}
               {t.review.confirm}
-              <kbd className="kbd ml-1 border-primary-foreground/30 bg-transparent text-primary-foreground/80">
+              <kbd className="kbd ml-1 border-primary-foreground/30 bg-transparent text-primary-foreground">
                 ↵
               </kbd>
             </Button>
             {validationMessage ? (
-              <p className="text-center text-xs text-wear-worn">{validationMessage}</p>
+              <p className="text-center text-xs text-destructive">{validationMessage}</p>
             ) : null}
             {activeShoes.length === 0 && run ? (
-              <p className="text-center text-xs text-wear-worn">
+              <p className="text-center text-xs text-destructive">
                 {fill(t.review.addShoeFirst, {
                   link: (
-                    <Link href="/shoes" className="underline">
+                    <Link href="/gear" className="underline">
                       {t.nav.shoes}
                     </Link>
                   ),

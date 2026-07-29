@@ -6,15 +6,7 @@ import { SyncButton } from "@/components/sync-button";
 import { DisconnectButton, GearMatcher, ManualActivityForm } from "@/components/settings-forms";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { GoalsManager } from "@/components/goals-manager";
-import { RecomputeLoads } from "@/components/recompute-loads";
-import {
-  getAthleteThresholds,
-  getHealthSourceStatus,
-  getMeta,
-  listBikes,
-  listGoals,
-  listShoes,
-} from "@/lib/db";
+import { getAthleteThresholds, getMeta, listBikes, listGoals, listShoes } from "@/lib/db";
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected, stravaConfigured, tryFetchAllGear } from "@/lib/strava";
@@ -39,31 +31,13 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const thresholds = await getAthleteThresholds();
   const goals = await listGoals();
 
-  // Garmin connectivity: "connected" = the standalone sync delivered health data
-  // recently. There is no browser OAuth for Garmin, so recency of ingested data
-  // is the signal. Stale after ~36h (the job runs daily).
-  const garmin = await getHealthSourceStatus("garmin");
-  const garminStamp = garmin ? (garmin.lastRecordedAt ?? `${garmin.lastDate}T12:00:00`) : null;
-  const garminAgeMs = garminStamp ? new Date().getTime() - new Date(garminStamp).getTime() : null;
-  const garminState = !garmin
-    ? "never"
-    : garminAgeMs != null && garminAgeMs < 36 * 60 * 60 * 1000
-      ? "receiving"
-      : "stale";
-  const garminDot =
-    garminState === "receiving"
-      ? "bg-positive"
-      : garminState === "stale"
-        ? "bg-wear-worn"
-        : "bg-muted-foreground/40";
-
   const justConnected = params.connected === "1";
   const errorKey = typeof params.error === "string" ? params.error : null;
   const errorMessage = errorKey ? (t.settingsPage.errors[errorKey] ?? t.errors.generic) : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="font-display text-4xl font-bold uppercase">{t.settingsPage.title}</h1>
+      <h1 className="font-display text-4xl font-bold">{t.settingsPage.title}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{t.settingsPage.subtitle}</p>
 
       <div className="mt-6 space-y-6">
@@ -179,32 +153,6 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
 
         <Card>
           <CardHeader>
-            <CardTitle>{t.settingsPage.garmin.title}</CardTitle>
-            <CardDescription>{t.settingsPage.garmin.body}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm">
-              <p className="flex items-center gap-2 font-medium">
-                <span aria-hidden className={`size-2 rounded-full ${garminDot}`} />
-                {t.settingsPage.garmin[garminState]}
-                {garmin ? (
-                  <span className="font-normal text-muted-foreground">
-                    ·{" "}
-                    {fillStr(t.settingsPage.garmin.lastData, {
-                      date: fmtDate(garminStamp, lang),
-                    })}
-                  </span>
-                ) : null}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t.settingsPage.garmin[`${garminState}Body` as const]}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>{t.settingsPage.goals.title}</CardTitle>
             <CardDescription>{t.settingsPage.goals.body}</CardDescription>
           </CardHeader>
@@ -220,16 +168,6 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </CardHeader>
           <CardContent>
             <ThresholdsForm thresholds={thresholds} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.settingsPage.recompute.title}</CardTitle>
-            <CardDescription>{t.settingsPage.recompute.body}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RecomputeLoads />
           </CardContent>
         </Card>
 

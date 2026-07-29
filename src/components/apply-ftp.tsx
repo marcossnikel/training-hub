@@ -1,7 +1,6 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,7 +21,6 @@ import { FTP_RANGE } from "@/lib/fitness";
  * explains why.
  */
 export function ApplyFtpButton({ suggestedFtpW }: { suggestedFtpW: number }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
 
@@ -41,7 +39,6 @@ export function ApplyFtpButton({ suggestedFtpW }: { suggestedFtpW: number }) {
         return;
       }
       toast.success(t.performance.eftpApplied);
-      router.refresh();
     });
   }
 

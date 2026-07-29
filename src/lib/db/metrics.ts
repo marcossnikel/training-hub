@@ -22,7 +22,7 @@ import {
  * `hrZoneSecs` and `paceZoneSecs` are the two fields that depend on the
  * athlete's thresholds, and they are frozen at the thresholds in force when the
  * row was written. Nothing invalidates them when thresholds change:
- * `saveAthleteThresholds` recomputes `activity_load` but not this table, and
+ * `saveAthleteThresholds` does not touch this table, and
  * `scripts/backfill-metrics.ts` skips any activity that already has a row unless
  * it is run with `--recompute` — which refreshes version-1 rows only, since
  * recomputing a full-resolution row from the cached downsample would drop the
@@ -32,7 +32,7 @@ import {
  *
  * STILL OPEN, AND DELIBERATELY SO. The obvious owner would have been the
  * explicit recompute action on /settings, but that action recomputes
- * `activity_load` and never touches this table, and folding a second bulk
+ * the thresholds and never touches this table, and folding a second bulk
  * rewrite into one button would hide it. The real blocker is provenance:
  *
  * - A refresh can only come from the cached 400-point downsample (re-fetching

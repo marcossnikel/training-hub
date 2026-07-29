@@ -1,5 +1,5 @@
 // Non-action helpers for the server actions in ./actions. These are plain
-// server-side functions (validation, normalization, i18n + PMC prep) deliberately
+// server-side functions (validation, normalization, i18n) deliberately
 // kept OUT of the "use server" module so that actions.ts stays the single mutation
 // seam: only exported async functions there become server actions, and these
 // helpers are called by them rather than exposed as actions themselves.
@@ -7,9 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { dictionaries, type Dict } from "./i18n";
 import { getLang } from "./lang";
-import { listActivityLoadsForPmc, type JournalFields } from "./db";
-import { computePmc, dailyLoadSeries, type PmcPoint } from "./fitness";
-import type { CoachPmc } from "./coach";
+import type { JournalFields } from "./db";
 import type { Feeling, SplitInput } from "./types";
 
 export async function dict(): Promise<Dict> {
@@ -53,17 +51,4 @@ export function normalizeSplits(splits: SplitInput[]): SplitInput[] {
 
 export function inRange(value: number, lo: number, hi: number): boolean {
   return Number.isFinite(value) && value >= lo && value <= hi;
-}
-
-/**
- * Whole-history Performance Management Chart, gap-filled to today. Mirrors the
- * fitness page: sum TSS per local calendar day, then run the EWMA. Empty when no
- * confirmed activity has a training load yet.
- */
-export async function buildPmc(): Promise<PmcPoint[]> {
-  return computePmc(dailyLoadSeries(await listActivityLoadsForPmc()));
-}
-
-export function pmcPoint(point: PmcPoint | null | undefined): CoachPmc | null {
-  return point ? { ctl: point.ctl, atl: point.atl, tsb: point.tsb } : null;
 }

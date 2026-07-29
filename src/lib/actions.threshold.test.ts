@@ -1,26 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// T3.7 — saveThresholdsAction must PERSIST the thresholds synchronously and DEFER
-// the expensive full-history recompute to after() (post-response), not await it in
-// the request path (G7.3). Node-env unit tests. `after` (next/server) is replaced
-// with a capturing stub so we can prove the recompute is SCHEDULED, not awaited: at
-// the moment the action returns, the thresholds are saved but recomputeAllLoads has
-// not run; running the captured callback is what triggers it.
+// saveThresholdsAction and the two apply buttons must persist the edit in-request
+// and leave the other stored thresholds untouched. Node-env unit tests.
 //
-// The real after() timing — the callback firing after the HTTP response is flushed,
-// extended on serverless via waitUntil — is a Next runtime behaviour verified
-// against node_modules/next/dist/docs/01-app/03-api-reference/04-functions/after.md,
-// and is not itself unit-testable here. These tests lock the request-path contract.
+// These used to also assert that a full-history TSS recompute was deferred to
+// after(); training load was removed from the app, so there is nothing left to
+// schedule and the action is now a plain synchronous write.
 
 const mocks = vi.hoisted(() => {
-  const afterCallbacks: Array<() => void | Promise<void>> = [];
   return {
-    afterCallbacks,
-    after: vi.fn((cb: () => void | Promise<void>) => {
-      afterCallbacks.push(cb);
-    }),
     saveAthleteThresholds: vi.fn(async () => {}),
-    recomputeAllLoads: vi.fn(async () => ({ count: 3 })),
     getAthleteThresholds: vi.fn(async () => ({
       maxHr: 195,
       restingHr: 50,
@@ -35,7 +24,6 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("next/server", () => ({ after: mocks.after }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => {} }),
@@ -44,7 +32,6 @@ vi.mock("next/headers", () => ({
 // imports many more names from ./db, but none are referenced on this code path.
 vi.mock("./db", () => ({
   saveAthleteThresholds: mocks.saveAthleteThresholds,
-  recomputeAllLoads: mocks.recomputeAllLoads,
   getAthleteThresholds: mocks.getAthleteThresholds,
 }));
 
@@ -67,7 +54,6 @@ const VALID: ThresholdsInput = {
 
 afterEach(() => {
   vi.clearAllMocks();
-  mocks.afterCallbacks.length = 0;
 });
 
 describe("saveThresholdsAction (T3.7)", () => {
@@ -86,49 +72,13 @@ describe("saveThresholdsAction (T3.7)", () => {
       restingHrEstimated: false,
       ftpProvisional: false,
     });
-    // The recompute is SCHEDULED via after(), not awaited: it has not run yet.
-    expect(mocks.after).toHaveBeenCalledTimes(1);
-    expect(mocks.recomputeAllLoads).not.toHaveBeenCalled();
   });
 
-  it("runs the full recompute only when the after() callback fires post-response", async () => {
-    await saveThresholdsAction(VALID);
-    expect(mocks.recomputeAllLoads).not.toHaveBeenCalled();
-
-    expect(mocks.afterCallbacks).toHaveLength(1);
-    await mocks.afterCallbacks[0]();
-
-    expect(mocks.recomputeAllLoads).toHaveBeenCalledTimes(1);
-  });
-
-  it("logs and does not throw when the deferred recompute fails (thresholds stay saved)", async () => {
-    mocks.recomputeAllLoads.mockRejectedValueOnce(new Error("recompute boom"));
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    const result = await saveThresholdsAction(VALID);
-    expect(result).toEqual({ ok: true });
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledTimes(1);
-
-    // The post-response task must swallow-and-log, never reject.
-    const [cb] = mocks.afterCallbacks;
-    await expect(cb()).resolves.toBeUndefined();
-
-    expect(
-      errorSpy.mock.calls.some((call) =>
-        String(call[0]).includes("actions.saveThresholds.recompute")
-      )
-    ).toBe(true);
-
-    errorSpy.mockRestore();
-  });
-
-  it("does not persist or schedule anything when thresholds are invalid", async () => {
+  it("does not persist anything when thresholds are invalid", async () => {
     const result = await saveThresholdsAction({ ...VALID, maxHr: 300 });
 
     expect(result.ok).toBe(false);
     expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
-    expect(mocks.after).not.toHaveBeenCalled();
-    expect(mocks.recomputeAllLoads).not.toHaveBeenCalled();
   });
 });
 
@@ -150,9 +100,6 @@ describe("applyThresholdPaceAction (pace-only apply)", () => {
       restingHrEstimated: true,
       ftpProvisional: false,
     });
-    // Recompute is scheduled post-response, not awaited.
-    expect(mocks.after).toHaveBeenCalledTimes(1);
-    expect(mocks.recomputeAllLoads).not.toHaveBeenCalled();
   });
 
   it("rejects an out-of-range pace without reading or writing thresholds", async () => {
@@ -161,7 +108,6 @@ describe("applyThresholdPaceAction (pace-only apply)", () => {
     expect(result.ok).toBe(false);
     expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
     expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
-    expect(mocks.after).not.toHaveBeenCalled();
   });
 });
 
@@ -194,12 +140,6 @@ describe("applyFtpAction (eFTP apply, T28)", () => {
       restingHrEstimated: true,
       ftpProvisional: false,
     });
-    // FTP divides power-method TSS, so the recompute is scheduled post-response.
-    expect(mocks.after).toHaveBeenCalledTimes(1);
-    expect(mocks.recomputeAllLoads).not.toHaveBeenCalled();
-
-    await mocks.afterCallbacks[0]();
-    expect(mocks.recomputeAllLoads).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an out-of-range FTP without reading or writing thresholds", async () => {
@@ -208,6 +148,5 @@ describe("applyFtpAction (eFTP apply, T28)", () => {
     expect(result.ok).toBe(false);
     expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
     expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
-    expect(mocks.after).not.toHaveBeenCalled();
   });
 });

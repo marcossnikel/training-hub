@@ -25,7 +25,7 @@ export function RpeControl({
             aria-checked={value === n}
             onClick={() => onChange(value === n ? null : n)}
             className={cn(
-              "h-8 w-full min-w-6 rounded-md border font-mono text-xs tabular-nums transition-colors",
+              "focus-ring h-8 w-full min-w-6 rounded-md border font-mono text-xs tabular-nums transition-colors",
               value === n
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border text-muted-foreground hover:border-ring hover:text-foreground"
@@ -44,13 +44,13 @@ export function RpeControl({
             <button
               type="button"
               onClick={() => onChange(null)}
-              className="inline-flex items-center gap-0.5 text-muted-foreground/70 transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-0.5 text-muted-foreground transition-colors hover:text-foreground"
             >
               <XIcon className="size-3" aria-hidden /> {t.review.clear}
             </button>
           </>
         ) : (
-          <span className="text-muted-foreground/60">{t.review.rpeEmptyHint}</span>
+          <span className="text-muted-foreground">{t.review.rpeEmptyHint}</span>
         )}
       </div>
     </div>
@@ -75,7 +75,7 @@ export function FeelingControl({
           aria-checked={value === f.value}
           onClick={() => onChange(value === f.value ? null : f.value)}
           className={cn(
-            "flex flex-col items-center gap-0.5 rounded-lg border px-1 py-2 text-xs transition-colors",
+            "focus-ring flex flex-col items-center gap-0.5 rounded-lg border px-1 py-2 text-xs transition-colors",
             value === f.value
               ? "border-primary bg-accent text-accent-foreground"
               : "border-border text-muted-foreground hover:border-ring hover:text-foreground"

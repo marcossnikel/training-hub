@@ -66,12 +66,12 @@ export function GearCard({
 
       <CardContent className={cn("space-y-3", contentClassName)}>
         <div>
-          <h3 className="truncate text-[15px] font-medium" title={name}>
+          <h3 className="truncate text-sm font-medium" title={name}>
             {name}
           </h3>
           <p
             className={cn(
-              "mt-0.5 truncate text-[13px] text-muted-foreground italic",
+              "mt-0.5 truncate text-xs text-muted-foreground italic",
               RoleIcon && "flex items-center gap-1"
             )}
           >

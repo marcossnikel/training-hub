@@ -128,29 +128,6 @@ export function fmtElev(m: number | null | undefined): string {
 }
 
 /**
- * Form (TSB) as a whole signed number: +12, -8, 0. Every surface that prints a
- * TSB goes through this, so the log's form strip, the /fitness tile and the
- * chart's race-day readout can never disagree on presentation.
- */
-export function fmtTsb(tsb: number): string {
-  const rounded = Math.round(tsb);
-  return `${rounded > 0 ? "+" : ""}${rounded}`;
-}
-
-/**
- * A signed TSS delta at the tenth it is measured to: +1.2, -0.5, 0.0.
- *
- * Deliberately not {@link fmtTsb}. Form is a whole-point figure, so rounding it
- * loses nothing; a load delta is computed to a tenth precisely because a mean of
- * 1.2 TSS across a thousand activities is a different answer from 1, and because
- * fmtTsb renders every value in (-0.5, 0] as a bare "0".
- */
-export function fmtTssDelta(tss: number): string {
-  // toFixed prints -0 as "0.0", so a delta of exactly zero never reads negative.
-  return `${tss > 0 ? "+" : ""}${tss.toFixed(1)}`;
-}
-
-/**
  * Running step rate in spm. Strava reports run cadence as one-leg revolutions
  * per minute (the same field as bike rpm), so the step rate is double.
  */

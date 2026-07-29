@@ -13,14 +13,11 @@ import {
   type TotalsValues,
 } from "@/lib/totals";
 
-const TH =
-  "px-2 py-1.5 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase";
+const TH = "px-2 py-1.5 text-left label-micro";
 const TD = "px-2 py-1.5 font-mono text-sm tabular-nums whitespace-nowrap";
 
 function headerOf(metric: TotalsMetric, t: Dict): string {
   switch (metric) {
-    case "load":
-      return t.fitness.load;
     case "seconds":
       return t.fitness.totals.hours;
     case "km":
@@ -33,15 +30,13 @@ function headerOf(metric: TotalsMetric, t: Dict): string {
 }
 
 /**
- * A column's number at the precision that column prints: load, elevation and
+ * A column's number at the precision that column prints: elevation and
  * sessions whole, distance to a tenth, hours in whole minutes. Both the value and
  * the delta below it are derived from this, so a visible step always carries a
  * delta and a printed delta always matches a visible step.
  */
 function rounded(metric: TotalsMetric, values: TotalsValues): number {
   switch (metric) {
-    case "load":
-      return Math.round(values.load);
     case "seconds":
       return Math.round(values.seconds / 60);
     case "km":
@@ -60,8 +55,6 @@ function rounded(metric: TotalsMetric, values: TotalsValues): number {
  */
 function valueOf(metric: TotalsMetric, value: number): string {
   switch (metric) {
-    case "load":
-      return String(value);
     case "seconds":
       return value === 0 ? "0h 00m" : fmtHoursMin(value * 60);
     case "km":
@@ -83,8 +76,6 @@ function deltaOf(metric: TotalsMetric, change: number): string | null {
   const sign = change > 0 ? "+" : "-";
   const size = Math.abs(change);
   switch (metric) {
-    case "load":
-      return `${sign}${size}`;
     case "seconds":
       return `${sign}${fmtHoursMin(size * 60)}`;
     case "km":
@@ -143,7 +134,7 @@ export function TotalsTable({
                         better, so only a gain is colored. */}
                     {label ? (
                       <span
-                        className="mt-0.5 block text-[10px] leading-none"
+                        className="mt-0.5 block text-3xs leading-none"
                         style={{
                           color: change > 0 ? "var(--positive)" : "var(--muted-foreground)",
                         }}

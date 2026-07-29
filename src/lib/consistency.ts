@@ -1,29 +1,30 @@
-// The /fitness consistency heatmap: a GitHub-style trailing-year grid of daily
-// training load, plus the two numbers that sit beside its title (current streak
-// and active days per week). Pure — grid layout, quartile bucketing and the
-// counters only, so the component just fills rects and formats labels.
+// The consistency heatmap on /performance: a GitHub-style trailing-year grid of
+// daily moving time, plus the two numbers beside its title (current streak and
+// active days per week). Pure — grid layout, quartile bucketing and the counters
+// only, so the component just fills rects and formats labels.
 //
-// DAY-KEY CONVENTION, the one landmine here. Every key below is the key
-// `dailyLoadSeries` (src/lib/fitness.ts) produces: `localDateInputValue(new
-// Date(started_at))`, i.e. the stored UTC instant read in the PROCESS timezone.
-// That is deliberate and not a third convention: the loads this grid paints ARE
-// dailyLoadSeries' output (already computed on /fitness), so the session count
-// drawn inside the same cell has to be bucketed by that identical key or a count
-// would land on a different day than its load.
+// DAY-KEY CONVENTION, the one landmine here. Every key below is
+// `localDateInputValue(new Date(started_at))`: the stored UTC instant read in the
+// PROCESS timezone. Both series this grid paints — the minutes and the session
+// counts — are bucketed by that identical key (`minutesByDay` and
+// `sessionCountsByDay` below), because a count landing on a different day than
+// its minutes is exactly the bug this convention exists to prevent.
 //
 // The app's other convention — `localStartedAt`, the athlete's own local day,
-// which the training log, src/lib/insights.ts and src/lib/totals.ts read days by
-// — is intentionally NOT used here. Mixing the two is precisely the bug: an
-// evening session whose UTC instant has already rolled over would be counted one
-// day later than the load it belongs to. Session counts are therefore grouped in
-// JS from raw `started_at` stamps rather than with a SQL GROUP BY: strftime
-// groups by UTC (and `substr(started_at, 1, 10)` only matches this convention
-// while the server itself runs in UTC), so neither can key the same cell.
+// which the training log and src/lib/totals.ts read days by — is intentionally
+// NOT used here. An evening session whose UTC instant has already rolled over
+// would be counted one day later than the time it belongs to. Both series are
+// therefore grouped in JS from raw `started_at` stamps rather than with a SQL
+// GROUP BY: strftime groups by UTC (and `substr(started_at, 1, 10)` only matches
+// this convention while the server itself runs in UTC), so neither can key the
+// same cell.
 
 import { eachDay, localDateInputValue, mondayOf, parseLocalDate } from "./format";
 
 /** Grid width in weeks: 53 columns cover a full year plus the partial current week. */
 export const HEATMAP_WEEKS = 53;
+
+const SECONDS_PER_MINUTE = 60;
 
 /** Grid height: one row per weekday, row 0 = Monday (the app's week start). */
 export const DAYS_PER_WEEK = 7;
@@ -39,14 +40,14 @@ export interface SessionStart {
   sport_type: string | null;
 }
 
-/** Load bucket of a day: 0 = no load, 1–4 = quartile of the year's active days. */
+/** Bucket of a day: 0 = rest, 1–4 = quartile of the year's active days by minutes. */
 export type HeatLevel = 0 | 1 | 2 | 3 | 4;
 
 export interface HeatmapCell {
   /** Local day key, YYYY-MM-DD. */
   date: string;
-  /** That day's total training load (TSS). */
-  load: number;
+  /** That day's total moving time, in minutes. */
+  minutes: number;
   sessions: number;
   level: HeatLevel;
   /** 0-based week column, oldest week first. */
@@ -72,9 +73,9 @@ export interface ConsistencyHeatmap {
    */
   cells: HeatmapCell[];
   months: HeatmapMonth[];
-  /** Consecutive days with load, ending today (see `currentStreak`). */
+  /** Consecutive days with a session, ending today (see `currentStreak`). */
   streak: number;
-  /** Days with load per week over the trailing `ACTIVE_WEEKS` weeks, unrounded. */
+  /** Days trained per week over the trailing `ACTIVE_WEEKS` weeks, unrounded. */
   activeDaysPerWeek: number;
 }
 
@@ -113,6 +114,31 @@ export function sessionCountsByDay(sessions: SessionStart[]): Map<string, number
   return counts;
 }
 
+/**
+ * Gap-filled per-day moving minutes from `fromDay` through today, on the same day
+ * key `sessionCountsByDay` uses — so a cell's minutes and its session count can
+ * never describe different days.
+ *
+ * Gap-filled rather than sparse because `currentStreak` and `activeDaysPerWeek`
+ * read `daily[0].date` as the range floor: a sparse series starting at the first
+ * ACTIVE day would silently shorten both windows.
+ */
+export function minutesByDay(
+  rows: { started_at: string; moving_time_s: number | null }[],
+  fromDay: string,
+  now = new Date()
+): { date: string; minutes: number }[] {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const key = localDateInputValue(new Date(row.started_at));
+    totals.set(key, (totals.get(key) ?? 0) + (row.moving_time_s ?? 0) / SECONDS_PER_MINUTE);
+  }
+  return eachDay(fromDay, localDateInputValue(now)).map((date) => ({
+    date,
+    minutes: totals.get(date) ?? 0,
+  }));
+}
+
 /** Linear-interpolated quantile of an ascending, non-empty list. */
 function quantile(sorted: number[], p: number): number {
   const index = (sorted.length - 1) * p;
@@ -130,8 +156,8 @@ function quantile(sorted: number[], p: number): number {
  * Null when the year has no load at all, which is the caller's signal that every
  * cell is an empty one.
  */
-function loadQuartiles(loads: number[]): [number, number, number] | null {
-  const active = loads.filter((load) => load > 0).sort((a, b) => a - b);
+function minuteQuartiles(minutes: number[]): [number, number, number] | null {
+  const active = minutes.filter((m) => m > 0).sort((a, b) => a - b);
   if (active.length === 0) return null;
   return [quantile(active, 0.25), quantile(active, 0.5), quantile(active, 0.75)];
 }
@@ -146,12 +172,12 @@ function loadQuartiles(loads: number[]): [number, number, number] | null {
  * indistinguishable from a rest day. An active day that is the year's only load
  * level is a top day, so the collapsed case goes to 4.
  */
-function levelOf(load: number, quartiles: [number, number, number] | null): HeatLevel {
-  if (load <= 0 || quartiles == null) return 0;
+function levelOf(minutes: number, quartiles: [number, number, number] | null): HeatLevel {
+  if (minutes <= 0 || quartiles == null) return 0;
   if (quartiles[0] === quartiles[2]) return 4;
-  if (load <= quartiles[0]) return 1;
-  if (load <= quartiles[1]) return 2;
-  if (load <= quartiles[2]) return 3;
+  if (minutes <= quartiles[0]) return 1;
+  if (minutes <= quartiles[1]) return 2;
+  if (minutes <= quartiles[2]) return 3;
   return 4;
 }
 
@@ -161,15 +187,18 @@ function levelOf(load: number, quartiles: [number, number, number] | null): Heat
  * first session the streak is the one ending yesterday — so the number only
  * drops to 0 once a whole day has passed without training.
  */
-export function currentStreak(daily: { date: string; load: number }[], now = new Date()): number {
+export function currentStreak(
+  daily: { date: string; minutes: number }[],
+  now = new Date()
+): number {
   if (daily.length === 0) return 0;
-  const byDay = new Map(daily.map((day) => [day.date, day.load]));
-  const loadOn = (key: string) => byDay.get(key) ?? 0;
+  const byDay = new Map(daily.map((day) => [day.date, day.minutes]));
+  const minutesOn = (key: string) => byDay.get(key) ?? 0;
   const first = daily[0].date;
   let cursor = localDateInputValue(now);
-  if (loadOn(cursor) <= 0) cursor = shiftDay(cursor, -1);
+  if (minutesOn(cursor) <= 0) cursor = shiftDay(cursor, -1);
   let streak = 0;
-  while (cursor >= first && loadOn(cursor) > 0) {
+  while (cursor >= first && minutesOn(cursor) > 0) {
     streak += 1;
     cursor = shiftDay(cursor, -1);
   }
@@ -182,11 +211,11 @@ export function currentStreak(daily: { date: string; load: number }[], now = new
  * training, which is what a consistency figure should say. Unrounded.
  */
 export function activeDaysPerWeek(
-  daily: { date: string; load: number }[],
+  daily: { date: string; minutes: number }[],
   weeks = ACTIVE_WEEKS,
   now = new Date()
 ): number {
-  const byDay = new Map(daily.map((day) => [day.date, day.load]));
+  const byDay = new Map(daily.map((day) => [day.date, day.minutes]));
   const today = localDateInputValue(now);
   const from = shiftDay(today, -(weeks * DAYS_PER_WEEK - 1));
   const active = eachDay(from, today).filter((key) => (byDay.get(key) ?? 0) > 0).length;
@@ -195,26 +224,25 @@ export function activeDaysPerWeek(
 
 /**
  * The trailing-year grid: HEATMAP_WEEKS Monday-started columns ending with the
- * week containing today, one cell per day up to today. Loads come from
- * `dailyLoadSeries` output and session counts from `sessionCountsByDay`, both on
- * the same day key; a day missing from either simply reads as zero.
+ * week containing today, one cell per day up to today. Minutes and session counts
+ * both arrive on the same day key; a day missing from either simply reads as zero.
  */
 export function consistencyHeatmap(
-  daily: { date: string; load: number }[],
+  daily: { date: string; minutes: number }[],
   sessions: Map<string, number>,
   now = new Date()
 ): ConsistencyHeatmap {
-  const byDay = new Map(daily.map((day) => [day.date, day.load]));
+  const byDay = new Map(daily.map((day) => [day.date, day.minutes]));
   const today = localDateInputValue(now);
   const days = eachDay(firstMonday(now), today);
-  const quartiles = loadQuartiles(days.map((key) => byDay.get(key) ?? 0));
+  const quartiles = minuteQuartiles(days.map((key) => byDay.get(key) ?? 0));
   const cells = days.map((date, index): HeatmapCell => {
-    const load = byDay.get(date) ?? 0;
+    const minutes = byDay.get(date) ?? 0;
     return {
       date,
-      load,
+      minutes,
       sessions: sessions.get(date) ?? 0,
-      level: levelOf(load, quartiles),
+      level: levelOf(minutes, quartiles),
       // The range opens on a Monday, so an index within it is the week column
       // and the weekday row directly.
       column: Math.floor(index / DAYS_PER_WEEK),

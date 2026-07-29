@@ -5,7 +5,7 @@ import type { Client } from "@libsql/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Regression guard for G5.5: deleting an activity must cascade to every child
-// table (activity_splits, activity_streams, activity_load, activity_chat), which
+// table (activity_splits, activity_streams, activity_chat), which
 // only happens when SQLite foreign-key enforcement is on for the connection.
 //
 // The test drives the REAL db.ts client + migrations against an ISOLATED local
@@ -28,7 +28,6 @@ async function childCounts(client: Client, activityId: number) {
   return {
     splits: await count("activity_splits"),
     streams: await count("activity_streams"),
-    load: await count("activity_load"),
     chat: await count("activity_chat"),
   };
 }
@@ -70,10 +69,6 @@ describe("foreign-key cascade enforcement", () => {
           args: [activityId, "{}"],
         },
         {
-          sql: "INSERT INTO activity_load (activity_id, tss, source) VALUES (?, ?, 'auto')",
-          args: [activityId, 42],
-        },
-        {
           sql: "INSERT INTO activity_chat (activity_id, role, content) VALUES (?, 'user', 'hi')",
           args: [activityId],
         },
@@ -84,7 +79,6 @@ describe("foreign-key cascade enforcement", () => {
     expect(await childCounts(client, activityId)).toEqual({
       splits: 1,
       streams: 1,
-      load: 1,
       chat: 1,
     });
 
@@ -94,7 +88,6 @@ describe("foreign-key cascade enforcement", () => {
     expect(await childCounts(client, activityId)).toEqual({
       splits: 0,
       streams: 0,
-      load: 0,
       chat: 0,
     });
   });

@@ -7,6 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* Two steps below Tailwind's `xs` (0.75rem): 11px and 10px. ~40 sites were
+     reaching for arbitrary pixel values; these make them real scale steps. */
+  --text-2xs: 0.6875rem;
+  --text-3xs: 0.625rem;
   --font-sans: var(--font-barlow);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-barlow-condensed);
@@ -43,6 +47,14 @@
   --color-positive: var(--positive);
   --color-wear-worn: var(--wear-worn);
   --color-wear-critical: var(--wear-critical);
+  --color-state-red-bg: var(--state-red-bg);
+  --color-state-red-fg: var(--state-red-fg);
+  --color-state-amber-bg: var(--state-amber-bg);
+  --color-state-amber-fg: var(--state-amber-fg);
+  --color-state-green-bg: var(--state-green-bg);
+  --color-state-green-fg: var(--state-green-fg);
+  --color-state-blue-bg: var(--state-blue-bg);
+  --color-state-blue-fg: var(--state-blue-fg);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -53,25 +65,45 @@
 }
 
 :root {
-  --background: oklch(0.98 0.003 250);
-  --foreground: oklch(0.21 0.015 255);
+  /* Semantic state scale: these communicate STATE, never style. Each -fg is
+     text, each -bg the translucent fill it pairs with. Light and dark are
+     authored separately because one set cannot serve both: the dark values
+     below in `.dark` measure 7.0-12.3:1 there but collapse to 1.3-2.1:1 on a
+     white card. These light values are the Tailwind `*-700` steps, chosen
+     because they are already validated as AA-on-white, and every -fg clears
+     4.5:1 both on bare --card and on its own -bg tint over --background.
+     Measured on #ffffff: red 6.42, amber 5.85, green 5.37, blue 5.85. */
+  --state-red-bg: oklch(0.505 0.213 27.5 / 0.1);
+  --state-red-fg: oklch(0.505 0.213 27.5);
+  --state-amber-bg: oklch(0.52 0.163 49 / 0.1);
+  --state-amber-fg: oklch(0.52 0.163 49);
+  --state-green-bg: oklch(0.508 0.118 165.6 / 0.1);
+  --state-green-fg: oklch(0.508 0.118 165.6);
+  --state-blue-bg: oklch(0.5 0.134 242.7 / 0.1);
+  --state-blue-fg: oklch(0.5 0.134 242.7);
+
+  --background: oklch(0.992 0 0);
+  --foreground: oklch(0.16 0.004 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.015 255);
+  --card-foreground: oklch(0.16 0.004 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.015 255);
-  --primary: oklch(0.585 0.2 35);
+  --popover-foreground: oklch(0.16 0.004 265);
+  /* 0.585 put --primary-foreground on --primary at 4.41:1, under AA. 0.57 is
+     4.70:1. */
+  --primary: oklch(0.57 0.2 35);
   --primary-foreground: oklch(0.985 0.008 60);
-  --secondary: oklch(0.958 0.005 250);
+  --secondary: oklch(0.965 0.002 265);
   --secondary-foreground: oklch(0.28 0.02 255);
-  --muted: oklch(0.958 0.005 250);
-  --muted-foreground: oklch(0.5 0.016 255);
+  --muted: oklch(0.965 0.002 265);
+  --muted-foreground: oklch(0.505 0.006 265);
   --accent: oklch(0.955 0.022 55);
   --accent-foreground: oklch(0.4 0.1 35);
   --destructive: oklch(0.577 0.245 27.3);
-  --border: oklch(0.902 0.007 250);
-  --input: oklch(0.902 0.007 250);
+  --border: oklch(0.915 0.003 265);
+  --input: oklch(0.915 0.003 265);
   --ring: oklch(0.64 0.18 38);
-  --positive: oklch(0.577 0.13 158);
+  /* 0.577 was 4.07:1 on --card, under AA; 0.55 is 4.55:1. */
+  --positive: oklch(0.55 0.13 158);
   --wear-worn: oklch(0.68 0.145 78);
   --wear-critical: oklch(0.577 0.226 27);
   --chart-1: oklch(0.585 0.2 35);
@@ -80,34 +112,45 @@
   --chart-4: oklch(0.45 0.03 255);
   --chart-5: oklch(0.8 0.12 75);
   --radius: 0.5rem;
-  --sidebar: oklch(0.968 0.004 250);
-  --sidebar-foreground: oklch(0.21 0.015 255);
+  --sidebar: oklch(0.975 0.002 265);
+  --sidebar-foreground: oklch(0.16 0.004 265);
   --sidebar-primary: oklch(0.585 0.2 35);
   --sidebar-primary-foreground: oklch(0.985 0.008 60);
   --sidebar-accent: oklch(0.955 0.022 55);
   --sidebar-accent-foreground: oklch(0.4 0.1 35);
-  --sidebar-border: oklch(0.902 0.007 250);
+  --sidebar-border: oklch(0.915 0.003 265);
   --sidebar-ring: oklch(0.64 0.18 38);
 }
 
 .dark {
-  --background: oklch(0.152 0.008 255);
-  --foreground: oklch(0.93 0.005 250);
-  --card: oklch(0.192 0.01 255);
-  --card-foreground: oklch(0.93 0.005 250);
-  --popover: oklch(0.205 0.012 255);
-  --popover-foreground: oklch(0.93 0.005 250);
+  /* The original brand values. Measured on --card: red 8.96, amber 12.32,
+     green 10.07, blue 8.98. */
+  --state-red-bg: #ff173f2d;
+  --state-red-fg: #ff9592;
+  --state-amber-bg: #fa820022;
+  --state-amber-fg: #ffca16;
+  --state-green-bg: #22ff991e;
+  --state-green-fg: #46fea5d4;
+  --state-blue-bg: #0077ff3a;
+  --state-blue-fg: #70b8ff;
+
+  --background: oklch(0.105 0.003 265);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.178 0.004 265);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.195 0.004 265);
+  --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.68 0.19 40);
   --primary-foreground: oklch(0.145 0.03 40);
-  --secondary: oklch(0.245 0.012 255);
-  --secondary-foreground: oklch(0.9 0.005 250);
-  --muted: oklch(0.24 0.012 255);
-  --muted-foreground: oklch(0.65 0.015 252);
+  --secondary: oklch(0.225 0.004 265);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.215 0.004 265);
+  --muted-foreground: oklch(0.715 0.004 265);
   --accent: oklch(0.275 0.03 45);
   --accent-foreground: oklch(0.92 0.02 55);
   --destructive: oklch(0.7 0.19 22);
-  --border: oklch(0.265 0.012 255);
-  --input: oklch(0.285 0.012 255);
+  --border: oklch(0.255 0.004 265);
+  --input: oklch(0.275 0.004 265);
   --ring: oklch(0.66 0.17 40);
   --positive: oklch(0.7 0.13 158);
   --wear-worn: oklch(0.77 0.14 80);
@@ -117,7 +160,7 @@
   --chart-3: oklch(0.65 0.1 250);
   --chart-4: oklch(0.55 0.03 255);
   --chart-5: oklch(0.82 0.11 78);
-  --sidebar: oklch(0.192 0.01 255);
+  --sidebar: oklch(0.178 0.004 265);
   --sidebar-foreground: oklch(0.93 0.005 250);
   --sidebar-primary: oklch(0.68 0.19 40);
   --sidebar-primary-foreground: oklch(0.145 0.03 40);
@@ -155,8 +198,95 @@
   }
 }
 
+/* The one micro-label style. Two variants had drifted apart (11px on divs/dts,
+   12px on <Label>), both carrying tracking-wider. Widened tracking is a
+   legibility device for UPPERCASE; a recent pass removed uppercase everywhere and
+   left the tracking orphaned, so those labels read as loose sentence case for no
+   reason. It is deliberately absent here.
+
+   Declared with @utility, not @layer components, because <Label> sets `text-sm`
+   in its own base classes — a components-layer rule would silently lose the
+   font-size to it, since the utilities layer always wins. */
+@utility label-micro {
+  @apply text-2xs font-medium text-muted-foreground;
+}
+
+/* The treatment ui/button.tsx already has, for the interactive elements that are
+   not Buttons — filter pills, the header nav links and lang toggle, the
+   RPE/feeling radios. Without it they fall back to the UA ring, which the global
+   `outline-ring/50` in @layer base dims to 50% alpha.
+
+   @utility rather than @layer components for the same reason as label-micro, and
+   one more: every one of these elements already carries a border-color utility
+   (border-border, border-primary), which would outrank a components-layer
+   focus-visible:border-ring and leave only half the treatment working. */
+@utility focus-ring {
+  @apply outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50;
+}
+
 @layer components {
+  /* For a scroll container where the overflow is the mechanism, not something
+     the user needs an affordance for — the header nav, which becomes a
+     horizontal scroller on a phone. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .kbd {
-    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground;
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-3xs font-medium text-muted-foreground;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion
+   Two rules only. The interface is a dense, daily-use dashboard, so almost
+   everything here is deliberately left still: navigation, buttons, charts and
+   data rows animate nothing. Radix surfaces already animate through
+   tw-animate-css and are not touched.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* The one easing token. Anything that moves uses it, so nothing improvises. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Lets `block-size: auto` interpolate, which is what makes a CSS-only
+     <details> transition possible at all. */
+  interpolate-size: allow-keywords;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The three <details> accordions (log weeks, consistency heatmap, activity
+     laps) opened with no bridge: the content simply appeared. 200ms is inside
+     the dropdown budget. Browsers without ::details-content just snap, which is
+     exactly today's behaviour, so this degrades to nothing. */
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+    transition:
+      block-size 200ms var(--ease-out),
+      opacity 160ms var(--ease-out),
+      content-visibility 200ms var(--ease-out) allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
+/* Gentler, not zero: motion still confirms what happened, it just stops
+   travelling. Covers the Radix surfaces and the review success state too, which
+   previously ignored the preference entirely. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
   }
 }

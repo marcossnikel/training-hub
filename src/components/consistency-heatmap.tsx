@@ -32,21 +32,19 @@ function dayLabel(date: string, lang: Lang): string {
   return `${fmtDayMonth(local, lang)} ${local.getFullYear()}`;
 }
 
-/** "24 Jul 2026 · 62 TSS · 2 sessions", or the rest-day form for an empty day. */
+/** "24 Jul 2026 · 62 min · 2 sessions", or the rest-day form for an empty day. */
 function cellTitle(cell: HeatmapCell, lang: Lang, t: Dict): string {
   const day = dayLabel(cell.date, lang);
-  if (cell.load <= 0 && cell.sessions === 0) return `${day} · ${t.fitness.heatmap.rest}`;
+  if (cell.minutes <= 0 && cell.sessions === 0) return `${day} · ${t.fitness.heatmap.rest}`;
   const sessions =
     cell.sessions === 1
       ? t.fitness.heatmap.session
       : fillStr(t.fitness.heatmap.sessions, { n: cell.sessions });
-  // A session with no computable load (a strength or soccer session) leaves the
-  // cell on --muted, because the grid paints load and the streak counts load. The
-  // tooltip therefore says "no load" rather than claiming "0 TSS", so the square
-  // and its own label tell the same story.
-  const load =
-    cell.load <= 0 ? t.fitness.heatmap.noLoad : `${Math.round(cell.load)} ${t.fitness.tssUnit}`;
-  return `${day} · ${load} · ${sessions}`;
+  // Every recorded session has moving time, so a square is dark only on a true
+  // rest day. Keyed by minutes rather than TSS since the training-load engine
+  // was removed.
+  const time = cell.minutes <= 0 ? t.fitness.heatmap.noLoad : `${Math.round(cell.minutes)} min`;
+  return `${day} · ${time} · ${sessions}`;
 }
 
 export function ConsistencyHeatmapCard({

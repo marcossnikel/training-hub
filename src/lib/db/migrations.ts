@@ -402,6 +402,21 @@ const MIGRATIONS: Migration[] = [
       await addColumnIfMissing("activity_load", "variant", "TEXT");
     },
   },
+  // Training load and health metrics are gone: TrainingPeaks already owns TSS,
+  // the PMC and the wearable numbers, and this app was computing a second,
+  // different answer for each. Migrations 1, 7 and 14 are deliberately left in
+  // place — the version IS the execution order, so renumbering or editing them
+  // would make an existing database skip steps. This drops the two tables at the
+  // end of the chain instead.
+  {
+    version: 15,
+    up: async () => {
+      await client.execute("DROP INDEX IF EXISTS idx_health_metrics_metric_date");
+      await client.execute("DROP INDEX IF EXISTS idx_health_metrics_date");
+      await client.execute("DROP TABLE IF EXISTS health_metrics");
+      await client.execute("DROP TABLE IF EXISTS activity_load");
+    },
+  },
 ];
 
 async function currentSchemaVersion(): Promise<number> {

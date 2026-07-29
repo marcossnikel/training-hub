@@ -4,7 +4,7 @@ import { ArrowLeftIcon, CheckCircle2Icon, ClockIcon, DownloadIcon } from "lucide
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MedalIcon } from "lucide-react";
 import { ActivityChart } from "@/components/activity-chart";
-import { ActivityLoadControl } from "@/components/activity-load-control";
+import { ActivityMetricsStrip } from "@/components/activity-metrics-strip";
 import { BikeSection } from "@/components/bike-section";
 import { CoachChat } from "@/components/coach-chat";
 import { ExecutionCard } from "@/components/execution-card";
@@ -15,7 +15,6 @@ import { SportIcon } from "@/components/sport-icon";
 import { ZoneBar } from "@/components/zone-bar";
 import {
   getActivity,
-  getActivityLoad,
   getAthleteThresholds,
   getActivityMetrics,
   listActivityChat,
@@ -35,7 +34,6 @@ import {
 import { analyzeRace } from "@/lib/blocks";
 import { isCoachConfigured } from "@/lib/coach";
 import {
-  computeLoad,
   easyHardPct,
   hrZones,
   paceZones,
@@ -82,9 +80,7 @@ export async function generateMetadata({ params }: PageProps<"/activity/[id]">) 
 function Stat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
     <div title={title}>
-      <dt className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </dt>
+      <dt className="label-micro">{label}</dt>
       <dd className="mt-0.5 font-display text-2xl font-semibold">{value}</dd>
     </div>
   );
@@ -101,8 +97,7 @@ function fmtLapDist(distanceM?: number): string {
   return fmtKm(distanceM / 1000, distanceM < 99500 ? 2 : 1);
 }
 
-const TH =
-  "px-2 py-1.5 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase";
+const TH = "px-2 py-1.5 text-left label-micro";
 const TD = "px-2 py-1.5 font-mono text-sm tabular-nums whitespace-nowrap";
 
 /**
@@ -272,7 +267,7 @@ function BestEffortChips({
               // No colour of its own: the badge only appears on a rank-1 chip, which
               // already carries the podium colour, so it inherits currentColor.
               <span
-                className="rounded-sm border px-1 text-[10px] leading-tight font-semibold"
+                className="rounded-sm border px-1 text-3xs leading-tight font-semibold"
                 title={t.detail.prBadgeTitle}
               >
                 {t.detail.prBadge}
@@ -307,11 +302,9 @@ function ZoneDistributions({ bars, t }: { bars: ZoneDistribution[]; t: Dict }) {
         return (
           <div key={bar.key}>
             <div className="mb-2 flex items-baseline justify-between gap-3">
-              <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                {bar.label}
-              </span>
+              <span className="label-micro">{bar.label}</span>
               {split ? (
-                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                   {fillStr(t.detail.easyHard, { easy: split.easyPct, hard: split.hardPct })}
                 </span>
               ) : null}
@@ -431,31 +424,6 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
 
   const detail = await ensureActivityDetail(activity);
   const streams = await ensureActivityStreams(activity);
-
-  // Training load: the persisted value from backfill, else computed on the fly
-  // for display from the current thresholds. The on-the-fly compute reads the
-  // heart-rate stream the page has just loaded, so an unsaved load shows the
-  // same number a recompute would store for it rather than the flatter
-  // average-HR reading.
-  const storedLoad = await getActivityLoad(activity.id);
-  const computedLoad = storedLoad
-    ? null
-    : computeLoad(
-        {
-          ...activity,
-          hrStream: streams?.heartrate ? { hr: streams.heartrate, timeS: streams.timeS } : null,
-        },
-        thresholds
-      );
-  const loadTss = storedLoad?.tss ?? computedLoad?.tss ?? null;
-  const loadMethod = storedLoad?.method ?? computedLoad?.method ?? null;
-  const loadVariant = storedLoad?.variant ?? computedLoad?.variant ?? null;
-  const loadIntensity = storedLoad?.intensity_factor ?? computedLoad?.intensityFactor ?? null;
-  const loadSource: "auto" | "manual" | "computed" = storedLoad
-    ? storedLoad.source === "manual"
-      ? "manual"
-      : "auto"
-    : "computed";
 
   const laps = (detail?.laps ?? []).filter(
     (lap) => (lap.distance ?? 0) > 0 || (lap.moving_time ?? 0) > 0
@@ -769,19 +737,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
         </Card>
       ) : null}
 
-      {loadTss != null ? (
-        <ActivityLoadControl
-          activityId={activity.id}
-          tss={loadTss}
-          method={loadMethod}
-          variant={loadVariant}
-          source={loadSource}
-          intensityFactor={loadIntensity}
-          ef={ef}
-          efFromGap={efFromGap}
-          decoupling={decoupling}
-        />
-      ) : null}
+      <ActivityMetricsStrip ef={ef} efFromGap={efFromGap} decoupling={decoupling} t={t} />
 
       {streams ? (
         <Card className="mt-6">
@@ -882,10 +838,10 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
         <details className="group mt-6 rounded-xl border bg-card">
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-muted-foreground transition-colors select-none hover:text-foreground">
             {t.detail.raw}
-            <span className="ml-2 text-xs text-muted-foreground/60 group-open:hidden">
+            <span className="ml-2 text-xs text-muted-foreground group-open:hidden">
               {t.detail.show}
             </span>
-            <span className="ml-2 hidden text-xs text-muted-foreground/60 group-open:inline">
+            <span className="ml-2 hidden text-xs text-muted-foreground group-open:inline">
               {t.detail.hide}
             </span>
           </summary>
