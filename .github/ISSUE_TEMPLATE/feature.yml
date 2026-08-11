@@ -8,11 +8,22 @@ body:
       value: |
         This form is the Builder packet. Be concrete enough for a fresh-context
         agent to implement without inventing product behavior or visual design.
+        Product-facing work may not start until every required design-contract
+        field is complete. Use docs/design/FOUNDATION.md and
+        docs/design/VISUAL_QA.md; name an unresolved product decision as a
+        blocker rather than guessing.
   - type: textarea
     id: outcome
     attributes:
       label: User outcome
       description: What can the user do, understand, or trust when this is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence_meaning
+    attributes:
+      label: Data, evidence, and uncertainty meaning
+      description: Name the source data, comparison/window, what users may infer, and exactly how missing, stale, partial, or low-confidence data is disclosed. State the no-coaching/no-medical boundary.
     validations:
       required: true
   - type: textarea
@@ -40,19 +51,19 @@ body:
     id: interaction_states
     attributes:
       label: Interaction and state matrix
-      description: Cover default, hover/focus, press, loading/skeleton, empty/first-use, partial or stale data, error/retry, success, disabled, and narrow-screen states. For motion, specify trigger, feedback, purpose, keyboard behavior, and reduced-motion fallback.
+      description: Cover desktop/default, hover/focus, press, loading/skeleton, empty/first-use, partial or stale data, error/retry, success, disabled, and narrow-screen states. For every applicable microinteraction, specify trigger, feedback, concrete duration/intent (for example 100-150 ms or <=200 ms), keyboard behavior, and reduced-motion fallback; “short” alone is not sufficient.
       placeholder: |
-        - Default:
-        - Hover/focus and keyboard path:
-        - Press and immediate feedback:
-        - Loading/skeleton:
+        - Desktop/default:
+        - Hover/focus — trigger, feedback, duration/intent, keyboard, reduced motion:
+        - Press/pending — trigger, feedback, duration/intent, keyboard, reduced motion:
+        - Loading/skeleton — trigger, feedback, duration/intent, keyboard, reduced motion:
         - Empty/first-use:
         - Partial or stale data:
         - Error/retry:
         - Success:
         - Disabled:
         - Responsive/narrow screen:
-        - Reduced motion:
+        - Reduced motion fallback:
     validations:
       required: true
   - type: textarea
@@ -95,7 +106,7 @@ body:
     id: validation
     attributes:
       label: Required validation and acceptance evidence
-      description: Exact automated commands plus manual, accessibility, and visual checks. State the expected evidence, not just the tool name.
+      description: Exact automated commands plus manual, accessibility, and visual checks. Name desktop and narrow viewport proof; add a recording when consequential motion or a multi-step state changes. State the expected evidence, not just the tool name.
     validations:
       required: true
   - type: textarea
