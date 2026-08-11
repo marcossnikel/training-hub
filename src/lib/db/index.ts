@@ -9,7 +9,6 @@ export * from "./strava-auth";
 export * from "./thresholds";
 export * from "./metrics";
 export * from "./curves";
-export * from "./coach";
 export * from "./benchmarks";
 export * from "./goals";
 export * from "./zones";

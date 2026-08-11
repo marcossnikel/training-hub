@@ -21,8 +21,7 @@ The v0 direction and delivery queue live in the
 - Billing is not implemented. Do not create live Stripe products or deploy a
   product change without the relevant issue and approval.
 - The v0 direction is evidence and context, not generic AI coaching or
-  medical/readiness advice. The remaining prototype AI coach is explicitly
-  scheduled for removal in [#50](https://github.com/marcossnikel/training-hub/issues/50).
+  medical/readiness advice.
 
 ## Stack
 
@@ -54,6 +53,11 @@ npm run seed:clear
 
 Write scripts reject remote database URLs by default. Do not override that
 guard unless the assigned GitHub issue explicitly requires it.
+
+After pulling the prototype-state removal, reset only a disposable local or E2E
+database before reseeding (for local development, remove `data/app.db` and its
+SQLite sidecar files, then run `npm run seed`). Never reset a remote, shared,
+preview, or production database.
 
 ## Verification
 

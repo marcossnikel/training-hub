@@ -20,7 +20,6 @@ import {
   listSessionStarts,
   listTotalsActivities,
 } from "@/lib/db";
-import { isCoachConfigured } from "@/lib/coach";
 import { getDict } from "@/lib/lang";
 import {
   consistencyHeatmap,
@@ -84,7 +83,6 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   const storedEfforts = await listFastestBestEfforts();
   const thresholds = await getAthleteThresholds();
   const trainingZones = await getTrainingZones();
-  const coachConfigured = isCoachConfigured();
 
   // Best times come from the true sub-segments Strava cut out of runs where we have
   // them, and from whole-activity summaries everywhere else. The critical-speed fit
@@ -163,7 +161,7 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
           <CardDescription>{t.zones.subtitle}</CardDescription>
         </CardHeader>
         <CardContent>
-          <ZonesPanel initial={trainingZones} configured={coachConfigured} />
+          <ZonesPanel initial={trainingZones} />
         </CardContent>
       </Card>
 

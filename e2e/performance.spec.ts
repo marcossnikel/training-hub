@@ -7,6 +7,8 @@ test("performance dashboard shows best efforts and the CS suggestion state", asy
   await page.goto("/performance");
 
   await expect(page.getByRole("heading", { level: 1, name: "Performance" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /calculate|recalculate/i })).toHaveCount(0);
+  await expect(page.getByText(/ANTHROPIC_API_KEY/i)).toHaveCount(0);
   await expect(page.getByText("Best efforts by distance")).toBeVisible();
   await expect(page.getByText("Race predictions", { exact: true })).toBeVisible();
   // No seeded races, so the critical-speed estimate shows its empty guidance.

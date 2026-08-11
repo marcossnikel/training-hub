@@ -102,18 +102,10 @@ const BASE_SCHEMA: string[] = [
     source TEXT NOT NULL DEFAULT 'auto',
     computed_at TEXT
   )`,
-  `CREATE TABLE IF NOT EXISTS activity_chat (
-    id INTEGER PRIMARY KEY,
-    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`,
   "CREATE INDEX IF NOT EXISTS idx_activities_started_at ON activities(started_at)",
   "CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status)",
   "CREATE INDEX IF NOT EXISTS idx_splits_activity_id ON activity_splits(activity_id)",
   "CREATE INDEX IF NOT EXISTS idx_splits_shoe_id ON activity_splits(shoe_id)",
-  "CREATE INDEX IF NOT EXISTS idx_activity_chat_activity_id ON activity_chat(activity_id)",
 ];
 
 /**
@@ -276,8 +268,7 @@ const MIGRATIONS: Migration[] = [
       );
     },
   },
-  // 8: athlete goals (races/targets) — feed the zones agent and the coach so its
-  // advice is anchored to what the athlete is training for.
+  // 8: athlete goals (races/targets).
   {
     version: 8,
     up: async () => {
@@ -293,14 +284,6 @@ const MIGRATIONS: Migration[] = [
            created_at TEXT DEFAULT (datetime('now'))
          )`
       );
-    },
-  },
-  // 9: per-activity AI coach insight (generated on demand, shown above the chat).
-  {
-    version: 9,
-    up: async () => {
-      await addColumnIfMissing("activities", "coach_insight", "TEXT");
-      await addColumnIfMissing("activities", "coach_insight_at", "TEXT");
     },
   },
   // 10: per-activity best efforts — the fastest sub-segments Strava finds inside a

@@ -47,8 +47,7 @@ async function attachSplits(activities: Activity[]): Promise<ActivityWithSplits[
 const ACTIVITY_COLUMNS = `a.id, a.strava_id, a.name, a.sport_type, a.started_at, a.started_at_local,
      a.distance_km, a.moving_time_s, a.avg_pace_s_per_km, a.avg_hr, a.elevation_gain_m,
      a.status, a.rpe, a.feeling, a.workout_notes, a.health_notes, a.created_at,
-     a.detail_synced_at, a.bike_id, a.is_race, a.goal_pace_s_per_km,
-     a.coach_insight, a.coach_insight_at`;
+     a.detail_synced_at, a.bike_id, a.is_race, a.goal_pace_s_per_km`;
 
 /**
  * The list query. `detail_json` is never selected — only the activity page reads
@@ -551,63 +550,6 @@ export async function updateActivityJournal(id: number, journal: JournalFields):
     "UPDATE activities SET rpe = ?, feeling = ?, workout_notes = ?, health_notes = ? WHERE id = ?",
     [journal.rpe, journal.feeling, journal.workout_notes, journal.health_notes, id]
   );
-}
-
-export interface RecentSessionRow {
-  id: number;
-  strava_id: number | null;
-  started_at: string | null;
-  name: string | null;
-  sport_type: string | null;
-  distance_km: number | null;
-  moving_time_s: number | null;
-  avg_hr: number | null;
-  avg_pace_s_per_km: number | null;
-  tss: number | null;
-  detail_json: string | null;
-}
-
-/**
- * Recent confirmed sessions of the same sport (excluding a given one and
- * anything after it), with their cached Strava lap detail, so the coach chat can
- * compare across days ("vs last Thursday") and per-lap, not just session-wide.
- */
-export async function listRecentSessionsWithDetail(input: {
-  excludeId: number;
-  sportType: string | null;
-  before: string | null;
-  days: number;
-  limit: number;
-}): Promise<RecentSessionRow[]> {
-  return many<RecentSessionRow>(
-    `SELECT a.id, a.strava_id, a.started_at, a.name, a.sport_type, a.distance_km, a.moving_time_s,
-            a.avg_hr, a.avg_pace_s_per_km, a.detail_json
-     FROM activities a
-     WHERE a.status = 'confirmed'
-       AND a.id != ?
-       AND LOWER(COALESCE(a.sport_type,'')) = LOWER(COALESCE(?, ''))
-       AND a.started_at IS NOT NULL
-       AND (? IS NULL OR a.started_at < ?)
-       AND a.started_at >= datetime('now', ?)
-     ORDER BY a.started_at DESC
-     LIMIT ?`,
-    [
-      input.excludeId,
-      input.sportType,
-      input.before,
-      input.before,
-      `-${input.days} days`,
-      input.limit,
-    ]
-  );
-}
-
-export async function setActivityInsight(id: number, text: string): Promise<void> {
-  await exec("UPDATE activities SET coach_insight = ?, coach_insight_at = ? WHERE id = ?", [
-    text,
-    new Date().toISOString(),
-    id,
-  ]);
 }
 
 export async function replaceActivitySplits(id: number, splits: SplitInput[]): Promise<void> {

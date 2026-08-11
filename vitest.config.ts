@@ -13,7 +13,7 @@ export default defineConfig({
     alias: {
       // Mirror the tsconfig "@/*" -> "src/*" path alias so `@/lib/...`
       // imports resolve in tests. String "@" only matches "@/..." requests,
-      // never scoped packages like "@anthropic-ai/sdk".
+      // never scoped packages.
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },

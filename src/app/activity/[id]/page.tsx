@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftIcon, CheckCircle2Icon, ClockIcon, DownloadIcon } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MedalIcon } from "lucide-react";
 import { ActivityChart } from "@/components/activity-chart";
 import { ActivityMetricsStrip } from "@/components/activity-metrics-strip";
 import { BikeSection } from "@/components/bike-section";
-import { CoachChat } from "@/components/coach-chat";
 import { ExecutionCard } from "@/components/execution-card";
 import { RaceControl } from "@/components/race-control";
 import { JournalEditor } from "@/components/journal-editor";
@@ -17,7 +16,6 @@ import {
   getActivity,
   getAthleteThresholds,
   getActivityMetrics,
-  listActivityChat,
   listBikes,
   listFastestBestEfforts,
   listShoes,
@@ -32,7 +30,6 @@ import {
   type EfBasis,
 } from "@/lib/analysis";
 import { analyzeRace } from "@/lib/blocks";
-import { isCoachConfigured } from "@/lib/coach";
 import {
   easyHardPct,
   hrZones,
@@ -528,7 +525,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // STALE AFTER A THRESHOLD CHANGE: unlike EF and decoupling, a zone split
   // depends on the thresholds, and the stored one was frozen at the LTHR and
   // threshold pace in force when the stream was fetched. Saving new thresholds
-  // (Settings, or the zones agent applying a suggestion) does NOT invalidate it,
+  // (Settings, for example) does NOT invalidate it,
   // so these bars keep the old split until the row is recomputed. The fallback
   // below always reflects the CURRENT thresholds, so while a row is stale it is
   // the more correct of the two — a stale stored split is worse here than no row
@@ -563,12 +560,6 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
       : null;
 
   const description = detail?.description?.trim();
-
-  const coachConfigured = isCoachConfigured();
-  const coachMessages = (await listActivityChat(activity.id)).map((m) => ({
-    role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-    content: m.content,
-  }));
 
   let rawPretty: string | null = null;
   const rawSource = detail ?? (activity.raw_json ? activity.raw_json : null);
@@ -803,21 +794,6 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
         </CardHeader>
         <CardContent>
           <JournalEditor activity={activity} />
-        </CardContent>
-      </Card>
-
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>{t.coach.title}</CardTitle>
-          <CardDescription>{t.coach.subtitle}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CoachChat
-            activityId={activity.id}
-            messages={coachMessages}
-            insight={activity.coach_insight}
-            configured={coachConfigured}
-          />
         </CardContent>
       </Card>
 
