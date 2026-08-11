@@ -34,7 +34,7 @@ describe("fail (G6.3: no raw error text reaches the client)", () => {
   });
 
   it("passes a controlled localized fallback through unchanged for a non-Error throw", () => {
-    const fallback = dictionaries.en.errors.coachFailed;
+    const fallback = dictionaries.en.errors.syncFailed;
     const result = fail("boom", fallback);
     expect(result.error).toBe(fallback);
   });

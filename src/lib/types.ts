@@ -61,9 +61,6 @@ export interface Activity {
   bike_name: string | null;
   is_race: boolean;
   goal_pace_s_per_km: number | null;
-  // AI coach insight for this workout (generated on demand), and when.
-  coach_insight: string | null;
-  coach_insight_at: string | null;
   created_at: string;
 }
 
@@ -95,8 +92,7 @@ export interface StravaGear {
 
 export type ShoeOption = GearOption;
 
-// A race/target the athlete is training for. Feeds the zones agent and the coach
-// so advice is anchored to real goals (like Runna's plan context).
+// A race or target the athlete is training for.
 export interface Goal {
   id: number;
   name: string;

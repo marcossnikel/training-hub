@@ -40,9 +40,9 @@ authorization mechanism for tenancy.
 | `athlete_profiles` (new) | singleton implicit athlete | one row per `users.id` (`user_id` PK/FK); thresholds/profile defaults. Keep a distinct athlete profile so a future organization model does not redefine `users`. |
 | `strava_connections` (replaces singleton `strava_auth`) | `id = 1`, plaintext access/refresh token and expiry | `id`, `user_id` FK, encrypted client secret/access/refresh ciphertext plus key version, expiry, Strava athlete id, granted scope, state, timestamps. `UNIQUE(user_id)` initially; `UNIQUE(user_id, strava_athlete_id)` after policy for reconnect/identity mismatch is selected. |
 | `oauth_states` (new, short-lived) | cookie-only random `strava_oauth_state` | hashed state, `user_id` FK, connection intent, redirect allowlist key, created/expiry/consumed timestamps; one-time consume transaction. |
-| `activities` | global; globally unique `strava_id`; raw/detail JSON, notes, insight, `bike_id` | add non-null `user_id` FK. Use `UNIQUE(user_id, strava_id)` (nullable external IDs allowed) and indexes `(user_id, started_at DESC, id DESC)`, `(user_id, status, started_at)`, `(user_id, bike_id)`. Every activity read/write predicates owner and id together. |
+| `activities` | global; globally unique `strava_id`; raw/detail JSON, notes, `bike_id` | add non-null `user_id` FK. Use `UNIQUE(user_id, strava_id)` (nullable external IDs allowed) and indexes `(user_id, started_at DESC, id DESC)`, `(user_id, status, started_at)`, `(user_id, bike_id)`. Every activity read/write predicates owner and id together. |
 | `activity_splits` -> `activities`, optionally `shoes` | child activity and cross-table shoe reference | retains activity FK cascade; all access joins through owner-scoped activity. Validate referenced shoe has same `user_id` in repository/service transaction; SQLite cannot express this composite ownership with the current key shape. |
-| `activity_streams`, `activity_metrics`, `activity_best_efforts`, `activity_curve_points`, `activity_chat` -> `activities` | activity-derived streams, metrics, best efforts, curve points, chat/insight | keep FK cascade and never expose direct child lookup by activity id without an owner-scoped parent join. Optional redundant `user_id` is not source-of-truth and is deferred; if added for indexing it must be composite-FK validated. |
+| `activity_streams`, `activity_metrics`, `activity_best_efforts`, `activity_curve_points` -> `activities` | activity-derived streams, metrics, best efforts, curve points | keep FK cascade and never expose direct child lookup by activity id without an owner-scoped parent join. Optional redundant `user_id` is not source-of-truth and is deferred; if added for indexing it must be composite-FK validated. |
 | `shoes`, `bikes` | global names, globally unique `strava_gear_id`, `photo_path` | add non-null `user_id`; replace global unique gear IDs with `UNIQUE(user_id, strava_gear_id)`, index `(user_id, retired_at, name)`. Blob object key must be owner-prefixed and stored reference is treated as private data. |
 | `athlete_thresholds` | singleton `id = 1` | replace with `athlete_profiles` columns or `athlete_thresholds(user_id PK/FK)`; do not retain `id=1`. |
 | `athlete_goals` | global goals | add `user_id` FK and `(user_id, race_date, id)` index; all list/delete predicates include owner. |
@@ -52,7 +52,7 @@ authorization mechanism for tenancy.
 The foreign-key graph is `users -> athlete_profiles, strava_connections,
 oauth_states, user_meta, activities, shoes, bikes, athlete_goals`; `activities
 -> activity_splits/activity_streams/activity_metrics/activity_best_efforts/
-activity_curve_points/activity_chat` and `activities -> bikes`; splits point to
+activity_curve_points` and `activities -> bikes`; splits point to
 shoes. Delete order is connection secrets/OAuth state/blobs and dependent rows,
 then root user, within the accepted lifecycle policy. Foreign keys are a safety
 net; server-side predicates remain mandatory because a valid foreign key does
@@ -61,17 +61,17 @@ not prove the caller owns a supplied numeric ID.
 ### Query, singleton, route, blob, and script seams
 
 All exported functions in `src/lib/db/activities.ts`, `bikes.ts`, `shoes.ts`,
-`coach.ts`, `curves.ts`, `goals.ts`, `metrics.ts`, `benchmarks.ts`, and `zones.ts`
+`curves.ts`, `goals.ts`, `metrics.ts`, `benchmarks.ts`, and `zones.ts`
 currently query globally. Their reads, mutations, aggregations, caches, and
 upserts must accept a required `OwnerContext` (or be methods on an owner-bound
 repository); no public helper accepts a caller-provided `userId`. In particular:
 
 - Direct numeric-ID seams: `/activity/[id]`, activity journal/splits/review,
-  activity-bike/race changes, chat, stream/detail/metric writers, goals and
+  activity-bike/race changes, stream/detail/metric writers, goals and
   shoes/bikes update/retire/gear actions. A guessed ID must return not-found or
   a generic authorization result, never another tenant's data.
 - List/aggregate seams: log, review, gear/bikes/shoes, performance, races and
-  comparison, settings, root layout pending badge, coaching digest, curve and
+  comparison, settings, root layout pending badge, curve and
   backfill candidates. `countPending` is currently React-cached without an owner
   argument and must become `countPending(owner.id)` so its cache key cannot cross
   tenants.
@@ -302,7 +302,7 @@ unavailable preview or a real Strava account was used.
 | #26 | Add encrypted owner-scoped Strava connection storage and signed, owner-bound OAuth state. Depends #22/#23; no BYO UI, public scope, or retention promise. |
 | #27 | Prove tenant isolation and session behavior with the automated and two-account evidence defined above. Depends #22–#26. |
 | #28 | Remove or quarantine obsolete single-user paths after their tenant-aware replacements are accepted. Depends #24–#27. |
-| #50 | Retire prototype generic Anthropic coach surfaces, including code, configuration, and persisted-state disposal under this document’s D-005 migration/reset posture. Depends on the replacement tenant paths; do not retain obsolete global state. |
+| #50 | Retire prototype generic Anthropic coach surfaces, including code, configuration, and persisted-state disposal under this document’s D-005 local/E2E reset posture. No obsolete coach state remains in a fresh schema. |
 
 ## Implementation checklist for the next builder
 

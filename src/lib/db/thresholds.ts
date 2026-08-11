@@ -1,6 +1,6 @@
 // The athlete's reference thresholds (max HR, resting HR, LTHR, threshold pace,
-// FTP). Split out of the old load.ts when training load was removed: the zones,
-// the performance page and the coach all still need these.
+// FTP). Split out of the old load.ts when training load was removed: the zones
+// and performance page both still need these.
 import { exec, one } from "./helpers";
 import { THRESHOLD_DEFAULTS } from "../baseline";
 import type { AthleteThresholds } from "../fitness";

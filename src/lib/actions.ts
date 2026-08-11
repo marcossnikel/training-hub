@@ -6,10 +6,8 @@ import { redirect } from "next/navigation";
 import { NONE } from "./constants";
 import { splitErrorText, isLang } from "./i18n";
 import { LANG_COOKIE } from "./lang";
-import { storePhoto, deletePhoto, sniffImageType, InvalidImageError } from "./storage";
+import { storePhoto, deletePhoto, InvalidImageError } from "./storage";
 import {
-  addActivityChatMessage,
-  clearActivityChat,
   clearStravaAuth,
   createBike,
   createManualActivity,
@@ -18,7 +16,6 @@ import {
   getAthleteThresholds,
   getBike,
   getShoe,
-  listActivityChat,
   replaceActivitySplits,
   saveAthleteThresholds,
   setActivityBike,
@@ -31,40 +28,17 @@ import {
   updateBike,
   updateShoe,
   confirmActivity,
-  listGoals,
   createGoal,
   deleteGoal,
-  getRunningFieldSignals,
-  setTrainingZones,
-  getTrainingZones,
-  listRecentSessionsWithDetail,
-  setActivityInsight,
   type BikeFields,
   type ShoeFields,
 } from "./db";
-import {
-  buildActivityContext,
-  buildInsightContext,
-  buildZonesContext,
-  deriveZones,
-  isCoachConfigured,
-  runActivityInsight,
-  runCoachChat,
-  summarizeStreams,
-  type CoachImage,
-  type CoachStreamSummary,
-  type LapSummary,
-  type RecentSessionSummary,
-} from "./coach";
 import { FTP_RANGE, THRESHOLD_PACE_RANGE } from "./fitness";
 import {
   ensureActivityStreams,
-  ensureActivityDetail,
-  parseActivityDetail,
   stravaConfigured,
   isStravaConnected,
   syncActivities,
-  type StravaActivityDetail,
   type SyncResult,
 } from "./strava";
 import { parseFiniteNumber, parseId, validateSplits } from "./validate";
@@ -72,8 +46,7 @@ import { fail, type ActionResult } from "./action-result";
 import { logger } from "./telemetry";
 import { authConfigured, createSession, destroySession, requireAuth, verifyPassword } from "./auth";
 import { dict, inRange, normalizeJournal, normalizeSplits, refreshAll } from "./action-helpers";
-import type { DerivedZones } from "./zones";
-import type { ActivityWithSplits, Feeling, SplitInput } from "./types";
+import type { Feeling, SplitInput } from "./types";
 
 // ---------------------------------------------------------------------------
 // Language
@@ -357,8 +330,7 @@ export async function applyThresholdPaceAction(paceSPerKm: number): Promise<Acti
  *
  * It also clears `ftpProvisional`. That flag means "a placeholder nobody
  * measured"; an FTP fitted to the athlete's own maximal efforts is measured, and
- * leaving the flag set would keep the coach prompt calling a real number
- * provisional forever.
+ * leaving the flag set would keep a measured value marked provisional.
  */
 export async function applyFtpAction(ftpW: number): Promise<ActionResult> {
   const t = await dict();
@@ -613,183 +585,7 @@ export async function createManualActivityAction(input: {
 }
 
 // ---------------------------------------------------------------------------
-// AI coach (Claude API)
-// ---------------------------------------------------------------------------
-
-export type CoachMessageResult = { ok: true; reply: string } | { ok: false; error: string };
-
-// Max decoded size of an attached coach image (the client downscales first, so
-// this is generous headroom, not the expected size).
-const COACH_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-
-/**
- * Map Strava lap detail to the coach's compact lap summaries. `cap` guards
- * against a pathological auto-lap-every-100m file, but is high enough to keep
- * every rep of a real interval session (warmup + reps + recoveries + cooldown).
- */
-function mapLaps(detail: StravaActivityDetail | null, cap = 60): LapSummary[] {
-  const laps = detail?.laps ?? [];
-  return laps.slice(0, cap).map((l) => ({
-    km: l.distance != null ? l.distance / 1000 : null,
-    timeS: l.moving_time ?? null,
-    paceSPerKm: l.average_speed
-      ? 1000 / l.average_speed
-      : l.distance && l.moving_time
-        ? l.moving_time / (l.distance / 1000)
-        : null,
-    avgHr: l.average_heartrate ?? null,
-    maxHr: l.max_heartrate ?? null,
-  }));
-}
-
-/**
- * Full coach context for one activity: its metrics + load + PMC + streams +
- * journal + goals + zones, PLUS this session's laps and the recent same-sport
- * sessions (with their laps) so the chat can compare across days and per-lap.
- * Shared by the chat and the insight so both see the same picture.
- */
-async function assembleActivityContext(activity: ActivityWithSplits): Promise<string> {
-  const thresholds = await getAthleteThresholds();
-
-  // Streams are cached after the first view; only a cold activity fetches here.
-  let streams: CoachStreamSummary | null = null;
-  try {
-    const raw = await ensureActivityStreams(activity);
-    if (raw) streams = summarizeStreams(raw);
-  } catch {
-    streams = null;
-  }
-
-  const [goals, zones, recentRows] = await Promise.all([
-    listGoals(),
-    getTrainingZones(),
-    listRecentSessionsWithDetail({
-      excludeId: activity.id,
-      sportType: activity.sport_type,
-      before: activity.started_at,
-      days: 21,
-      limit: 4,
-    }),
-  ]);
-
-  // Fetch each recent session's lap detail (cached after the first fetch), so
-  // per-lap comparison works even for sessions never opened in the app.
-  const recent: RecentSessionSummary[] = await Promise.all(
-    recentRows.map(async (r) => {
-      let detail: StravaActivityDetail | null = null;
-      try {
-        detail = await ensureActivityDetail({
-          id: r.id,
-          strava_id: r.strava_id,
-          detail_json: r.detail_json,
-        });
-      } catch {
-        detail = parseActivityDetail(r.detail_json);
-      }
-      return {
-        date: r.started_at,
-        name: r.name,
-        distanceKm: r.distance_km,
-        paceSPerKm: r.avg_pace_s_per_km,
-        avgHr: r.avg_hr,
-        maxHr: detail?.max_heartrate ?? null,
-        laps: mapLaps(detail, 40),
-      };
-    })
-  );
-
-  return buildActivityContext({
-    activity,
-    thresholds,
-    streams,
-    journal: {
-      rpe: activity.rpe,
-      feeling: activity.feeling,
-      workoutNotes: activity.workout_notes,
-      healthNotes: activity.health_notes,
-    },
-    goals,
-    zones,
-    laps: mapLaps(parseActivityDetail(activity.detail_json)),
-    recent,
-  });
-}
-
-export async function sendCoachMessageAction(input: {
-  activityId: number;
-  message: string;
-  /** Optional attached image as raw base64 (no data: prefix). */
-  imageBase64?: string | null;
-}): Promise<CoachMessageResult> {
-  const t = await dict();
-  if (!(await requireAuth())) return { ok: false, error: t.errors.unauthorized };
-  if (!isCoachConfigured()) return { ok: false, error: t.errors.coachNotConfigured };
-  const message = input.message.trim();
-  const imageBase64 = input.imageBase64?.trim() || null;
-  if (!message && !imageBase64) return { ok: false, error: t.errors.generic };
-
-  // Validate the image by MAGIC NUMBER (never the client's word), and only allow
-  // the types Anthropic vision accepts. Reject anything else or oversized.
-  let image: CoachImage | null = null;
-  if (imageBase64) {
-    const bytes = Buffer.from(imageBase64, "base64");
-    if (bytes.length === 0 || bytes.length > COACH_IMAGE_MAX_BYTES) {
-      return { ok: false, error: t.errors.invalidImage };
-    }
-    const mime = sniffImageType(bytes);
-    if (
-      mime !== "image/jpeg" &&
-      mime !== "image/png" &&
-      mime !== "image/gif" &&
-      mime !== "image/webp"
-    ) {
-      return { ok: false, error: t.errors.invalidImage };
-    }
-    image = { mediaType: mime, dataBase64: imageBase64 };
-  }
-
-  try {
-    const activity = await getActivity(input.activityId);
-    if (!activity) return { ok: false, error: t.errors.activityNotFound };
-
-    const context = await assembleActivityContext(activity);
-
-    const history = (await listActivityChat(activity.id)).map((row) => ({
-      role: row.role === "assistant" ? ("assistant" as const) : ("user" as const),
-      content: row.content,
-    }));
-
-    // The image is used for this turn but not persisted in the text history; the
-    // stored user line notes an image when there is no accompanying text.
-    const userLine = message || t.coach.imageSent;
-    const prompt =
-      message ||
-      "Interpret this attached screenshot and relate it to this workout and my training.";
-    await addActivityChatMessage(activity.id, "user", userLine);
-    const reply = await runCoachChat(context, history, prompt, image);
-    await addActivityChatMessage(activity.id, "assistant", reply);
-    refreshAll();
-    return { ok: true, reply };
-  } catch (error) {
-    return fail(error, t.errors.coachFailed);
-  }
-}
-
-export async function clearCoachAction(activityId: number): Promise<ActionResult> {
-  const t = await dict();
-  if (!(await requireAuth())) return { ok: false, error: t.errors.unauthorized };
-  try {
-    await clearActivityChat(activityId);
-    refreshAll();
-    return { ok: true };
-  } catch (error) {
-    return fail(error, t.errors.generic);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Goals — races/targets the athlete is training for (context for the coach +
-// the zones agent).
+// Goals — races and targets.
 // ---------------------------------------------------------------------------
 
 /** Parse "h:mm:ss" or "mm:ss" to seconds; null for blank/invalid. */
@@ -850,64 +646,5 @@ export async function deleteGoalAction(id: number): Promise<ActionResult> {
     return { ok: true };
   } catch (error) {
     return fail(error, t.errors.generic);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Training zones — the AI agent that derives HR + pace zones from field data.
-// ---------------------------------------------------------------------------
-
-export type ZonesResult = { ok: true; zones: DerivedZones } | { ok: false; error: string };
-
-export async function computeZonesAction(extraContext = ""): Promise<ZonesResult> {
-  const t = await dict();
-  if (!(await requireAuth())) return { ok: false, error: t.errors.unauthorized };
-  if (!isCoachConfigured()) return { ok: false, error: t.errors.coachNotConfigured };
-  try {
-    const [signals, goals] = await Promise.all([getRunningFieldSignals(), listGoals()]);
-    const context = buildZonesContext({
-      signals,
-      goals,
-      extraContext: extraContext.slice(0, 4000),
-    });
-    const ai = await deriveZones(context);
-    const zones: DerivedZones = {
-      ...ai,
-      restingHr: ai.restingHr ?? signals.restingHr,
-      generatedAt: new Date().toISOString(),
-    };
-    await setTrainingZones(zones);
-    refreshAll();
-    return { ok: true, zones };
-  } catch (error) {
-    return fail(error, t.errors.coachFailed);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Per-activity coach insight — an upfront read generated on demand, stored on
-// the activity and shown above the chat.
-// ---------------------------------------------------------------------------
-
-export type InsightResult =
-  { ok: true; text: string; generatedAt: string } | { ok: false; error: string };
-
-export async function generateActivityInsightAction(activityId: number): Promise<InsightResult> {
-  const t = await dict();
-  if (!(await requireAuth())) return { ok: false, error: t.errors.unauthorized };
-  if (!isCoachConfigured()) return { ok: false, error: t.errors.coachNotConfigured };
-  try {
-    const activity = await getActivity(activityId);
-    if (!activity) return { ok: false, error: t.errors.activityNotFound };
-
-    const activityContext = await assembleActivityContext(activity);
-
-    const context = buildInsightContext({ activityContext, healthNote: null });
-    const text = await runActivityInsight(context);
-    await setActivityInsight(activity.id, text);
-    refreshAll();
-    return { ok: true, text, generatedAt: new Date().toISOString() };
-  } catch (error) {
-    return fail(error, t.errors.coachFailed);
   }
 }

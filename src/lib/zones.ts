@@ -1,8 +1,6 @@
-// Shared types for the AI-derived training zones, plus the presentation the five
-// zones share app-wide (palette and Z1–Z5 labels) and the form-state palette.
-// Pure (no IO): the coach layer produces a DerivedZones, the db layer stores it,
-// and the UI renders it. Presentational constants live here rather than in a
-// component so server pages and client charts can share exactly one copy.
+// Shared types for saved training zones plus the presentation the five zones
+// share app-wide. Presentational constants live here rather than in a component
+// so server pages and client charts can share exactly one copy.
 
 import type { Dict } from "@/lib/i18n";
 
@@ -29,7 +27,7 @@ export interface DerivedZones {
   /** VO2max estimated from field race performances (VDOT-style). */
   vo2maxEstimate: number | null;
   confidence: ZoneConfidence;
-  /** 2-4 sentence insight tying the zones to the athlete's goals. */
+  /** Saved explanatory note accompanying the zone values. */
   summary: string;
   /** Specific questions whose answers would sharpen the estimate. */
   missingInfo: string[];

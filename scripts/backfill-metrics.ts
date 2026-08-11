@@ -21,7 +21,7 @@
  *
  * `--recompute` exists because the stored zone seconds are FROZEN at whatever
  * thresholds were in force when they were computed. Change LTHR or threshold
- * pace (Settings, or the zones agent applying a suggestion) and every stored
+ * pace (Settings, for example) and every stored
  * `hr_zone_secs` / `pace_zone_secs` still describes the old zones, while the
  * activity page and buildBlock prefer the stored array unconditionally. Without
  * this flag there is no way to refresh them: the normal pass skips any activity
