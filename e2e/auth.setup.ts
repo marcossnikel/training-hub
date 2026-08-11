@@ -3,7 +3,7 @@ import { test as setup, expect } from "@playwright/test";
 // Playwright auth setup. With AUTH_PASSWORD / AUTH_SECRET set for the e2e server
 // (playwright.config.ts), the proxy now redirects unauthenticated reads to
 // /login. This project logs in ONCE and saves the owner session to storageState;
-// the read specs (log/fitness/gear/review) reuse it via the authenticated
+// the read specs (log/performance/gear/review) reuse it via the authenticated
 // project. auth.spec.ts deliberately runs unauthenticated in its own project.
 //
 // The path is kept in sync with STORAGE_STATE in playwright.config.ts.

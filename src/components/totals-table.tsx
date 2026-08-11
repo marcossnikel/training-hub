@@ -1,4 +1,4 @@
-// The /fitness totals table: one row per week or month with its volume and, under
+// The Performance totals table: one row per week or month with its volume and, under
 // each number, the change from the period before. Every value and delta arrives
 // already computed (periodTotals) — this file only formats and lays out, so it
 // renders on the server with no client JS.

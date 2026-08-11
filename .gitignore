@@ -47,11 +47,7 @@ yarn-error.log*
 # scratch space for validation scripts and sub-agent briefs (never committed)
 /scratchpad/
 
-# garmin sync service (Python): local venv, bytecode, and the local setup
-# helper (holds the ingest secret + creds — must never be committed)
-services/garmin-sync/.venv/
 **/__pycache__/
-services/garmin-sync/*.local.sh
 
 # vercel
 .vercel

@@ -1,6 +1,6 @@
-// The /fitness consistency card: a trailing-year grid of daily load, one cell per
+// The Performance consistency card: a trailing-year grid of daily load, one cell per
 // day, collapsed by default. Server-rendered SVG with a native <title> per cell
-// and zero client JS (the HealthTrendChart philosophy), so the card works with
+// and zero client JS, so the card works with
 // JS disabled. Every number arrives already computed by src/lib/consistency.ts —
 // this file only lays out and formats.
 

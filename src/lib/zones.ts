@@ -61,7 +61,6 @@ export function zoneLabels(t: Dict): string[] {
 
 /**
  * Text color for a form state, the source of truth for STATE-colored copy (the
- * /fitness stat tiles, the PMC chart's TSB tooltip, the training log's form
- * strip). The PMC chart's decorative TSB background bands are a separate
- * palette; this one is for text.
+ * performance stats and the training log's form strip). This palette is for
+ * text, not decorative chart bands.
  */

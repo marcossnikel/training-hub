@@ -89,9 +89,6 @@ export default defineConfig({
       // read-only specs need no login; auth.spec.ts covers login/logout.
       AUTH_PASSWORD: "e2e-owner-password",
       AUTH_SECRET: "e2e-signing-secret-please-do-not-reuse",
-      // Health ingest machine token, so the health spec can POST snapshots to
-      // /api/health/ingest end-to-end (the endpoint is CLOSED without it).
-      HEALTH_INGEST_SECRET: "e2e-health-ingest-secret",
     },
   },
 });

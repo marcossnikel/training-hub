@@ -60,33 +60,6 @@ export async function setWeeklyDigest(text: string): Promise<WeeklyDigest> {
   return value;
 }
 
-export interface ReadinessNarrative {
-  generatedAt: string;
-  text: string;
-}
-
-const READINESS_NARRATIVE_KEY = "readiness_narrative";
-
-export async function getReadinessNarrative(): Promise<ReadinessNarrative | null> {
-  const raw = await getMeta(READINESS_NARRATIVE_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<ReadinessNarrative>;
-    if (typeof parsed.text === "string" && typeof parsed.generatedAt === "string") {
-      return { generatedAt: parsed.generatedAt, text: parsed.text };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export async function setReadinessNarrative(text: string): Promise<ReadinessNarrative> {
-  const value: ReadinessNarrative = { generatedAt: new Date().toISOString(), text };
-  await setMeta(READINESS_NARRATIVE_KEY, JSON.stringify(value));
-  return value;
-}
-
 /** Minimal fields for the weekly digest context, confirmed activities only. */
 export interface DigestActivity {
   name: string | null;

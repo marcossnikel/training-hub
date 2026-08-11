@@ -190,7 +190,7 @@ export async function listActivitiesMissingStravaData(
 
 /**
  * Confirmed activities from a local calendar day onwards, with their persisted
- * load, for the /fitness totals table. Rows come back per activity and ungrouped
+ * totals, for the Performance page. Rows come back per activity and ungrouped
  * on purpose: every week/month bucket is built in JS from the athlete's local day
  * (`started_at_local`, falling back to `started_at` — see `periodTotals`),
  * because grouping with SQL strftime would bucket by UTC and drift each period
