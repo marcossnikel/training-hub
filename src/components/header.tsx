@@ -9,20 +9,19 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n-provider";
 import { AutoSync, SyncButton } from "@/components/sync-button";
-import { logoutAction, setLangAction } from "@/lib/actions";
+import { setLangAction } from "@/lib/actions";
+import { authClient } from "@/lib/auth-client";
 import type { Lang } from "@/lib/i18n";
 
 /**
  * Auth control state passed from the server layout:
- *  - "disabled": auth is unconfigured (dev/e2e) — show nothing.
  *  - "out": auth is configured, no valid session — show a Log in link.
  *  - "in": authenticated owner — show a Log out button (submits logoutAction).
  */
-export type AuthControl = "disabled" | "in" | "out";
+export type AuthControl = "in" | "out";
 
 function AuthButton({ state }: { state: AuthControl }) {
   const { t } = useI18n();
-  if (state === "disabled") return null;
   if (state === "out") {
     return (
       <Button asChild variant="ghost" size="sm">
@@ -34,12 +33,21 @@ function AuthButton({ state }: { state: AuthControl }) {
     );
   }
   return (
-    <form action={logoutAction}>
-      <Button type="submit" variant="ghost" size="sm">
-        <LogOutIcon data-icon="inline-start" />
-        <span className="sr-only sm:not-sr-only">{t.login.logOut}</span>
-      </Button>
-    </form>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={async () => {
+        try {
+          await authClient.signOut();
+        } finally {
+          window.location.assign("/login");
+        }
+      }}
+    >
+      <LogOutIcon data-icon="inline-start" />
+      <span className="sr-only sm:not-sr-only">{t.login.logOut}</span>
+    </Button>
   );
 }
 
