@@ -1,7 +1,8 @@
 "use server";
 
 import { after } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { NONE } from "./constants";
 import { splitErrorText, isLang } from "./i18n";
 import { LANG_COOKIE } from "./lang";
@@ -43,7 +44,7 @@ import {
 import { parseFiniteNumber, parseId, validateSplits } from "./validate";
 import { fail, type ActionResult } from "./action-result";
 import { logger } from "./telemetry";
-import { requireAuth } from "./auth";
+import { auth, requireAuth } from "./auth";
 import { dict, inRange, normalizeJournal, normalizeSplits, refreshAll } from "./action-helpers";
 import type { Feeling, SplitInput } from "./types";
 
@@ -59,6 +60,16 @@ export async function setLangAction(lang: string): Promise<void> {
     sameSite: "lax",
   });
   refreshAll();
+}
+
+// ---------------------------------------------------------------------------
+// Authentication
+// ---------------------------------------------------------------------------
+
+/** Revoke the current database session, then return to the public sign-in page. */
+export async function logoutAction(): Promise<never> {
+  await auth.api.signOut({ headers: await headers() });
+  redirect("/login");
 }
 
 // ---------------------------------------------------------------------------

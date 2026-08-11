@@ -9,8 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n-provider";
 import { AutoSync, SyncButton } from "@/components/sync-button";
-import { setLangAction } from "@/lib/actions";
-import { authClient } from "@/lib/auth-client";
+import { logoutAction, setLangAction } from "@/lib/actions";
 import type { Lang } from "@/lib/i18n";
 
 /**
@@ -33,21 +32,12 @@ function AuthButton({ state }: { state: AuthControl }) {
     );
   }
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={async () => {
-        try {
-          await authClient.signOut();
-        } finally {
-          window.location.assign("/login");
-        }
-      }}
-    >
-      <LogOutIcon data-icon="inline-start" />
-      <span className="sr-only sm:not-sr-only">{t.login.logOut}</span>
-    </Button>
+    <form action={logoutAction}>
+      <Button type="submit" variant="ghost" size="sm">
+        <LogOutIcon data-icon="inline-start" />
+        <span className="sr-only sm:not-sr-only">{t.login.logOut}</span>
+      </Button>
+    </form>
   );
 }
 
