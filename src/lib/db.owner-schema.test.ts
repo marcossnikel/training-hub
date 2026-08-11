@@ -56,7 +56,13 @@ describe("#23 fresh owner schema", () => {
     ]) {
       expect(names.has(table)).toBe(true);
     }
-    for (const retired of ["health_metrics", "activity_load"]) {
+    for (const retired of [
+      "strava_auth",
+      "athlete_thresholds",
+      "app_meta",
+      "health_metrics",
+      "activity_load",
+    ]) {
       expect(names.has(retired)).toBe(false);
     }
   });
@@ -73,6 +79,14 @@ describe("#23 fresh owner schema", () => {
         {
           sql: "INSERT INTO shoes (user_id, name, strava_gear_id) VALUES (?, ?, ?)",
           args: ["owner-a", "A", "gear-1"],
+        },
+        {
+          sql: "INSERT INTO bikes (user_id, name, strava_gear_id) VALUES (?, ?, ?)",
+          args: ["owner-a", "A bike", "bike-1"],
+        },
+        {
+          sql: "INSERT INTO bikes (user_id, name, strava_gear_id) VALUES (?, ?, ?)",
+          args: ["owner-b", "B bike", "bike-1"],
         },
         {
           sql: "INSERT INTO shoes (user_id, name, strava_gear_id) VALUES (?, ?, ?)",
@@ -101,6 +115,49 @@ describe("#23 fresh owner schema", () => {
         args: ["owner-a", "duplicate", "gear-1"],
       })
     ).rejects.toThrow();
+    await expect(
+      db.client.execute({
+        sql: "INSERT INTO bikes (user_id, name, strava_gear_id) VALUES (?, ?, ?)",
+        args: ["owner-a", "duplicate", "bike-1"],
+      })
+    ).rejects.toThrow();
+  });
+
+  it("has an auth bridge and every declared root relation", async () => {
+    const foreignKeys = async (table: string) => {
+      const result = await db.client.execute(
+        `SELECT \"table\", on_delete FROM pragma_foreign_key_list('${table}')`
+      );
+      return result.rows.map((row) => ({
+        table: String(row.table),
+        onDelete: String(row.on_delete),
+      }));
+    };
+    expect(await foreignKeys("users")).toContainEqual({ table: "user", onDelete: "CASCADE" });
+    for (const table of [
+      "athlete_profiles",
+      "user_meta",
+      "shoes",
+      "bikes",
+      "activities",
+      "athlete_goals",
+      "strava_connections",
+      "oauth_states",
+    ]) {
+      expect(await foreignKeys(table)).toContainEqual({ table: "users", onDelete: "CASCADE" });
+    }
+    expect(await foreignKeys("activity_splits")).toContainEqual({
+      table: "activities",
+      onDelete: "CASCADE",
+    });
+    for (const table of [
+      "activity_streams",
+      "activity_metrics",
+      "activity_best_efforts",
+      "activity_curve_points",
+    ]) {
+      expect(await foreignKeys(table)).toContainEqual({ table: "activities", onDelete: "CASCADE" });
+    }
   });
 
   it("cascades activity-derived data and root-owned data", async () => {
@@ -142,11 +199,45 @@ describe("#23 fresh owner schema", () => {
       );
       expect(Number(result.rows[0].count)).toBe(0);
     }
+    await db.client.batch(
+      [
+        { sql: "INSERT INTO athlete_profiles (user_id) VALUES (?)", args: ["owner-b"] },
+        {
+          sql: "INSERT INTO user_meta (user_id, key, value) VALUES (?, ?, ?)",
+          args: ["owner-b", "key", "value"],
+        },
+        {
+          sql: "INSERT INTO athlete_goals (user_id, name) VALUES (?, ?)",
+          args: ["owner-b", "goal"],
+        },
+        {
+          sql: "INSERT INTO strava_connections (id, user_id) VALUES (?, ?)",
+          args: ["connection-b", "owner-b"],
+        },
+        {
+          sql: "INSERT INTO oauth_states (state_hash, user_id, connection_intent, redirect_key, expires_at) VALUES (?, ?, ?, ?, ?)",
+          args: ["state-b", "owner-b", "connect", "local", "2099-01-01"],
+        },
+      ],
+      "write"
+    );
     await db.client.execute({ sql: "DELETE FROM users WHERE id = ?", args: ["owner-b"] });
     const remaining = await db.client.execute(
       "SELECT COUNT(*) AS count FROM activities WHERE user_id = 'owner-b'"
     );
     expect(Number(remaining.rows[0].count)).toBe(0);
+    for (const table of [
+      "athlete_profiles",
+      "user_meta",
+      "athlete_goals",
+      "strava_connections",
+      "oauth_states",
+    ]) {
+      const result = await db.client.execute(
+        `SELECT COUNT(*) AS count FROM ${table} WHERE user_id = 'owner-b'`
+      );
+      expect(Number(result.rows[0].count)).toBe(0);
+    }
   });
 
   it("indexes the owner access paths and has no singleton id=1 tenant checks", async () => {
@@ -159,11 +250,12 @@ describe("#23 fresh owner schema", () => {
       "idx_shoes_owner_retired_name",
       "idx_bikes_owner_retired_name",
       "idx_goals_owner_race_date",
+      "idx_oauth_states_owner_expiry",
     ]) {
       expect(names.has(index)).toBe(true);
     }
     const sql = await db.client.execute(
-      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name IN ('activities', 'shoes', 'bikes', 'athlete_goals', 'athlete_profiles', 'user_meta')"
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name IN ('activities', 'shoes', 'bikes', 'athlete_goals', 'athlete_profiles', 'user_meta', 'strava_connections', 'oauth_states')"
     );
     expect(sql.rows.map((row) => String(row.sql)).join(" ")).not.toMatch(
       /CHECK\\s*\\(\\s*id\\s*=\\s*1\\s*\\)/i
@@ -186,5 +278,20 @@ describe("#23 fresh owner schema", () => {
     );
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("remote databases are never reset");
+    for (const env of [
+      { TURSO_AUTH_TOKEN: "remote-token" },
+      { VERCEL_ENV: "preview" },
+      { VERCEL_ENV: "production" },
+    ]) {
+      const refused = spawnSync(
+        process.execPath,
+        [reset, "--confirm-reset-disposable-data", "--dry-run"],
+        {
+          env: { ...process.env, TRAINING_HUB_ENV: "local", TURSO_DATABASE_URL: "", ...env },
+          encoding: "utf8",
+        }
+      );
+      expect(refused.status).toBe(1);
+    }
   });
 });

@@ -190,29 +190,6 @@ const OWNER_SCHEMA: string[] = [
      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
      UNIQUE(user_id, strava_athlete_id)
    )`,
-  // Read compatibility for the existing Strava module. It has no id=1 CHECK or
-  // tenant data constraint; #26 moves the module to strava_connections.
-  `CREATE TABLE IF NOT EXISTS strava_auth (
-     id INTEGER PRIMARY KEY,
-     access_token TEXT,
-     refresh_token TEXT,
-     expires_at INTEGER
-   )`,
-  `CREATE TABLE IF NOT EXISTS athlete_thresholds (
-     id INTEGER PRIMARY KEY,
-     max_hr INTEGER,
-     resting_hr INTEGER,
-     lthr INTEGER,
-     threshold_pace_s_per_km REAL,
-     ftp_w INTEGER,
-     resting_hr_estimated INTEGER NOT NULL DEFAULT 1,
-     ftp_provisional INTEGER NOT NULL DEFAULT 1,
-     updated_at TEXT
-   )`,
-  `CREATE TABLE IF NOT EXISTS app_meta (
-     key TEXT PRIMARY KEY,
-     value TEXT NOT NULL
-   )`,
   `CREATE TABLE IF NOT EXISTS oauth_states (
      state_hash TEXT PRIMARY KEY,
      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
