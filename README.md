@@ -67,6 +67,14 @@ npm run verify
 scope, acceptance criteria, dependencies, and delivery status; do not revive
 historical plans from Git history as an active backlog.
 
+## Environments and deployment
+
+Read [the environment boundary policy](docs/environment-boundaries.md) before
+using remote databases, Vercel, or Stripe tooling. Local and E2E work are
+validated against disposable file databases. Preview/Vercel and Stripe CLI
+authentication are explicitly tracked blockers, not setup steps agents may
+work around.
+
 ## Data handling
 
 `data/` (local SQLite and uploads) and `.env.local` are ignored by Git. The
