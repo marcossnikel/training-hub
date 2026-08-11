@@ -33,6 +33,16 @@ npm run check:env
 npm run verify
 ```
 
+## Disposable schema reset
+
+The #23 fresh owner-schema cutover is intentionally local/E2E-only. A human may
+explicitly reset the default disposable local database with `npm run db:reset`.
+The reset command accepts only `file:data/app.db` or `file:data/e2e.db`, requires
+its confirmation flag, and refuses `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`,
+remote URLs, and `VERCEL_ENV=preview` or `production`. It must never be used for shared, preview, or
+production data; those environments require a separately approved migration and
+rollback plan after real beta data exists.
+
 It defaults to `local`, never reads or prints secret values, and rejects:
 
 - remote database URLs or `TURSO_*` in local/E2E;

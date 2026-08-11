@@ -7,6 +7,7 @@
  *   npm run seed:clear  remove only seeded activities
  */
 import { client, ensureMigrated } from "../src/lib/db";
+import { BASELINE_BIKES, BASELINE_SHOES } from "../src/lib/baseline";
 import type { Feeling } from "../src/lib/types";
 
 const SEED_MARKER = '{"seed":true}';
@@ -49,6 +50,27 @@ async function clearSeeds(): Promise<number> {
 async function main() {
   assertLocalDb();
   await ensureMigrated();
+
+  // Fixture data is intentionally seeded only by this explicit disposable-data
+  // script, never by schema bootstrap. #24/#25 replace this temporary owner with
+  // the authenticated fixture owner used by the E2E harness.
+  const fixtureOwner = "legacy-local-owner";
+  const existingShoes = await client.execute("SELECT COUNT(*) AS count FROM shoes");
+  if (Number(existingShoes.rows[0].count) === 0) {
+    await client.batch(
+      [
+        ...BASELINE_SHOES.map((shoe) => ({
+          sql: "INSERT INTO shoes (user_id, name, role, initial_km) VALUES (?, ?, ?, ?)",
+          args: [fixtureOwner, shoe.name, shoe.role, shoe.initial_km],
+        })),
+        ...BASELINE_BIKES.map((bike) => ({
+          sql: "INSERT INTO bikes (user_id, name, role, photo_path, initial_km) VALUES (?, ?, ?, ?, ?)",
+          args: [fixtureOwner, bike.name, bike.role, bike.photo, bike.initial_km],
+        })),
+      ],
+      "write"
+    );
+  }
 
   if (process.argv.includes("--clear")) {
     const removed = await clearSeeds();

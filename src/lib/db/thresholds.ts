@@ -4,7 +4,8 @@
 import { exec, one } from "./helpers";
 import { THRESHOLD_DEFAULTS } from "../baseline";
 import type { AthleteThresholds } from "../fitness";
-import { currentAthlete, requireAthlete } from "../identity";
+
+const LEGACY_COMPATIBILITY_USER_ID = "legacy-local-owner";
 
 interface AthleteThresholdsRow {
   max_hr: number | null;
@@ -21,8 +22,8 @@ export async function getAthleteThresholds(): Promise<AthleteThresholds> {
   const row = await one<AthleteThresholdsRow>(
     `SELECT max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
             resting_hr_estimated, ftp_provisional, updated_at
-     FROM athlete_thresholds WHERE id = ?`,
-    [currentAthlete().id]
+     FROM athlete_profiles WHERE user_id = ?`,
+    [LEGACY_COMPATIBILITY_USER_ID]
   );
   if (!row) return { ...THRESHOLD_DEFAULTS };
   return {
@@ -49,11 +50,11 @@ export interface AthleteThresholdFields {
 
 export async function saveAthleteThresholds(fields: AthleteThresholdFields): Promise<void> {
   await exec(
-    `INSERT INTO athlete_thresholds
-       (id, max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
+    `INSERT INTO athlete_profiles
+       (user_id, max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
         resting_hr_estimated, ftp_provisional, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
+     ON CONFLICT(user_id) DO UPDATE SET
        max_hr = excluded.max_hr,
        resting_hr = excluded.resting_hr,
        lthr = excluded.lthr,
@@ -63,7 +64,7 @@ export async function saveAthleteThresholds(fields: AthleteThresholdFields): Pro
        ftp_provisional = excluded.ftp_provisional,
        updated_at = excluded.updated_at`,
     [
-      requireAthlete().id,
+      LEGACY_COMPATIBILITY_USER_ID,
       fields.maxHr,
       fields.restingHr,
       fields.lthr,
