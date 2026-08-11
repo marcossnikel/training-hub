@@ -54,10 +54,16 @@ npm run seed:clear
 Write scripts reject remote database URLs by default. Do not override that
 guard unless the assigned GitHub issue explicitly requires it.
 
-After pulling the prototype-state removal, reset only a disposable local or E2E
-database before reseeding (for local development, remove `data/app.db` and its
-SQLite sidecar files, then run `npm run seed`). Never reset a remote, shared,
-preview, or production database.
+After pulling the owner-schema cutover, reset only a disposable local or E2E
+database with the explicit command below, then run `npm run seed`. The command
+accepts only `data/app.db` or `data/e2e.db`, rejects `TURSO_DATABASE_URL`, and
+will not run in preview or production. Never reset a remote, shared, preview,
+or production database.
+
+```bash
+npm run db:reset
+npm run seed
+```
 
 ## Verification
 
