@@ -97,29 +97,37 @@ issue names the primitive, its content, and each applicable state.
 ### Minimum state and interaction matrix
 
 Every interactive or data-backed pattern declares the applicable entries below;
-“not applicable” needs a reason.
+“not applicable” needs a reason. Each applicable microinteraction records its
+trigger, feedback, duration/intent, keyboard behavior, and reduced-motion
+fallback. Use a bounded duration: hover/focus feedback is 100–150 ms; press or
+pending acknowledgement is immediate and any visual transition is at most 150
+ms; loading-to-content or route/state feedback is at most 200 ms. Longer
+movement needs an issue-specific reason and a recording in review. “Short” is
+not an executable duration.
 
 | State | Contract |
 | --- | --- |
+| Desktop/default | explicit wide-screen layout, reading order, primary decision, and evidence/source access; it is not inferred from narrow behavior |
 | Default | clear label, hierarchy, and evidence/source access |
-| Hover/focus | optional hover; visible focus ring and no loss of text contrast |
-| Press/pending | immediate acknowledgement, duplicate-submit prevention, and retained context |
-| Loading | stable skeleton/placeholder that preserves anticipated hierarchy; never fake metrics |
+| Hover/focus | trigger is pointer entry or keyboard focus; use 100–150 ms nonessential tone/opacity feedback, visible focus ring, and no loss of contrast; keyboard focus gets identical meaning and reduced motion is immediate/static |
+| Press/pending | trigger is activation; acknowledge immediately, prevent duplicate submission, retain context, and limit any visual transition to 150 ms; Enter/Space follows the same path and reduced motion is immediate/static |
+| Loading | trigger is a data/route request; show stable skeleton/placeholder within 200 ms that preserves hierarchy and never fakes metrics; keyboard remains operable where safe and reduced motion uses a static placeholder |
 | Empty/first use | explain absence and one safe next action |
 | Partial/stale | disclose limitation beside affected content, not in a hidden tooltip |
-| Error/retry | specific recoverable message; retry does not discard safe input |
-| Success | concise confirmation and the resulting next location/state |
+| Error/retry | specific recoverable message; retry does not discard safe input; error/result feedback appears immediately with at most 200 ms visual transition, is announced to keyboard/screen-reader users, and is static under reduced motion |
+| Success | concise confirmation and resulting location/state; success feedback appears immediately with at most 200 ms visual transition, moves focus when the outcome changes context, and is static under reduced motion |
 | Disabled | visible reason and an accessible explanation, not a dead unlabeled control |
 | Narrow | content order, wrapping/scroll strategy, and touch targets remain usable |
-| Keyboard | logical Tab order, Enter/Space activation, Escape for dismissible layers, and focus return |
-| Reduced motion | equivalent static feedback; no essential meaning depends on animation |
+| Keyboard | logical Tab order, Enter/Space activation, Escape for dismissible layers, focus return, and the same feedback meaning as pointer interaction |
+| Reduced motion | equivalent immediate/static feedback; no essential meaning depends on animation |
 
 ## 5. Interaction, motion, responsiveness, and accessibility
 
 - Motion is feedback, not decoration. Declare its trigger, affected element,
-  purpose, and completion state. Use short opacity/color/position transitions
-  only when they clarify cause and effect; never use autoplay, parallax, or
-  looping decoration on product surfaces.
+  purpose, completion state, bounded duration, keyboard path, and reduced-motion
+  fallback. Apply the matrix timing standard unless the issue records a reason
+  for a different bound. Never use autoplay, parallax, or looping decoration on
+  product surfaces.
 - Under `prefers-reduced-motion: reduce`, remove nonessential movement and use
   an immediate state change or static affordance. Never delay a result for an
   animation.
