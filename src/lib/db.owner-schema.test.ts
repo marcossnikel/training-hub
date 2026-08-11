@@ -158,6 +158,14 @@ describe("#23 fresh owner schema", () => {
     ]) {
       expect(await foreignKeys(table)).toContainEqual({ table: "activities", onDelete: "CASCADE" });
     }
+    expect(await foreignKeys("activities")).toContainEqual({
+      table: "bikes",
+      onDelete: "NO ACTION",
+    });
+    expect(await foreignKeys("activity_splits")).toContainEqual({
+      table: "shoes",
+      onDelete: "NO ACTION",
+    });
   });
 
   it("cascades activity-derived data and root-owned data", async () => {
