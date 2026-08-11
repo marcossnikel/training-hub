@@ -295,14 +295,14 @@ unavailable preview or a real Strava account was used.
 
 | Issue | Bounded responsibility / dependency |
 | --- | --- |
-| #22 | Accept D-012 after Better Auth/Next 16/libSQL spike; introduce local users, database sessions, email/recovery design, server `requireCurrentUser`, and two-user auth tests. No BYO UI. |
-| #23 | Replace singleton data model and repositories with owner-scoped schema/query predicates; fresh local/E2E reset under D-005; schema and negative-isolation tests. Depends #22. |
-| #24 | Owner-scope activities, derived data, cache keys, actions/pages/routes and private blobs; complete two-account E2E isolation proof. Depends #23. |
-| #25 | Owner-scoped encrypted Strava connection/storage, key-version plumbing, OAuth state binding, token redaction and disconnect internals. Depends #22/#23; no public scope promise. |
-| #26 | BYO Strava onboarding/connection UX after D-013 scope/retention acceptance, including exact user-facing copy and callback environment contract. Depends #25 and D-013. |
-| #27 | Account settings, disconnect/deletion request lifecycle and retention UX after D-013 accepts exact semantics; deletion/recovery drills. Depends #24/#25 and D-013. |
-| #28 | First deterministic insight work only after owner-scoped data and isolation proof; links evidence to the authenticated owner. Depends #24; must not introduce coaching claims. |
-| #50 | Remove/reconcile remaining historical prototype behavior/docs called out in README only after the replacement tenant/auth paths are accepted; it must re-inventory any remaining global assumptions rather than deleting safeguards early. |
+| #22 | Accept D-012 after the Better Auth/Next 16/libSQL spike; implement real accounts and secure session primitives, including email/recovery design and server `requireCurrentUser`. No BYO UI. |
+| #23 | Add owner relations and the core owner-scoped schema; perform the D-005 fresh local/E2E development reset. Depends #22. |
+| #24 | Replace singleton identity in reads and Server Actions with identity derived from the server session. Depends #22/#23; no client-supplied owner identity. |
+| #25 | Owner-scope activity, gear, journal, aggregate, and comparison queries. Depends #23/#24. |
+| #26 | Add encrypted owner-scoped Strava connection storage and signed, owner-bound OAuth state. Depends #22/#23; no BYO UI, public scope, or retention promise. |
+| #27 | Prove tenant isolation and session behavior with the automated and two-account evidence defined above. Depends #22–#26. |
+| #28 | Remove or quarantine obsolete single-user paths after their tenant-aware replacements are accepted. Depends #24–#27. |
+| #50 | Retire prototype generic Anthropic coach surfaces, including code, configuration, and persisted-state disposal under this document’s D-005 migration/reset posture. Depends on the replacement tenant paths; do not retain obsolete global state. |
 
 ## Implementation checklist for the next builder
 
