@@ -1,7 +1,7 @@
 "use server";
 
 import { after } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NONE } from "./constants";
 import { splitErrorText, isLang } from "./i18n";
@@ -44,7 +44,7 @@ import {
 import { parseFiniteNumber, parseId, validateSplits } from "./validate";
 import { fail, type ActionResult } from "./action-result";
 import { logger } from "./telemetry";
-import { authConfigured, createSession, destroySession, requireAuth, verifyPassword } from "./auth";
+import { auth, requireAuth } from "./auth";
 import { dict, inRange, normalizeJournal, normalizeSplits, refreshAll } from "./action-helpers";
 import type { Feeling, SplitInput } from "./types";
 
@@ -63,25 +63,12 @@ export async function setLangAction(lang: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Auth (T1.6) — single-owner password login. The mutating actions below each
-// call requireAuth(); these two manage the session itself and so are NOT gated.
+// Authentication
 // ---------------------------------------------------------------------------
 
-export async function loginAction(formData: FormData): Promise<ActionResult> {
-  const t = await dict();
-  const password = String(formData.get("password") ?? "");
-  // Refuse to authenticate when auth is unconfigured (empty password/secret) —
-  // there is no session to create against an empty secret.
-  if (!authConfigured() || !verifyPassword(password)) {
-    return { ok: false, error: t.login.invalid };
-  }
-  await createSession();
-  // redirect() throws NEXT_REDIRECT, so it must sit outside any try/catch.
-  redirect("/");
-}
-
-export async function logoutAction(): Promise<void> {
-  await destroySession();
+/** Revoke the current database session, then return to the public sign-in page. */
+export async function logoutAction(): Promise<never> {
+  await auth.api.signOut({ headers: await headers() });
   redirect("/login");
 }
 

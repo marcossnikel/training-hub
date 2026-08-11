@@ -28,6 +28,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => {} }),
 }));
+vi.mock("./auth", () => ({ requireAuth: async () => true }));
 // Only the two DB functions saveThresholdsAction touches are stubbed; actions.ts
 // imports many more names from ./db, but none are referenced on this code path.
 vi.mock("./db", () => ({

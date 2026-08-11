@@ -10,7 +10,7 @@ import { Header } from "@/components/header";
 import { countPending } from "@/lib/db";
 import { getLang } from "@/lib/lang";
 import { isStravaConnected, shouldAutoSync, stravaConfigured } from "@/lib/strava";
-import { authConfigured, isAuthenticated } from "@/lib/auth";
+import { requireCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -51,9 +51,7 @@ export default async function RootLayout({
   const connected = await isStravaConnected();
   const configured = stravaConfigured();
   const autoSync = await shouldAutoSync();
-  // Auth control state for the header. When auth is unconfigured (dev/e2e) show
-  // nothing; when configured, reflect whether the owner has a valid session.
-  const auth = !authConfigured() ? "disabled" : (await isAuthenticated()) ? "in" : "out";
+  const auth = (await requireCurrentUser()) ? "in" : "out";
 
   return (
     <html

@@ -14,15 +14,13 @@ import type { Lang } from "@/lib/i18n";
 
 /**
  * Auth control state passed from the server layout:
- *  - "disabled": auth is unconfigured (dev/e2e) — show nothing.
  *  - "out": auth is configured, no valid session — show a Log in link.
  *  - "in": authenticated owner — show a Log out button (submits logoutAction).
  */
-export type AuthControl = "disabled" | "in" | "out";
+export type AuthControl = "in" | "out";
 
 function AuthButton({ state }: { state: AuthControl }) {
   const { t } = useI18n();
-  if (state === "disabled") return null;
   if (state === "out") {
     return (
       <Button asChild variant="ghost" size="sm">

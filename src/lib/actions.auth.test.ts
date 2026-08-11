@@ -1,173 +1,84 @@
-import { createHmac } from "node:crypto";
+import fs from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { LibsqlDialect } from "@libsql/kysely-libsql";
+import { Kysely } from "kysely";
+import { betterAuth } from "better-auth";
 
-// T1.6 — the auth boundary. Node-env unit tests. Two layers are proven here:
-//
-//  1. The auth primitives in ./auth (verifyPassword constant-time correctness;
-//     the session sign/verify HMAC round-trip and its rejection of tampered or
-//     foreign-signed tokens).
-//  2. The gate itself: a MUTATING action (disconnectStravaAction stands in for
-//     all 20) REJECTS an unauthenticated caller when auth is configured, and
-//     ALLOWS it once a valid session cookie is present. It also proves the
-//     graceful-degradation contract: with the secrets unset, auth is disabled
-//     and the action runs exactly as before (this is what keeps dev/e2e green).
-//
-// Mirrors the actions.threshold.test.ts mocking pattern: next/* and ./db are
-// stubbed; ./auth is the REAL module under test. The session cookie value is a
-// mutable stub so each test controls what the request presents.
-
-const mocks = vi.hoisted(() => ({
-  session: { value: undefined as string | undefined },
-  clearStravaAuth: vi.fn(async () => {}),
-  revalidatePath: vi.fn(),
-  after: vi.fn(),
-}));
-
-vi.mock("next/server", () => ({ after: mocks.after }));
-vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("next/headers", () => ({
-  cookies: async () => ({
-    // Only the session cookie is modelled; the lang cookie is absent, so dict()
-    // resolves to English and the unauthorized message is the English string.
-    get: (name: string) =>
-      name === "th_session" && mocks.session.value !== undefined
-        ? { value: mocks.session.value }
-        : undefined,
-    set: () => {},
-    delete: () => {},
-  }),
-}));
-vi.mock("./db", () => ({ clearStravaAuth: mocks.clearStravaAuth }));
-
-import { disconnectStravaAction } from "./actions";
-import { signSession, verifySessionToken, verifyPassword } from "./auth";
-import { dictionaries } from "./i18n";
-
-const UNAUTHORIZED = dictionaries.en.errors.unauthorized;
-
-function configureAuth() {
-  vi.stubEnv("AUTH_PASSWORD", "correct horse battery staple");
-  vi.stubEnv("AUTH_SECRET", "test-signing-secret-0123456789");
-}
+const DB_PATH = "data/auth-unit-test.db";
 
 afterEach(() => {
-  vi.clearAllMocks();
   vi.unstubAllEnvs();
-  mocks.session.value = undefined;
+  globalThis.__trainingHubClient = undefined;
+  for (const suffix of ["", "-shm", "-wal", "-journal"]) {
+    fs.rmSync(`${DB_PATH}${suffix}`, { force: true });
+  }
 });
 
-describe("verifyPassword", () => {
-  it("accepts the exact password and rejects a wrong one", () => {
-    vi.stubEnv("AUTH_PASSWORD", "s3cret");
-    expect(verifyPassword("s3cret")).toBe(true);
-    expect(verifyPassword("s3cret ")).toBe(false);
-    expect(verifyPassword("wrong")).toBe(false);
-  });
+describe("Better Auth database sessions", () => {
+  it("uses application migration 16 and rejects a revoked session on a fresh request", async () => {
+    vi.stubEnv("DATABASE_URL", `file:${DB_PATH}`);
+    vi.stubEnv("TURSO_DATABASE_URL", "");
+    vi.resetModules();
 
-  it("never authenticates against an unset/empty password", () => {
-    vi.stubEnv("AUTH_PASSWORD", "");
-    expect(verifyPassword("")).toBe(false);
-    expect(verifyPassword("anything")).toBe(false);
-  });
-});
+    // Exercise the application migration registry, not Better Auth's schema generator.
+    const { client } = await import("./db/client");
+    const { ensureMigrated } = await import("./db/migrations");
+    await ensureMigrated();
+    const tables = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('user', 'session', 'account', 'verification')"
+    );
+    expect(tables.rows.map((row) => String(row.name)).sort()).toEqual([
+      "account",
+      "session",
+      "user",
+      "verification",
+    ]);
 
-describe("session sign/verify round-trip", () => {
-  it("verifies a token it just signed", () => {
-    vi.stubEnv("AUTH_SECRET", "signing-secret");
-    expect(verifySessionToken(signSession())).toBe(true);
-  });
+    const db = new Kysely({ dialect: new LibsqlDialect({ client: client as never }) });
+    const config = {
+      secret: "unit-test-secret-with-at-least-32-characters",
+      baseURL: "http://localhost:3100",
+      database: { db, type: "sqlite" as const, casing: "snake" as const, transaction: true },
+      emailAndPassword: { enabled: true },
+      session: { cookieCache: { enabled: false } },
+    };
+    const auth = betterAuth(config);
 
-  it("rejects a tampered token, a foreign-signed token, and junk", () => {
-    vi.stubEnv("AUTH_SECRET", "signing-secret");
-    const token = signSession();
+    const signedUp = await auth.api.signUpEmail({
+      body: {
+        name: "Athlete A",
+        email: "a@example.test",
+        password: "correct-horse-battery-staple",
+      },
+      asResponse: true,
+    });
+    const cookie = signedUp.headers.get("set-cookie");
+    const token = cookie?.match(/better-auth\.session_token=([^;]+)/)?.[1];
+    expect(signedUp.status).toBe(200);
+    expect(cookie).toContain("HttpOnly");
+    expect(token).toBeTruthy();
 
-    // Flip the last signature character.
-    const tampered = token.slice(0, -1) + (token.endsWith("a") ? "b" : "a");
-    expect(verifySessionToken(tampered)).toBe(false);
+    const sessionRequest = () =>
+      new Request("http://localhost:3100/api/auth/get-session", {
+        headers: { cookie: `better-auth.session_token=${token}` },
+      });
+    const beforeRevocation = await auth.handler(sessionRequest());
+    const beforeSession = await beforeRevocation.json();
+    expect(beforeSession.user.email).toBe("a@example.test");
 
-    // Same payload, a different secret must not verify.
-    vi.stubEnv("AUTH_SECRET", "different-secret");
-    expect(verifySessionToken(token)).toBe(false);
+    await client.execute({
+      sql: "DELETE FROM session WHERE token = ?",
+      args: [beforeSession.session.token],
+    });
+    expect(
+      Number((await client.execute("SELECT COUNT(*) AS count FROM session")).rows[0].count)
+    ).toBe(0);
 
-    expect(verifySessionToken(undefined)).toBe(false);
-    expect(verifySessionToken("not-a-token")).toBe(false);
-  });
-
-  it("rejects any token when no secret is configured", () => {
-    vi.stubEnv("AUTH_SECRET", "signing-secret");
-    const token = signSession();
-    vi.stubEnv("AUTH_SECRET", "");
-    expect(verifySessionToken(token)).toBe(false);
-  });
-});
-
-describe("session token expiry", () => {
-  // The token format is `owner.<issuedAtMs>.<hmac>`. This signs an arbitrary
-  // payload with the real algorithm so a token can carry a chosen issued-at
-  // (or a malformed one) yet still present a VALID signature — isolating the
-  // expiry/structure check from the signature check.
-  const SECRET = "signing-secret";
-  const signToken = (payload: string) =>
-    `${payload}.${createHmac("sha256", SECRET).update(payload).digest("hex")}`;
-  const THIRTY_ONE_DAYS_MS = 31 * 24 * 60 * 60 * 1000;
-
-  it("verifies a token with a fresh issued-at", () => {
-    vi.stubEnv("AUTH_SECRET", SECRET);
-    expect(verifySessionToken(signSession())).toBe(true);
-    // A token issued well within the 30-day window still verifies.
-    const recent = signToken(`owner.${Date.now() - 24 * 60 * 60 * 1000}`);
-    expect(verifySessionToken(recent)).toBe(true);
-  });
-
-  it("rejects a validly-signed token issued past the max age", () => {
-    vi.stubEnv("AUTH_SECRET", SECRET);
-    const expired = signToken(`owner.${Date.now() - THIRTY_ONE_DAYS_MS}`);
-    expect(verifySessionToken(expired)).toBe(false);
-  });
-
-  it("rejects a validly-signed token with a non-numeric issued-at", () => {
-    vi.stubEnv("AUTH_SECRET", SECRET);
-    expect(verifySessionToken(signToken("owner.not-a-number"))).toBe(false);
-  });
-
-  it("rejects a validly-signed token with the wrong number of parts", () => {
-    vi.stubEnv("AUTH_SECRET", SECRET);
-    // Missing the issued-at segment entirely.
-    expect(verifySessionToken(signToken("owner"))).toBe(false);
-  });
-});
-
-describe("mutating action gate (disconnectStravaAction)", () => {
-  it("REJECTS an unauthenticated caller when auth is configured", async () => {
-    configureAuth();
-    mocks.session.value = undefined; // no session cookie
-
-    const result = await disconnectStravaAction();
-
-    expect(result).toEqual({ ok: false, error: UNAUTHORIZED });
-    // The gate must short-circuit BEFORE any mutation runs.
-    expect(mocks.clearStravaAuth).not.toHaveBeenCalled();
-  });
-
-  it("ALLOWS a caller presenting a valid session cookie", async () => {
-    configureAuth();
-    mocks.session.value = signSession(); // valid, freshly minted
-
-    const result = await disconnectStravaAction();
-
-    expect(result).toEqual({ ok: true });
-    expect(mocks.clearStravaAuth).toHaveBeenCalledTimes(1);
-  });
-
-  it("ALLOWS everything when auth is unconfigured (graceful degradation)", async () => {
-    vi.stubEnv("AUTH_PASSWORD", "");
-    vi.stubEnv("AUTH_SECRET", "");
-    mocks.session.value = undefined;
-
-    const result = await disconnectStravaAction();
-
-    expect(result).toEqual({ ok: true });
-    expect(mocks.clearStravaAuth).toHaveBeenCalledTimes(1);
+    // A new auth instance plus a new Request models a later server request, so
+    // this cannot reuse the direct API call's request context or cookie cache.
+    const freshAuth = betterAuth(config);
+    const afterRevocation = await freshAuth.handler(sessionRequest());
+    expect(await afterRevocation.json()).toBeNull();
+    await db.destroy();
   });
 });
