@@ -1,0 +1,107 @@
+name: Product delivery issue
+description: Create a self-contained, PR-sized issue an Orchestrator can execute.
+title: "[Feature]: "
+labels: ["type: task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is the Builder packet. Be concrete enough for a fresh-context
+        agent to implement without inventing product behavior or visual design.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User outcome
+      description: What can the user do, understand, or trust when this is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and non-goals
+      description: Include both what changes and what must not change.
+    validations:
+      required: true
+  - type: textarea
+    id: user_moment
+    attributes:
+      label: User moment and journey
+      description: Who is here, what prompted the visit, how they enter, the primary and secondary path, and what they do or understand when leaving.
+    validations:
+      required: true
+  - type: textarea
+    id: design_intent
+    attributes:
+      label: Design intent and information hierarchy
+      description: State the intended feeling, the one primary decision, supporting evidence, visual density, content priority, and exact copy or copy rules. Link to relevant design-system guidance.
+    validations:
+      required: true
+  - type: textarea
+    id: interaction_states
+    attributes:
+      label: Interaction and state matrix
+      description: Cover default, hover/focus, press, loading/skeleton, empty/first-use, partial or stale data, error/retry, success, disabled, and narrow-screen states. For motion, specify trigger, feedback, purpose, keyboard behavior, and reduced-motion fallback.
+      placeholder: |
+        - Default:
+        - Hover/focus and keyboard path:
+        - Press and immediate feedback:
+        - Loading/skeleton:
+        - Empty/first-use:
+        - Partial or stale data:
+        - Error/retry:
+        - Success:
+        - Disabled:
+        - Responsive/narrow screen:
+        - Reduced motion:
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Reference translation and visual proof
+      description: Link each reference, name the specific principle/component to adapt, state what must not be copied, and list required desktop/narrow screenshots or a recording when motion matters.
+      placeholder: |
+        - Reference: [link]
+          Adapt: [specific principle]
+          Do not copy: [boundary]
+        - Required proof: [route, viewport, screenshot/recording]
+    validations:
+      required: true
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Responsive and accessibility contract
+      description: Define semantic labels, keyboard/focus order, contrast requirements, screen-reader behavior, touch targets, and behavior at narrow widths.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Technical and data impact
+      description: Files/systems, data, auth, privacy, Strava, billing, deployment, and rollback/reset implications.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Write observable, testable conditions.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Required validation and acceptance evidence
+      description: Exact automated commands plus manual, accessibility, and visual checks. State the expected evidence, not just the tool name.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and stop conditions
+      description: Dependencies, prohibited actions, credentials/production boundaries, or unresolved decisions.
+    validations:
+      required: true

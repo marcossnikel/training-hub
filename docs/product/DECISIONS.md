@@ -1,0 +1,24 @@
+# Product decision log
+
+**Status key:** Accepted = direction to implement when its issue starts; Provisional = current default, revisit at its trigger; Open = needs a deliberate decision.
+
+| ID | Status | Decision | Why it exists | Revisit when |
+| --- | --- | --- | --- | --- |
+| D-001 | Accepted | Build a focused personal training-intelligence product for self-coached athletes. | The existing analysis surface is strongest when it compares history and explains context; it should not become a generic activity log. | Beta feedback shows a materially different initial user. |
+| D-002 | Accepted | Use BYO Strava developer-app credentials as the initial beta connection path. | The founder's personal credentials cannot be the product default. BYO gives an invited athlete a practical path while the standard integration path is unresolved. | A compliant, approved hosted Strava integration is available. |
+| D-003 | Accepted | Treat BYO Strava as a transparent beta constraint, not a legal or commercial workaround. | Users need clear setup guidance and honest expectations. Strava policy/API use and paid-functionality questions remain a documented launch risk. | Written clarification or approval changes the operating model. |
+| D-004 | Accepted | Make `user`/tenant ownership the root of all product data and connection secrets. | Current code assumes one owner (`id: 1`) and global records; account isolation cannot be added as a page-level check. | Never, except for a deliberately designed organization/team model. |
+| D-005 | Accepted | Start the multi-tenant migration from a fresh development/beta dataset unless a user-data migration is explicitly required. | The founder exported the only must-keep shoe-mileage data and accepts rebuilding the current single-user database. This reduces migration risk. | A real beta dataset exists and a future migration must preserve it. |
+| D-006 | Accepted | Keep launch insights deterministic, explainable, and evidence-linked; AI is secondary presentation, not the source of truth. | It produces useful value without depending on opaque recommendations or unresolved data-use assumptions. | A reviewed product/policy decision expands the allowed AI role. |
+| D-007 | Accepted | The first paid offer is one simple monthly beta plan, targeted around US$5/month, after the product loop is working. | Simple positioning is enough for an invited beta; billing should not lead architecture. | Payment readiness, local tax requirements, or beta feedback require a change. |
+| D-008 | Accepted | Use Stripe Checkout, Customer Portal, and verified webhooks for billing; begin in test mode only. | It limits custom billing surface and lets agents exercise realistic flows safely. | The Billing epic begins; live-mode activation requires explicit founder approval. |
+| D-009 | Accepted | Every implementation issue must include an automated validation plan and manual evidence; feature builders fix failures they introduce. | The desired agent workflow needs reproducible gates, not confidence-only handoffs. | The Platform & Quality agent establishes the actual baseline command set. |
+| D-010 | Provisional | Use separate local, E2E, preview/staging, and production data/secrets boundaries. | A multi-user product cannot safely share development or preview data with production. | Platform assessment selects hosting and test infrastructure. |
+| D-011 | Provisional | No production name/domain decision yet; keep Training Hub as the internal working name. | The product thesis is clearer than the final brand at this stage. | Before landing-page/domain implementation. |
+| D-012 | Open | Decide the account/auth provider and recovery model. | The current password gate is not user authentication; provider choice affects sessions, email, deletion, and tests. | At the start of [#22](https://github.com/marcossnikel/training-hub/issues/22), after Platform & Quality supplies options and trade-offs. |
+| D-013 | Open | Define the minimum Strava scopes, retention window, and exact deletion semantics. | These are privacy and onboarding promises, not merely implementation details. | Before [#26](https://github.com/marcossnikel/training-hub/issues/26) and [#27](https://github.com/marcossnikel/training-hub/issues/27) merge. |
+| D-014 | Open | Confirm whether the first beta has a manual invite/waitlist gate before self-serve sign-up. | A small invited cohort may be safer while BYO setup and support are still being learned. | Before landing page and public beta release. |
+
+## Decision protocol
+
+Product & Architecture owns the intent and acceptance criteria. Platform & Quality owns feasibility, security, environments, and reproducible verification. A feature builder may propose a change, but does not silently overturn an Accepted decision: record the trade-off here and obtain a new decision before implementation proceeds.
