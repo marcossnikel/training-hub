@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
@@ -23,6 +24,12 @@ function filesUnder(relative: string): string[] {
   });
 }
 
+function committedConfigArtifacts(): string[] {
+  return execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" })
+    .split("\n")
+    .filter((file) => /(^|\/)\.env(?:\.[^/]+)?$|(?:^|\/)\w+\.config\.[^/]+$/.test(file));
+}
+
 describe("retired prototype coach", () => {
   it("has no coach SDK, configuration, action, UI, or persistence references in product code", () => {
     const files = filesUnder("src").filter(
@@ -44,5 +51,16 @@ describe("retired prototype coach", () => {
     expect(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).not.toContain(
       "@anthropic-ai/sdk"
     );
+  });
+
+  it("has no retired provider configuration in committed environment or config templates", () => {
+    const artifacts = committedConfigArtifacts();
+    expect(artifacts).toContain(".env.example");
+
+    for (const file of artifacts) {
+      const text = fs.readFileSync(path.join(ROOT, file), "utf8");
+      expect(text, file).not.toContain("ANTHROPIC_API_KEY");
+      expect(text, file).not.toContain("@anthropic-ai/sdk");
+    }
   });
 });
