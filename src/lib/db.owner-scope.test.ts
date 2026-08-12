@@ -150,4 +150,15 @@ describe("owner-scoped domain access", () => {
     expect(activity?.bike_id).toBeNull();
     expect((await db.listGoals(ownerA)).map((goal) => goal.id)).toEqual([goalA]);
   });
+
+  it("excludes a malformed cross-owner bike reference from mileage aggregates", async () => {
+    await db.client.execute({
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, bike_id)
+            VALUES (?, ?, 'Ride', ?, ?, 'confirmed', ?)`,
+      args: [ownerB.userId, "Forged bike ride", "2026-08-02T12:00:00Z", 42, bikeA],
+    });
+
+    const bike = await db.getBike(ownerA, bikeA);
+    expect(bike).toMatchObject({ current_km: 0, ride_count: 0, indoor_km: 0, outdoor_km: 0 });
+  });
 });

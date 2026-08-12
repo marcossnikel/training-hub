@@ -22,6 +22,7 @@ LEFT JOIN (
     SUM(CASE WHEN a.sport_type != 'VirtualRide' THEN a.distance_km ELSE 0 END) AS outdoor,
     COUNT(*) AS rides
   FROM activities a
+  JOIN bikes owner_bike ON owner_bike.id = a.bike_id AND owner_bike.user_id = a.user_id
   WHERE a.status = 'confirmed' AND a.bike_id IS NOT NULL
   GROUP BY a.bike_id
 ) m ON m.bike_id = b.id
