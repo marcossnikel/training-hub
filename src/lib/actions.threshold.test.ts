@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => {
       ftpProvisional: false,
       updatedAt: "2026-01-01T00:00:00Z",
     })),
+    requireCurrentUser: vi.fn(async (): Promise<{ userId: string } | null> => ({
+      userId: "owner-a",
+    })),
     revalidatePath: vi.fn(),
   };
 });
@@ -28,7 +31,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => {} }),
 }));
-vi.mock("./auth", () => ({ requireCurrentUser: async () => ({ userId: "owner-a" }) }));
+vi.mock("./auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
 // Only the two DB functions saveThresholdsAction touches are stubbed; actions.ts
 // imports many more names from ./db, but none are referenced on this code path.
 vi.mock("./db", () => ({
@@ -58,6 +61,16 @@ afterEach(() => {
 });
 
 describe("saveThresholdsAction (T3.7)", () => {
+  it("rejects a guest before reading or writing domain thresholds", async () => {
+    mocks.requireCurrentUser.mockResolvedValueOnce(null);
+
+    const result = await saveThresholdsAction(VALID);
+
+    expect(result.ok).toBe(false);
+    expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
+  });
+
   it("persists thresholds synchronously and returns without awaiting the recompute", async () => {
     const result = await saveThresholdsAction(VALID);
 

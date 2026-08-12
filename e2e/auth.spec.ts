@@ -23,6 +23,14 @@ test.describe("auth", () => {
     expect(cookies.some((c) => c.name.includes("session_token"))).toBe(false);
   });
 
+  test("a guest is redirected before a protected page renders domain data", async ({ page }) => {
+    await page.goto("/settings");
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toHaveCount(0);
+    await expect(page.getByText("Morning Easy Run")).toHaveCount(0);
+  });
+
   test("sign-up creates a session and logout returns to sign-in", async ({ page }) => {
     await page.goto("/sign-up");
     await page.getByLabel("Name").fill("Guest Athlete");
