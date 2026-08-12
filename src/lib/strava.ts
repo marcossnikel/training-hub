@@ -387,15 +387,16 @@ export function parseActivityDetail(json: string | null): StravaActivityDetail |
  * matching stored count means this activity is done.
  */
 async function cacheBestEfforts(
+  owner: OwnerContext,
   activityId: number,
   detail: StravaActivityDetail | null
 ): Promise<void> {
   const rows = bestEffortRows(detail?.best_efforts);
   if (rows.length === 0) return;
   try {
-    const [stored] = await listBestEffortCounts(activityId);
+    const [stored] = await listBestEffortCounts(owner, activityId);
     if ((stored?.n ?? 0) >= rows.length) return;
-    await upsertActivityBestEfforts(activityId, rows);
+    await upsertActivityBestEfforts(owner, activityId, rows);
   } catch (error) {
     logger.error("strava.cacheBestEfforts", { error, activityId });
   }
@@ -416,15 +417,15 @@ export async function ensureActivityDetail(
 ): Promise<StravaActivityDetail | null> {
   if (activity.detail_json) {
     const cached = parseActivityDetail(activity.detail_json);
-    await cacheBestEfforts(activity.id, cached);
+    await cacheBestEfforts(owner, activity.id, cached);
     return cached;
   }
   if (!activity.strava_id) return null;
   if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
   try {
     const detail = await apiGet<StravaActivityDetail>(owner, `/activities/${activity.strava_id}`);
-    await saveActivityDetail(activity.id, JSON.stringify(detail));
-    await cacheBestEfforts(activity.id, detail);
+    await saveActivityDetail(owner, activity.id, JSON.stringify(detail));
+    await cacheBestEfforts(owner, activity.id, detail);
     return detail;
   } catch (error) {
     logger.error("strava.ensureActivityDetail", { error, activityId: activity.id });
@@ -462,17 +463,19 @@ async function cacheStreamMetrics(
   try {
     const streams = normalizeStreams(raw, FULL_RESOLUTION);
     if (!streams) return;
-    const activity = await getMetricsActivity(activityId);
+    const activity = await getMetricsActivity(owner, activityId);
     if (!activity) return;
     const metrics = computeStreamMetrics({ streams, activity }, await getAthleteThresholds(owner));
     if (hasAnyMetric(metrics)) {
-      await upsertActivityMetrics(activityId, metrics, fullResMetricsVersion(streams));
+      await upsertActivityMetrics(owner, activityId, metrics, fullResMetricsVersion(streams));
     }
     // Overwriting: the stream scan takes precedence over anything the
     // best-effort seed may already have put in these buckets, whichever ran
     // first (see `saveActivityCurvePoints`). Pinned in strava.test.ts — flipped,
     // a seeded bucket would silently outlive the measurement of it.
-    await saveActivityCurvePoints(activityId, curvePoints(streams, activity), { overwrite: true });
+    await saveActivityCurvePoints(owner, activityId, curvePoints(streams, activity), {
+      overwrite: true,
+    });
   } catch (error) {
     logger.error("strava.cacheStreamMetrics", { error, activityId });
   }
@@ -494,7 +497,7 @@ export async function ensureActivityStreams(
   owner: OwnerContext,
   activity: Pick<Activity, "id" | "strava_id">
 ): Promise<ActivityStreams | null> {
-  const cached = await getActivityStreamsJson(activity.id);
+  const cached = await getActivityStreamsJson(owner, activity.id);
   if (cached) return JSON.parse(cached) as ActivityStreams | null;
   if (!activity.strava_id) return null;
   if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
@@ -514,7 +517,7 @@ export async function ensureActivityStreams(
     // Persist even when null: JSON.stringify(null) === "null", a non-empty
     // marker that getActivityStreamsJson returns and the read above parses back
     // to null — so a streamless activity is checked once, not on every view.
-    await saveActivityStreams(activity.id, JSON.stringify(streams));
+    await saveActivityStreams(owner, activity.id, JSON.stringify(streams));
     return streams;
   } catch (error) {
     logger.error("strava.ensureActivityStreams", { error, activityId: activity.id });
@@ -556,7 +559,7 @@ export interface SyncResult {
  * review queue with one pre-filled split.
  */
 export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
-  const afterEpoch = await latestSyncedStartEpoch();
+  const afterEpoch = await latestSyncedStartEpoch(owner);
   const baselineIso = await getMeta(owner, "baseline_date");
   const baselineMs = baselineIso ? Date.parse(baselineIso) : 0;
 
@@ -576,7 +579,7 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
 
     for (const activity of batch) {
       if (!activity.id || !activity.start_date) continue;
-      if (await activityExistsByStravaId(activity.id)) continue;
+      if (await activityExistsByStravaId(owner, activity.id)) continue;
 
       const distanceKm = activity.distance ? round2(activity.distance / 1000) : 0;
       const movingS = activity.moving_time ?? null;
@@ -597,9 +600,9 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
         status = "pending_review";
         const matchedGearId = activity.gear_id ?? null;
         if (isRideSport(sport)) {
-          bikeId = matchedGearId ? await findBikeIdByGear(matchedGearId) : null;
+          bikeId = matchedGearId ? await findBikeIdByGear(owner, matchedGearId) : null;
         } else {
-          const matchedShoeId = matchedGearId ? await findShoeIdByGear(matchedGearId) : null;
+          const matchedShoeId = matchedGearId ? await findShoeIdByGear(owner, matchedGearId) : null;
           if ((isRunSport(sport) || matchedShoeId) && distanceKm > 0) {
             splits = [{ shoe_id: matchedShoeId, km: distanceKm }];
           }
@@ -633,5 +636,5 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
   }
 
   await setMeta(owner, "last_sync_at", new Date().toISOString());
-  return { imported, pendingNew, pendingTotal: await countPending() };
+  return { imported, pendingNew, pendingTotal: await countPending(owner) };
 }

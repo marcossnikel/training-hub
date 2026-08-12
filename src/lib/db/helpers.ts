@@ -28,18 +28,19 @@ function toPlain<T>(row: Row, columns: string[]): T {
  */
 export function clearGearFromOthers(
   table: "shoes" | "bikes",
+  userId: string,
   gearId: string,
   exceptId?: number
 ): InStatement {
   if (exceptId === undefined) {
     return {
-      sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE strava_gear_id = ?`,
-      args: [gearId],
+      sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id = ?`,
+      args: [userId, gearId],
     };
   }
   return {
-    sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE strava_gear_id = ? AND id != ?`,
-    args: [gearId, exceptId],
+    sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id = ? AND id != ?`,
+    args: [userId, gearId, exceptId],
   };
 }
 

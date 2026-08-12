@@ -8,19 +8,23 @@ SELECT s.*, s.initial_km + COALESCE((
   SELECT SUM(sp.km)
   FROM activity_splits sp
   JOIN activities a ON a.id = sp.activity_id
-  WHERE sp.shoe_id = s.id AND a.status = 'confirmed'
+  WHERE sp.shoe_id = s.id AND a.status = 'confirmed' AND a.user_id = s.user_id
 ), 0) AS current_km
 FROM shoes s
 `;
 
-export async function listShoes(): Promise<ShoeWithMileage[]> {
+export async function listShoes(owner: OwnerContext): Promise<ShoeWithMileage[]> {
   return many<ShoeWithMileage>(
-    `${SHOE_SELECT} ORDER BY (s.retired_at IS NOT NULL), s.name COLLATE NOCASE`
+    `${SHOE_SELECT} WHERE s.user_id = ? ORDER BY (s.retired_at IS NOT NULL), s.name COLLATE NOCASE`,
+    [owner.userId]
   );
 }
 
-export async function getShoe(id: number): Promise<ShoeWithMileage | null> {
-  return one<ShoeWithMileage>(`${SHOE_SELECT} WHERE s.id = ?`, [id]);
+export async function getShoe(owner: OwnerContext, id: number): Promise<ShoeWithMileage | null> {
+  return one<ShoeWithMileage>(`${SHOE_SELECT} WHERE s.id = ? AND s.user_id = ?`, [
+    id,
+    owner.userId,
+  ]);
 }
 
 export interface ShoeFields {
@@ -38,7 +42,7 @@ export async function createShoe(
 ): Promise<number> {
   const statements: InStatement[] = [];
   if (fields.strava_gear_id) {
-    statements.push(clearGearFromOthers("shoes", fields.strava_gear_id));
+    statements.push(clearGearFromOthers("shoes", owner.userId, fields.strava_gear_id));
   }
   statements.push({
     sql: `INSERT INTO shoes (user_id, name, role, initial_km, retirement_km, strava_gear_id, photo_path)
@@ -58,17 +62,18 @@ export async function createShoe(
 }
 
 export async function updateShoe(
+  owner: OwnerContext,
   id: number,
   fields: ShoeFields,
   photoPath: string | null
 ): Promise<void> {
   const statements: InStatement[] = [];
   if (fields.strava_gear_id) {
-    statements.push(clearGearFromOthers("shoes", fields.strava_gear_id, id));
+    statements.push(clearGearFromOthers("shoes", owner.userId, fields.strava_gear_id, id));
   }
   statements.push({
     sql: `UPDATE shoes SET name = ?, role = ?, initial_km = ?, retirement_km = ?,
-          strava_gear_id = ?, photo_path = COALESCE(?, photo_path) WHERE id = ?`,
+          strava_gear_id = ?, photo_path = COALESCE(?, photo_path) WHERE id = ? AND user_id = ?`,
     args: [
       fields.name,
       fields.role,
@@ -77,31 +82,47 @@ export async function updateShoe(
       fields.strava_gear_id,
       photoPath,
       id,
+      owner.userId,
     ],
   });
   await batchWrite(statements);
 }
 
-export async function setShoeRetired(id: number, retired: boolean): Promise<void> {
-  await exec("UPDATE shoes SET retired_at = ? WHERE id = ?", [
+export async function setShoeRetired(
+  owner: OwnerContext,
+  id: number,
+  retired: boolean
+): Promise<void> {
+  await exec("UPDATE shoes SET retired_at = ? WHERE id = ? AND user_id = ?", [
     retired ? new Date().toISOString() : null,
     id,
+    owner.userId,
   ]);
 }
 
-export async function setShoeGear(id: number, gearId: string | null): Promise<void> {
+export async function setShoeGear(
+  owner: OwnerContext,
+  id: number,
+  gearId: string | null
+): Promise<void> {
   const statements: InStatement[] = [];
   if (gearId) {
-    statements.push(clearGearFromOthers("shoes", gearId, id));
+    statements.push(clearGearFromOthers("shoes", owner.userId, gearId, id));
   }
   statements.push({
-    sql: "UPDATE shoes SET strava_gear_id = ? WHERE id = ?",
-    args: [gearId, id],
+    sql: "UPDATE shoes SET strava_gear_id = ? WHERE id = ? AND user_id = ?",
+    args: [gearId, id, owner.userId],
   });
   await batchWrite(statements);
 }
 
-export async function findShoeIdByGear(gearId: string): Promise<number | null> {
-  const row = await one<{ id: number }>("SELECT id FROM shoes WHERE strava_gear_id = ?", [gearId]);
+export async function findShoeIdByGear(
+  owner: OwnerContext,
+  gearId: string
+): Promise<number | null> {
+  const row = await one<{ id: number }>(
+    "SELECT id FROM shoes WHERE user_id = ? AND strava_gear_id = ?",
+    [owner.userId, gearId]
+  );
   return row?.id ?? null;
 }

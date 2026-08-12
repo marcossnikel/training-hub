@@ -29,10 +29,10 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const allGear = connected ? await tryFetchAllGear(owner) : null;
   const gear = allGear?.shoes ?? null;
   const bikeGear = allGear?.bikes ?? null;
-  const shoes = await listShoes();
-  const bikes = await listBikes();
+  const shoes = await listShoes(owner);
+  const bikes = await listBikes(owner);
   const thresholds = await getAthleteThresholds(owner);
-  const goals = await listGoals();
+  const goals = await listGoals(owner);
 
   const justConnected = params.connected === "1";
   const errorKey = typeof params.error === "string" ? params.error : null;

@@ -290,7 +290,7 @@ describe("derived metrics are written from the fetched stream", () => {
     expect(spikeZone).toBeGreaterThan(zoneIndexOf(150, zones));
     expect(spikeCount).toBe(350);
 
-    const stored = await db.getActivityMetrics(activityId);
+    const stored = await db.getActivityMetrics(TEST_OWNER, activityId);
     // 2, not 3: this payload carries no altitude and no `grade_smooth`, so the
     // row is full resolution WITHOUT grade. The stamp reports what the payload
     // held, never what the request asked for — a future re-fetch reads the
@@ -346,7 +346,7 @@ describe("derived metrics are written from the fetched stream", () => {
 
     await strava.ensureActivityStreams({ id: activityId, strava_id: 77701 });
 
-    const stored = await db.getActivityMetrics(activityId);
+    const stored = await db.getActivityMetrics(TEST_OWNER, activityId);
     expect(stored?.metricsVersion).toBe(3);
     // Climbing, so the flat-ground equivalent is quicker than the stored pace,
     // and it is the STORED pace it scales.
@@ -372,9 +372,14 @@ describe("derived metrics are written from the fetched stream", () => {
       args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
-    await db.saveActivityCurvePoints(activityId, [{ kind: "pace", bucket: "400m", value: 999 }], {
-      overwrite: false,
-    });
+    await db.saveActivityCurvePoints(
+      TEST_OWNER,
+      activityId,
+      [{ kind: "pace", bucket: "400m", value: 999 }],
+      {
+        overwrite: false,
+      }
+    );
 
     // 800 m at 300 s/km, 1 Hz: one reachable bucket, at a pace nothing else has.
     const seconds = Array.from({ length: 241 }, (_, i) => i);
@@ -416,7 +421,7 @@ describe("derived metrics are written from the fetched stream", () => {
 
     expect(streams?.cadence).toEqual([80, 81, 82]);
     // Nothing computable from a cadence trace, so no row is invented for it.
-    expect(await db.getActivityMetrics(activityId)).toBeNull();
+    expect(await db.getActivityMetrics(TEST_OWNER, activityId)).toBeNull();
   });
 });
 
@@ -442,13 +447,17 @@ describe("best efforts are mirrored once, not on every view", () => {
 
     await strava.ensureActivityDetail(activity);
     expect(batchSpy).toHaveBeenCalledTimes(1);
-    expect(await db.listBestEffortCounts(activityId)).toEqual([{ activity_id: activityId, n: 2 }]);
+    expect(await db.listBestEffortCounts(TEST_OWNER, activityId)).toEqual([
+      { activity_id: activityId, n: 2 },
+    ]);
 
     await strava.ensureActivityDetail(activity);
     await strava.ensureActivityDetail(activity);
 
     // Still one write across three views: the stored rows were detected and left alone.
     expect(batchSpy).toHaveBeenCalledTimes(1);
-    expect(await db.listBestEffortCounts(activityId)).toEqual([{ activity_id: activityId, n: 2 }]);
+    expect(await db.listBestEffortCounts(TEST_OWNER, activityId)).toEqual([
+      { activity_id: activityId, n: 2 },
+    ]);
   });
 });

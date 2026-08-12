@@ -110,7 +110,7 @@ export async function confirmActivityAction(input: {
   const owner = await requireCurrentUser();
   if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    const activity = await getActivity(input.activityId);
+    const activity = await getActivity(owner, input.activityId);
     if (!activity) return { ok: false, error: t.errors.activityNotFound };
     if (activity.status === "confirmed") return { ok: false, error: t.errors.alreadyConfirmed };
 
@@ -121,9 +121,10 @@ export async function confirmActivityAction(input: {
     const journal = normalizeJournal(input, t);
     if ("error" in journal) return { ok: false, error: journal.error };
 
-    const bikeId = input.bikeId != null && (await getBike(input.bikeId)) ? input.bikeId : null;
+    const bikeId =
+      input.bikeId != null && (await getBike(owner, input.bikeId)) ? input.bikeId : null;
 
-    await confirmActivity(input.activityId, journal, splits, bikeId);
+    await confirmActivity(owner, input.activityId, journal, splits, bikeId);
     // Cache this ONE activity's heart-rate trace before its load is computed.
     // The review page never fetched one, so this is the only chance to cache it.
     // page never fetched one, so every confirm stored the average-HR reading and
@@ -154,13 +155,14 @@ export async function updateJournalAction(input: {
   healthNotes: string;
 }): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    const activity = await getActivity(input.activityId);
+    const activity = await getActivity(owner, input.activityId);
     if (!activity) return { ok: false, error: t.errors.activityNotFound };
     const journal = normalizeJournal(input, t);
     if ("error" in journal) return { ok: false, error: journal.error };
-    await updateActivityJournal(input.activityId, journal);
+    await updateActivityJournal(owner, input.activityId, journal);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -173,14 +175,15 @@ export async function updateSplitsAction(input: {
   splits: SplitInput[];
 }): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    const activity = await getActivity(input.activityId);
+    const activity = await getActivity(owner, input.activityId);
     if (!activity) return { ok: false, error: t.errors.activityNotFound };
     const splits = normalizeSplits(input.splits);
     const splitError = validateSplits(activity, splits);
     if (splitError) return { ok: false, error: splitErrorText(splitError, t) };
-    await replaceActivitySplits(input.activityId, splits);
+    await replaceActivitySplits(owner, input.activityId, splits);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -193,12 +196,13 @@ export async function setActivityBikeAction(
   bikeId: number | null
 ): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    const activity = await getActivity(activityId);
+    const activity = await getActivity(owner, activityId);
     if (!activity) return { ok: false, error: t.errors.activityNotFound };
-    const resolved = bikeId != null && (await getBike(bikeId)) ? bikeId : null;
-    await setActivityBike(activityId, resolved);
+    const resolved = bikeId != null && (await getBike(owner, bikeId)) ? bikeId : null;
+    await setActivityBike(owner, activityId, resolved);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -212,15 +216,16 @@ export async function setActivityRaceAction(input: {
   goalPace: number | null;
 }): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    const activity = await getActivity(input.activityId);
+    const activity = await getActivity(owner, input.activityId);
     if (!activity) return { ok: false, error: t.errors.activityNotFound };
     const goal =
       input.goalPace != null && Number.isFinite(input.goalPace) && input.goalPace > 0
         ? Math.round(input.goalPace)
         : null;
-    await setActivityRace(input.activityId, input.isRace, goal);
+    await setActivityRace(owner, input.activityId, input.isRace, goal);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -386,7 +391,7 @@ export async function saveShoeAction(formData: FormData): Promise<ActionResult> 
     let photoPath: string | null = null;
     const photo = formData.get("photo");
     if (photo instanceof File && photo.size > 0) {
-      photoPath = await storePhoto(photo);
+      photoPath = await storePhoto(owner, photo);
     }
 
     const fields: ShoeFields = {
@@ -398,14 +403,14 @@ export async function saveShoeAction(formData: FormData): Promise<ActionResult> 
     };
 
     if (id) {
-      const existing = await getShoe(id);
+      const existing = await getShoe(owner, id);
       if (!existing) return { ok: false, error: t.errors.shoeNotFound };
-      await updateShoe(id, fields, photoPath);
+      await updateShoe(owner, id, fields, photoPath);
       // A replaced photo orphans the previous asset; clean it up after the
       // response so it never blocks or fails the save (best-effort, logs).
       if (photoPath && existing.photo_path && existing.photo_path !== photoPath) {
         const orphan = existing.photo_path;
-        after(() => deletePhoto(orphan));
+        after(() => deletePhoto(owner, orphan));
       }
     } else {
       await createShoe(owner, fields, photoPath);
@@ -420,10 +425,11 @@ export async function saveShoeAction(formData: FormData): Promise<ActionResult> 
 
 export async function setShoeRetiredAction(id: number, retired: boolean): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getShoe(id))) return { ok: false, error: t.errors.shoeNotFound };
-    await setShoeRetired(id, retired);
+    if (!(await getShoe(owner, id))) return { ok: false, error: t.errors.shoeNotFound };
+    await setShoeRetired(owner, id, retired);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -436,10 +442,11 @@ export async function setShoeGearAction(
   gearId: string | null
 ): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getShoe(shoeId))) return { ok: false, error: t.errors.shoeNotFound };
-    await setShoeGear(shoeId, gearId);
+    if (!(await getShoe(owner, shoeId))) return { ok: false, error: t.errors.shoeNotFound };
+    await setShoeGear(owner, shoeId, gearId);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -480,7 +487,7 @@ export async function saveBikeAction(formData: FormData): Promise<ActionResult> 
     let photoPath: string | null = null;
     const photo = formData.get("photo");
     if (photo instanceof File && photo.size > 0) {
-      photoPath = await storePhoto(photo);
+      photoPath = await storePhoto(owner, photo);
     }
 
     const fields: BikeFields = {
@@ -491,14 +498,14 @@ export async function saveBikeAction(formData: FormData): Promise<ActionResult> 
     };
 
     if (id) {
-      const existing = await getBike(id);
+      const existing = await getBike(owner, id);
       if (!existing) return { ok: false, error: t.errors.bikeNotFound };
-      await updateBike(id, fields, photoPath);
+      await updateBike(owner, id, fields, photoPath);
       // A replaced photo orphans the previous asset; clean it up after the
       // response so it never blocks or fails the save (best-effort, logs).
       if (photoPath && existing.photo_path && existing.photo_path !== photoPath) {
         const orphan = existing.photo_path;
-        after(() => deletePhoto(orphan));
+        after(() => deletePhoto(owner, orphan));
       }
     } else {
       await createBike(owner, fields, photoPath);
@@ -513,10 +520,11 @@ export async function saveBikeAction(formData: FormData): Promise<ActionResult> 
 
 export async function setBikeRetiredAction(id: number, retired: boolean): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getBike(id))) return { ok: false, error: t.errors.bikeNotFound };
-    await setBikeRetired(id, retired);
+    if (!(await getBike(owner, id))) return { ok: false, error: t.errors.bikeNotFound };
+    await setBikeRetired(owner, id, retired);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -529,10 +537,11 @@ export async function setBikeGearAction(
   gearId: string | null
 ): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getBike(bikeId))) return { ok: false, error: t.errors.bikeNotFound };
-    await setBikeGear(bikeId, gearId);
+    if (!(await getBike(owner, bikeId))) return { ok: false, error: t.errors.bikeNotFound };
+    await setBikeGear(owner, bikeId, gearId);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -571,7 +580,7 @@ export async function createManualActivityAction(input: {
     }
     const km = Math.round((Number(input.km) || 0) * 100) / 100;
     if (km === 0) return { ok: false, error: t.errors.zeroDistance };
-    if (!(await getShoe(input.shoeId))) return { ok: false, error: t.errors.pickShoe };
+    if (!(await getShoe(owner, input.shoeId))) return { ok: false, error: t.errors.pickShoe };
     await createManualActivity(owner, { date: input.date, km, shoe_id: input.shoeId });
     refreshAll();
     return { ok: true };
@@ -634,11 +643,12 @@ export async function createGoalAction(input: {
 
 export async function deleteGoalAction(id: number): Promise<ActionResult> {
   const t = await dict();
-  if (!(await requireCurrentUser())) return { ok: false, error: t.errors.unauthorized };
+  const owner = await requireCurrentUser();
+  if (!owner) return { ok: false, error: t.errors.unauthorized };
   const goalId = parseId(id);
   if (goalId === null) return { ok: false, error: t.errors.invalidId };
   try {
-    await deleteGoal(goalId);
+    await deleteGoal(owner, goalId);
     refreshAll();
     return { ok: true };
   } catch (error) {

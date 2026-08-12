@@ -12,14 +12,21 @@ import { localStartedAt } from "@/lib/format";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-local-start-${process.pid}-${Date.now()}.db`);
 
-let db: typeof import("./db");
+type Db = typeof import("./db");
+type TestDb = Omit<Db, "getActivity"> & { getActivity(id: number): ReturnType<Db["getActivity"]> };
+let db: TestDb;
 const TEST_OWNER = "local-start-test-owner";
+const OWNER = { userId: TEST_OWNER };
+
+function bindOwner(raw: Db): TestDb {
+  return { ...raw, getActivity: (id) => raw.getActivity(OWNER, id) };
+}
 
 beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
   delete process.env.TURSO_AUTH_TOKEN;
   process.env.DATABASE_URL = `file:${dbFile}`;
-  db = await import("./db");
+  db = bindOwner(await import("./db"));
   await db.ensureMigrated();
   const now = new Date().toISOString();
   await db.client.batch(

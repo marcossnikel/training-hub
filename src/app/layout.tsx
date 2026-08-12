@@ -50,7 +50,7 @@ export default async function RootLayout({
   const owner = await requireCurrentUser();
   // Login and sign-up render through this root layout too. A guest has no
   // domain context, so never query the activity queue merely to render chrome.
-  const pendingCount = owner ? await countPending() : 0;
+  const pendingCount = owner ? await countPending(owner) : 0;
   const connected = owner ? await isStravaConnected(owner) : false;
   const configured = stravaConfigured();
   const autoSync = owner ? await shouldAutoSync(owner) : false;

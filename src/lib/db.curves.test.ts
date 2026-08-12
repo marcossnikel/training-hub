@@ -12,8 +12,49 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-curves-${process.pid}-${Date.now()}.db`);
 
-let db: typeof import("./db");
+type Db = typeof import("./db");
+type TestDb = Omit<
+  Db,
+  | "saveActivityCurvePoints"
+  | "listCurveBests"
+  | "upsertActivityBestEfforts"
+  | "listSeedEfforts"
+  | "listCurvePointBuckets"
+> & {
+  saveActivityCurvePoints(
+    activityId: number,
+    points: Parameters<Db["saveActivityCurvePoints"]>[2],
+    options: Parameters<Db["saveActivityCurvePoints"]>[3]
+  ): Promise<void>;
+  listCurveBests(
+    kind: Parameters<Db["listCurveBests"]>[1],
+    since: Parameters<Db["listCurveBests"]>[2]
+  ): ReturnType<Db["listCurveBests"]>;
+  upsertActivityBestEfforts(
+    activityId: number,
+    rows: Parameters<Db["upsertActivityBestEfforts"]>[2]
+  ): Promise<void>;
+  listSeedEfforts(): ReturnType<Db["listSeedEfforts"]>;
+  listCurvePointBuckets(
+    kind: Parameters<Db["listCurvePointBuckets"]>[1]
+  ): ReturnType<Db["listCurvePointBuckets"]>;
+};
+let db: TestDb;
 const TEST_OWNER = "curves-test-owner";
+const OWNER = { userId: TEST_OWNER };
+
+function bindOwner(raw: Db): TestDb {
+  return {
+    ...raw,
+    saveActivityCurvePoints: (activityId, points, options) =>
+      raw.saveActivityCurvePoints(OWNER, activityId, points, options),
+    listCurveBests: (kind, since) => raw.listCurveBests(OWNER, kind, since),
+    upsertActivityBestEfforts: (activityId, rows) =>
+      raw.upsertActivityBestEfforts(OWNER, activityId, rows),
+    listSeedEfforts: () => raw.listSeedEfforts(OWNER),
+    listCurvePointBuckets: (kind) => raw.listCurvePointBuckets(OWNER, kind),
+  };
+}
 
 /** Every stored activity, so each test can read the ones it inserted by name. */
 const ids: Record<string, number> = {};
@@ -35,7 +76,7 @@ beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
   delete process.env.TURSO_AUTH_TOKEN;
   process.env.DATABASE_URL = `file:${dbFile}`;
-  db = await import("./db");
+  db = bindOwner(await import("./db"));
   await db.ensureMigrated();
   const now = new Date().toISOString();
   await db.client.batch(

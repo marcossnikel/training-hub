@@ -11,15 +11,45 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-best-efforts-${process.pid}-${Date.now()}.db`);
 
-let db: typeof import("./db");
+type Db = typeof import("./db");
+type TestDb = Omit<
+  Db,
+  | "upsertActivityBestEfforts"
+  | "listBestEffortCounts"
+  | "listFastestBestEfforts"
+  | "listBestEffortsForVdot"
+> & {
+  upsertActivityBestEfforts(
+    activityId: number,
+    rows: Parameters<Db["upsertActivityBestEfforts"]>[2]
+  ): Promise<void>;
+  listBestEffortCounts(activityId?: number): ReturnType<Db["listBestEffortCounts"]>;
+  listFastestBestEfforts(
+    options?: Parameters<Db["listFastestBestEfforts"]>[1]
+  ): ReturnType<Db["listFastestBestEfforts"]>;
+  listBestEffortsForVdot(): ReturnType<Db["listBestEffortsForVdot"]>;
+};
+let db: TestDb;
 let activityId: number;
 const TEST_OWNER = "best-efforts-test-owner";
+const OWNER = { userId: TEST_OWNER };
+
+function bindOwner(raw: Db): TestDb {
+  return {
+    ...raw,
+    upsertActivityBestEfforts: (activityId, rows) =>
+      raw.upsertActivityBestEfforts(OWNER, activityId, rows),
+    listBestEffortCounts: (activityId) => raw.listBestEffortCounts(OWNER, activityId),
+    listFastestBestEfforts: (options) => raw.listFastestBestEfforts(OWNER, options),
+    listBestEffortsForVdot: () => raw.listBestEffortsForVdot(OWNER),
+  };
+}
 
 beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
   delete process.env.TURSO_AUTH_TOKEN;
   process.env.DATABASE_URL = `file:${dbFile}`;
-  db = await import("./db");
+  db = bindOwner(await import("./db"));
   await db.ensureMigrated();
   const now = new Date().toISOString();
   await db.client.batch(

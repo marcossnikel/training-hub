@@ -28,6 +28,13 @@ import { bestEffortRows, type BestEffortRow } from "../src/lib/best-efforts";
 import { parseActivityDetail } from "../src/lib/strava";
 import { assertLocalDb } from "./lib/assert-local-db";
 
+function scriptOwner() {
+  const userId = process.env.TRAINING_HUB_OWNER_ID;
+  if (!userId)
+    throw new Error("TRAINING_HUB_OWNER_ID is required; scripts never select a default owner.");
+  return { userId };
+}
+
 /** Sample rows printed so the writer can eyeball the shape before committing. */
 const SAMPLE_ROWS = 3;
 
@@ -77,10 +84,10 @@ function sampleLines(items: PendingActivity[]): string[] {
 }
 
 /** Every activity carrying a cached detail payload, one bounded page at a time. */
-async function* eachActivityWithDetail() {
+async function* eachActivityWithDetail(owner: { userId: string }) {
   let afterId = 0;
   for (;;) {
-    const page = await listActivitiesWithDetailJson({ afterId, limit: PAGE_SIZE });
+    const page = await listActivitiesWithDetailJson({ owner, afterId, limit: PAGE_SIZE });
     if (page.length === 0) return;
     for (const activity of page) yield activity;
     afterId = page[page.length - 1].id;
@@ -93,9 +100,10 @@ async function main() {
   // ALLOW_REMOTE_DB=1 stays the only way to reach a remote database.
   assertLocalDb();
   await ensureMigrated();
+  const owner = scriptOwner();
 
   const stored = new Map(
-    (await listBestEffortCounts()).map((row): [number, number] => [row.activity_id, row.n])
+    (await listBestEffortCounts(owner)).map((row): [number, number] => [row.activity_id, row.n])
   );
 
   const pending: PendingActivity[] = [];
@@ -105,7 +113,7 @@ async function main() {
   let parsedRows = 0;
   let prRows = 0;
 
-  for await (const activity of eachActivityWithDetail()) {
+  for await (const activity of eachActivityWithDetail(owner)) {
     scanned += 1;
     const detail = parseActivityDetail(activity.detail_json);
     // A stored payload that does not parse into an object is a damaged cache entry,
@@ -154,12 +162,12 @@ async function main() {
 
   let writtenRows = 0;
   for (const item of pending) {
-    await upsertActivityBestEfforts(item.activityId, item.rows);
+    await upsertActivityBestEfforts(owner, item.activityId, item.rows);
     writtenRows += item.rows.length;
     console.log(`  wrote activity ${item.activityId}: ${item.rows.length} rows`);
   }
 
-  const after = await listBestEffortCounts();
+  const after = await listBestEffortCounts(owner);
   const total = after.reduce((sum, row) => sum + row.n, 0);
   console.log(
     `Wrote ${writtenRows} rows across ${pending.length} activities. ` +

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { put, del } from "@vercel/blob";
 import { UPLOADS_DIR } from "./db";
 import { logger } from "./telemetry";
+import type { OwnerContext } from "./owner-context";
 
 /**
  * The single image-type allowlist (T3.8): MIME -> stored file extension. Both the
@@ -146,13 +147,17 @@ export function blobEnabled(): boolean {
  * token the file goes to the (private) Vercel Blob store, else to data/uploads/.
  * Either way the uploads route serves it by that filename.
  */
-export async function storePhoto(file: File): Promise<string> {
+export async function storePhoto(owner: OwnerContext, file: File): Promise<string> {
   if (file.size > MAX_PHOTO_BYTES) throw new Error("Photo is too large (8 MB max).");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const mime = sniffImageType(bytes);
   if (!mime) throw new InvalidImageError();
   const ext = IMAGE_TYPES[mime];
-  const name = `shoe-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${ext}`;
+  // The opaque owner digest is part of a private object key, not a client-visible
+  // identifier or an authorization decision. Route reads still resolve it through
+  // an owner-filtered gear record before touching local disk or Blob.
+  const ownerKey = crypto.createHash("sha256").update(owner.userId).digest("hex").slice(0, 16);
+  const name = `gear-${ownerKey}-${crypto.randomUUID()}.${ext}`;
 
   if (blobEnabled()) {
     const blob = await put(name, file, { access: "private", contentType: mime });
@@ -171,7 +176,7 @@ export async function storePhoto(file: File): Promise<string> {
  * Failures are logged through the telemetry seam instead. External http(s) URLs
  * are left untouched — they were not minted here.
  */
-export async function deletePhoto(photoPath: string | null): Promise<void> {
+export async function deletePhoto(owner: OwnerContext, photoPath: string | null): Promise<void> {
   if (!photoPath || photoPath.startsWith("http")) return;
   try {
     if (blobEnabled()) {
@@ -180,7 +185,7 @@ export async function deletePhoto(photoPath: string | null): Promise<void> {
     }
     await fs.promises.rm(path.join(UPLOADS_DIR, path.basename(photoPath)), { force: true });
   } catch (error) {
-    logger.error("storage.deletePhoto", { error, photoPath });
+    logger.error("storage.deletePhoto", { error, ownerId: owner.userId });
   }
 }
 

@@ -20,7 +20,10 @@ function decodeActivity(row: ActivityRow): Activity {
   return { ...row, is_race: sqliteBool(row.is_race) };
 }
 
-async function attachSplits(activities: Activity[]): Promise<ActivityWithSplits[]> {
+async function attachSplits(
+  owner: OwnerContext,
+  activities: Activity[]
+): Promise<ActivityWithSplits[]> {
   if (activities.length === 0) return [];
   // Read only the splits for the activities in hand instead of the whole table.
   // Placeholders are built from the count; values stay `?`-bound.
@@ -30,10 +33,11 @@ async function attachSplits(activities: Activity[]): Promise<ActivityWithSplits[
     `SELECT sp.id, sp.activity_id, sp.shoe_id, sp.km, sp.note,
             s.name AS shoe_name, s.role AS shoe_role
      FROM activity_splits sp
-     LEFT JOIN shoes s ON s.id = sp.shoe_id
+     JOIN activities a ON a.id = sp.activity_id AND a.user_id = ?
+     LEFT JOIN shoes s ON s.id = sp.shoe_id AND s.user_id = a.user_id
      WHERE sp.activity_id IN (${placeholders})
      ORDER BY sp.id`,
-    ids
+    [owner.userId, ...ids]
   );
   const byActivity = new Map<number, SplitWithShoe[]>();
   for (const split of all) {
@@ -65,47 +69,57 @@ const ACTIVITY_LIST_SELECT = `SELECT ${ACTIVITY_COLUMNS},
        THEN a.raw_json
      END AS raw_json,
      b.name AS bike_name
-   FROM activities a LEFT JOIN bikes b ON b.id = a.bike_id`;
+   FROM activities a LEFT JOIN bikes b ON b.id = a.bike_id AND b.user_id = a.user_id`;
 
 /** The single-activity query: both blobs, since the detail page renders from them. */
 const ACTIVITY_SELECT =
-  "SELECT a.*, b.name AS bike_name FROM activities a LEFT JOIN bikes b ON b.id = a.bike_id";
+  "SELECT a.*, b.name AS bike_name FROM activities a LEFT JOIN bikes b ON b.id = a.bike_id AND b.user_id = a.user_id";
 
-export async function listConfirmedActivities(): Promise<ActivityWithSplits[]> {
+export async function listConfirmedActivities(owner: OwnerContext): Promise<ActivityWithSplits[]> {
   const rows = await many<ActivityRow>(
-    `${ACTIVITY_LIST_SELECT} WHERE a.status = 'confirmed' ORDER BY a.started_at DESC, a.id DESC`
+    `${ACTIVITY_LIST_SELECT} WHERE a.user_id = ? AND a.status = 'confirmed' ORDER BY a.started_at DESC, a.id DESC`,
+    [owner.userId]
   );
-  return attachSplits(rows.map(decodeActivity));
+  return attachSplits(owner, rows.map(decodeActivity));
 }
 
-export async function listPendingActivities(): Promise<ActivityWithSplits[]> {
+export async function listPendingActivities(owner: OwnerContext): Promise<ActivityWithSplits[]> {
   const rows = await many<ActivityRow>(
-    `${ACTIVITY_LIST_SELECT} WHERE a.status = 'pending_review' ORDER BY a.started_at ASC, a.id ASC`
+    `${ACTIVITY_LIST_SELECT} WHERE a.user_id = ? AND a.status = 'pending_review' ORDER BY a.started_at ASC, a.id ASC`,
+    [owner.userId]
   );
-  return attachSplits(rows.map(decodeActivity));
+  return attachSplits(owner, rows.map(decodeActivity));
 }
 
 // Wrapped in React's request-scoped cache() so the root layout and the home page,
 // which both read the pending count in one render, share a single query per request.
-export const countPending = cache(async (): Promise<number> => {
+export const countPending = cache(async (owner: OwnerContext): Promise<number> => {
   const row = await one<{ c: number }>(
-    "SELECT COUNT(*) AS c FROM activities WHERE status = 'pending_review'"
+    "SELECT COUNT(*) AS c FROM activities WHERE user_id = ? AND status = 'pending_review'",
+    [owner.userId]
   );
   return Number(row?.c ?? 0);
 });
 
-export async function getActivity(id: number): Promise<ActivityWithSplits | null> {
-  const row = await one<ActivityRow>(`${ACTIVITY_SELECT} WHERE a.id = ?`, [id]);
+export async function getActivity(
+  owner: OwnerContext,
+  id: number
+): Promise<ActivityWithSplits | null> {
+  const row = await one<ActivityRow>(`${ACTIVITY_SELECT} WHERE a.id = ? AND a.user_id = ?`, [
+    id,
+    owner.userId,
+  ]);
   if (!row) return null;
-  const [withSplits] = await attachSplits([decodeActivity(row)]);
+  const [withSplits] = await attachSplits(owner, [decodeActivity(row)]);
   return withSplits;
 }
 
-export async function listRaces(): Promise<ActivityWithSplits[]> {
+export async function listRaces(owner: OwnerContext): Promise<ActivityWithSplits[]> {
   const rows = await many<ActivityRow>(
-    `${ACTIVITY_LIST_SELECT} WHERE a.is_race = 1 ORDER BY a.started_at DESC, a.id DESC`
+    `${ACTIVITY_LIST_SELECT} WHERE a.user_id = ? AND a.is_race = 1 ORDER BY a.started_at DESC, a.id DESC`,
+    [owner.userId]
   );
-  return attachSplits(rows.map(decodeActivity));
+  return attachSplits(owner, rows.map(decodeActivity));
 }
 
 export interface RaceMarkerRow {
@@ -114,11 +128,12 @@ export interface RaceMarkerRow {
 }
 
 /** Confirmed race activities' start date + name, for PMC chart race markers. */
-export async function listRaceMarkers(): Promise<RaceMarkerRow[]> {
+export async function listRaceMarkers(owner: OwnerContext): Promise<RaceMarkerRow[]> {
   return many<RaceMarkerRow>(
     `SELECT started_at, name FROM activities
-     WHERE status = 'confirmed' AND is_race = 1 AND started_at IS NOT NULL
-     ORDER BY started_at ASC`
+     WHERE user_id = ? AND status = 'confirmed' AND is_race = 1 AND started_at IS NOT NULL
+     ORDER BY started_at ASC`,
+    [owner.userId]
   );
 }
 
@@ -129,6 +144,7 @@ export async function listRaceMarkers(): Promise<RaceMarkerRow[]> {
  * estimated from their average heart rate.
  */
 export async function listBlockActivities(
+  owner: OwnerContext,
   fromIso: string,
   toIso: string
 ): Promise<BlockActivity[]> {
@@ -137,9 +153,9 @@ export async function listBlockActivities(
             a.avg_pace_s_per_km, m.hr_zone_secs
      FROM activities a
      LEFT JOIN activity_metrics m ON m.activity_id = a.id
-     WHERE a.status = 'confirmed' AND a.started_at >= ? AND a.started_at < ?
+     WHERE a.user_id = ? AND a.status = 'confirmed' AND a.started_at >= ? AND a.started_at < ?
      ORDER BY a.started_at ASC`,
-    [fromIso, toIso]
+    [owner.userId, fromIso, toIso]
   );
   return rows.map(({ hr_zone_secs, ...activity }) => ({
     ...activity,
@@ -172,6 +188,7 @@ export interface ActivityMissingStravaData {
  * budget its API calls before spending them.
  */
 export async function listActivitiesMissingStravaData(
+  owner: OwnerContext,
   limit: number
 ): Promise<ActivityMissingStravaData[]> {
   return many<ActivityMissingStravaData>(
@@ -180,11 +197,11 @@ export async function listActivitiesMissingStravaData(
             CASE WHEN s.activity_id IS NULL THEN 1 ELSE 0 END AS needs_streams
      FROM activities a
      LEFT JOIN activity_streams s ON s.activity_id = a.id
-     WHERE a.status = 'confirmed' AND a.strava_id IS NOT NULL
+     WHERE a.user_id = ? AND a.status = 'confirmed' AND a.strava_id IS NOT NULL
        AND (a.detail_json IS NULL OR s.activity_id IS NULL)
      ORDER BY a.started_at DESC, a.id DESC
      LIMIT ?`,
-    [limit]
+    [owner.userId, limit]
   );
 }
 
@@ -196,18 +213,21 @@ export async function listActivitiesMissingStravaData(
  * because grouping with SQL strftime would bucket by UTC and drift each period
  * boundary by the athlete's tz offset.
  */
-export async function listTotalsActivities(fromDay: string): Promise<TotalsActivity[]> {
+export async function listTotalsActivities(
+  owner: OwnerContext,
+  fromDay: string
+): Promise<TotalsActivity[]> {
   return many<TotalsActivity>(
     `SELECT a.started_at, a.started_at_local, a.sport_type,
             a.moving_time_s, a.distance_km, a.elevation_gain_m
      FROM activities a
-     WHERE a.status = 'confirmed' AND a.started_at IS NOT NULL
+     WHERE a.user_id = ? AND a.status = 'confirmed' AND a.started_at IS NOT NULL
        AND COALESCE(a.started_at_local, a.started_at) >= ?
      ORDER BY a.started_at ASC`,
     // Midnight of the first local day, compared against the very stamp the JS
     // bucketing takes its day key from, so no row is fetched or missed by an
     // offset. Both stamps are Z-suffixed ISO, which sorts lexicographically.
-    [`${fromDay}T00:00:00Z`]
+    [owner.userId, `${fromDay}T00:00:00Z`]
   );
 }
 
@@ -220,24 +240,36 @@ export async function listTotalsActivities(fromDay: string): Promise<TotalsActiv
  * ahead of the grid so no process timezone can miss its first day; the JS
  * bucketing drops whatever falls outside the grid.
  */
-export async function listSessionStarts(fromDay: string): Promise<SessionStart[]> {
+export async function listSessionStarts(
+  owner: OwnerContext,
+  fromDay: string
+): Promise<SessionStart[]> {
   return many<SessionStart>(
     `SELECT started_at, sport_type
      FROM activities
-     WHERE status = 'confirmed' AND started_at IS NOT NULL AND started_at >= ?
+     WHERE user_id = ? AND status = 'confirmed' AND started_at IS NOT NULL AND started_at >= ?
      ORDER BY started_at ASC`,
-    [`${fromDay}T00:00:00Z`]
+    [owner.userId, `${fromDay}T00:00:00Z`]
   );
 }
 
-export async function activityExistsByStravaId(stravaId: number): Promise<boolean> {
-  return (await one("SELECT 1 AS x FROM activities WHERE strava_id = ?", [stravaId])) !== null;
+export async function activityExistsByStravaId(
+  owner: OwnerContext,
+  stravaId: number
+): Promise<boolean> {
+  return (
+    (await one("SELECT 1 AS x FROM activities WHERE user_id = ? AND strava_id = ?", [
+      owner.userId,
+      stravaId,
+    ])) !== null
+  );
 }
 
 /** Epoch seconds of the most recent synced Strava activity, or null. */
-export async function latestSyncedStartEpoch(): Promise<number | null> {
+export async function latestSyncedStartEpoch(owner: OwnerContext): Promise<number | null> {
   const row = await one<{ m: string | null }>(
-    "SELECT MAX(started_at) AS m FROM activities WHERE strava_id IS NOT NULL"
+    "SELECT MAX(started_at) AS m FROM activities WHERE user_id = ? AND strava_id IS NOT NULL",
+    [owner.userId]
   );
   if (!row?.m) return null;
   const ms = Date.parse(row.m);
@@ -260,8 +292,18 @@ export interface SyncedActivityInput {
   bike_id: number | null;
 }
 
-const INSERT_SPLIT_SQL = "INSERT INTO activity_splits (activity_id, shoe_id, km) VALUES (?, ?, ?)";
-const DELETE_SPLITS_SQL = "DELETE FROM activity_splits WHERE activity_id = ?";
+const INSERT_SPLIT_SQL = `INSERT INTO activity_splits (activity_id, shoe_id, km)
+  SELECT ?, ?, ? WHERE ? IS NULL OR EXISTS (SELECT 1 FROM shoes WHERE id = ? AND user_id = ?)`;
+const DELETE_SPLITS_SQL =
+  "DELETE FROM activity_splits WHERE activity_id = ? AND EXISTS (SELECT 1 FROM activities WHERE id = ? AND user_id = ?)";
+
+function splitArgs(
+  owner: OwnerContext,
+  activityId: number,
+  split: SplitInput
+): Array<number | string | null> {
+  return [activityId, split.shoe_id, split.km, split.shoe_id, split.shoe_id, owner.userId];
+}
 
 export async function insertSyncedActivity(
   owner: OwnerContext,
@@ -294,8 +336,24 @@ export async function insertSyncedActivity(
       ],
     });
     const activityId = Number(result.lastInsertRowid);
+    if (input.bike_id !== null) {
+      const bike = await tx.execute({
+        sql: "SELECT 1 FROM bikes WHERE id = ? AND user_id = ?",
+        args: [input.bike_id, owner.userId],
+      });
+      if (bike.rows.length === 0) throw new Error("Owner does not own selected bike");
+    }
     for (const split of splits) {
-      await tx.execute({ sql: INSERT_SPLIT_SQL, args: [activityId, split.shoe_id, split.km] });
+      const shoe =
+        split.shoe_id === null
+          ? true
+          : await tx.execute({
+              sql: "SELECT 1 FROM shoes WHERE id = ? AND user_id = ?",
+              args: [split.shoe_id, owner.userId],
+            });
+      if (shoe !== true && shoe.rows.length === 0)
+        throw new Error("Owner does not own selected shoe");
+      await tx.execute({ sql: INSERT_SPLIT_SQL, args: splitArgs(owner, activityId, split) });
     }
     await tx.commit();
   } finally {
@@ -311,34 +369,71 @@ export interface JournalFields {
 }
 
 export async function confirmActivity(
+  owner: OwnerContext,
   id: number,
   journal: JournalFields,
   splits: SplitInput[],
   bikeId: number | null
 ): Promise<void> {
+  const activity = await getActivity(owner, id);
+  if (!activity) return;
+  if (
+    bikeId !== null &&
+    !(await one("SELECT 1 FROM bikes WHERE id = ? AND user_id = ?", [bikeId, owner.userId]))
+  )
+    return;
+  if (
+    (
+      await Promise.all(
+        splits
+          .filter((split) => split.shoe_id !== null)
+          .map((split) =>
+            one("SELECT 1 FROM shoes WHERE id = ? AND user_id = ?", [split.shoe_id!, owner.userId])
+          )
+      )
+    ).some((shoe) => !shoe)
+  )
+    return;
   await batchWrite([
     {
       sql: `UPDATE activities SET status = 'confirmed', rpe = ?, feeling = ?,
-            workout_notes = ?, health_notes = ?, bike_id = ? WHERE id = ?`,
-      args: [journal.rpe, journal.feeling, journal.workout_notes, journal.health_notes, bikeId, id],
+            workout_notes = ?, health_notes = ?, bike_id = ? WHERE id = ? AND user_id = ?`,
+      args: [
+        journal.rpe,
+        journal.feeling,
+        journal.workout_notes,
+        journal.health_notes,
+        bikeId,
+        id,
+        owner.userId,
+      ],
     },
-    { sql: DELETE_SPLITS_SQL, args: [id] },
+    { sql: DELETE_SPLITS_SQL, args: [id, id, owner.userId] },
     ...splits.map((split) => ({
       sql: INSERT_SPLIT_SQL,
-      args: [id, split.shoe_id, split.km],
+      args: splitArgs(owner, id, split),
     })),
   ]);
 }
 
-export async function getActivityStreamsJson(activityId: number): Promise<string | null> {
+export async function getActivityStreamsJson(
+  owner: OwnerContext,
+  activityId: number
+): Promise<string | null> {
   const row = await one<{ json: string }>(
-    "SELECT json FROM activity_streams WHERE activity_id = ?",
-    [activityId]
+    `SELECT s.json FROM activity_streams s JOIN activities a ON a.id = s.activity_id
+     WHERE s.activity_id = ? AND a.user_id = ?`,
+    [activityId, owner.userId]
   );
   return row?.json ?? null;
 }
 
-export async function saveActivityStreams(activityId: number, json: string): Promise<void> {
+export async function saveActivityStreams(
+  owner: OwnerContext,
+  activityId: number,
+  json: string
+): Promise<void> {
+  if (!(await getActivity(owner, activityId))) return;
   await exec(
     `INSERT INTO activity_streams (activity_id, json, synced_at) VALUES (?, ?, ?)
      ON CONFLICT(activity_id) DO UPDATE SET json = excluded.json, synced_at = excluded.synced_at`,
@@ -353,10 +448,12 @@ export async function saveActivityStreams(activityId: number, json: string): Pro
  * cache, so a name that vanished from the payload cannot happen.
  */
 export async function upsertActivityBestEfforts(
+  owner: OwnerContext,
   activityId: number,
   rows: BestEffortRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
+  if (!(await getActivity(owner, activityId))) return;
   await batchWrite(
     rows.map((row) => ({
       sql: `INSERT INTO activity_best_efforts
@@ -394,14 +491,17 @@ export interface BestEffortCount {
  * UNIQUE(activity_id, name) index, returning zero or one row); omit it for every
  * activity at once, which is what a whole-table pass wants.
  */
-export async function listBestEffortCounts(activityId?: number): Promise<BestEffortCount[]> {
+export async function listBestEffortCounts(
+  owner: OwnerContext,
+  activityId?: number
+): Promise<BestEffortCount[]> {
   return many<BestEffortCount>(
     `SELECT activity_id, COUNT(*) AS n
-     FROM activity_best_efforts
-     ${activityId === undefined ? "" : "WHERE activity_id = ?"}
+     FROM activity_best_efforts e JOIN activities a ON a.id = e.activity_id
+     WHERE a.user_id = ? ${activityId === undefined ? "" : "AND e.activity_id = ?"}
      GROUP BY activity_id
      ORDER BY activity_id ASC`,
-    activityId === undefined ? [] : [activityId]
+    activityId === undefined ? [owner.userId] : [owner.userId, activityId]
   );
 }
 
@@ -456,9 +556,12 @@ const ROAD_RUN_EFFORT_SQL = `e.moving_time_s > 0 AND e.distance_m > 0
  * one row per name. ROW_NUMBER (not a bare-column MIN) so the winning row's own
  * columns come back and ties break deterministically on the lower activity id.
  */
-export async function listFastestBestEfforts(options?: {
-  includeActivityId?: number;
-}): Promise<StoredBestEffort[]> {
+export async function listFastestBestEfforts(
+  owner: OwnerContext,
+  options?: {
+    includeActivityId?: number;
+  }
+): Promise<StoredBestEffort[]> {
   interface Row extends Omit<StoredBestEffort, "is_race"> {
     is_race: number;
   }
@@ -475,12 +578,12 @@ export async function listFastestBestEfforts(options?: {
               ) AS rn
        FROM activity_best_efforts e
        JOIN activities a ON a.id = e.activity_id
-       WHERE (a.status = 'confirmed' OR a.id = ?)
+       WHERE a.user_id = ? AND (a.status = 'confirmed' OR a.id = ?)
          AND ${ROAD_RUN_EFFORT_SQL}
      )
      WHERE rn = 1
      ORDER BY distance_m ASC`,
-    [ownId]
+    [owner.userId, ownId]
   );
   return rows.map((row) => ({ ...row, is_race: sqliteBool(row.is_race) }));
 }
@@ -497,15 +600,16 @@ export async function listFastestBestEfforts(options?: {
  * semantics are duplicated in SQL. If T24's history pass grows this table by orders
  * of magnitude, push a date bound down to here.
  */
-export async function listBestEffortsForVdot(): Promise<VdotEffort[]> {
+export async function listBestEffortsForVdot(owner: OwnerContext): Promise<VdotEffort[]> {
   return many<VdotEffort>(
     `SELECT e.distance_m, e.moving_time_s,
             COALESCE(a.started_at_local, a.started_at) AS date
      FROM activity_best_efforts e
      JOIN activities a ON a.id = e.activity_id
-     WHERE a.status = 'confirmed'
+     WHERE a.user_id = ? AND a.status = 'confirmed'
        AND ${ROAD_RUN_EFFORT_SQL}
-     ORDER BY date ASC`
+     ORDER BY date ASC`,
+    [owner.userId]
   );
 }
 
@@ -526,41 +630,66 @@ export interface ActivityDetailRow {
  * page and the last returned id for each next one; a short page means the end.
  */
 export async function listActivitiesWithDetailJson(page: {
+  owner: OwnerContext;
   afterId: number;
   limit: number;
 }): Promise<ActivityDetailRow[]> {
   return many<ActivityDetailRow>(
     `SELECT id, detail_json
      FROM activities
-     WHERE detail_json IS NOT NULL
+     WHERE user_id = ? AND detail_json IS NOT NULL
        AND id > ?
      ORDER BY id ASC
      LIMIT ?`,
-    [page.afterId, page.limit]
+    [page.owner.userId, page.afterId, page.limit]
   );
 }
 
-export async function saveActivityDetail(id: number, detailJson: string): Promise<void> {
-  await exec("UPDATE activities SET detail_json = ?, detail_synced_at = ? WHERE id = ?", [
-    detailJson,
-    new Date().toISOString(),
-    id,
-  ]);
-}
-
-export async function updateActivityJournal(id: number, journal: JournalFields): Promise<void> {
+export async function saveActivityDetail(
+  owner: OwnerContext,
+  id: number,
+  detailJson: string
+): Promise<void> {
   await exec(
-    "UPDATE activities SET rpe = ?, feeling = ?, workout_notes = ?, health_notes = ? WHERE id = ?",
-    [journal.rpe, journal.feeling, journal.workout_notes, journal.health_notes, id]
+    "UPDATE activities SET detail_json = ?, detail_synced_at = ? WHERE id = ? AND user_id = ?",
+    [detailJson, new Date().toISOString(), id, owner.userId]
   );
 }
 
-export async function replaceActivitySplits(id: number, splits: SplitInput[]): Promise<void> {
+export async function updateActivityJournal(
+  owner: OwnerContext,
+  id: number,
+  journal: JournalFields
+): Promise<void> {
+  await exec(
+    "UPDATE activities SET rpe = ?, feeling = ?, workout_notes = ?, health_notes = ? WHERE id = ? AND user_id = ?",
+    [journal.rpe, journal.feeling, journal.workout_notes, journal.health_notes, id, owner.userId]
+  );
+}
+
+export async function replaceActivitySplits(
+  owner: OwnerContext,
+  id: number,
+  splits: SplitInput[]
+): Promise<void> {
+  if (!(await getActivity(owner, id))) return;
+  if (
+    (
+      await Promise.all(
+        splits
+          .filter((split) => split.shoe_id !== null)
+          .map((split) =>
+            one("SELECT 1 FROM shoes WHERE id = ? AND user_id = ?", [split.shoe_id!, owner.userId])
+          )
+      )
+    ).some((shoe) => !shoe)
+  )
+    return;
   await batchWrite([
-    { sql: DELETE_SPLITS_SQL, args: [id] },
+    { sql: DELETE_SPLITS_SQL, args: [id, id, owner.userId] },
     ...splits.map((split) => ({
       sql: INSERT_SPLIT_SQL,
-      args: [id, split.shoe_id, split.km],
+      args: splitArgs(owner, id, split),
     })),
   ]);
 }
@@ -586,7 +715,15 @@ export async function createManualActivity(
       args: [owner.userId, input.name ?? "Manual adjustment", startedAt, startedAt, input.km],
     });
     const activityId = Number(result.lastInsertRowid);
-    await tx.execute({ sql: INSERT_SPLIT_SQL, args: [activityId, input.shoe_id, input.km] });
+    const shoe = await tx.execute({
+      sql: "SELECT 1 FROM shoes WHERE id = ? AND user_id = ?",
+      args: [input.shoe_id, owner.userId],
+    });
+    if (shoe.rows.length === 0) throw new Error("Owner does not own selected shoe");
+    await tx.execute({
+      sql: INSERT_SPLIT_SQL,
+      args: [activityId, input.shoe_id, input.km, input.shoe_id, input.shoe_id, owner.userId],
+    });
     await tx.commit();
     return activityId;
   } finally {

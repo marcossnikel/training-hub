@@ -113,10 +113,10 @@ function formatRow({ activityId, sportType, metrics }: PendingActivity): string 
 }
 
 /** Every activity carrying a usable cached stream, one bounded page at a time. */
-async function* eachStreamedActivity() {
+async function* eachStreamedActivity(owner: { userId: string }) {
   let afterId = 0;
   for (;;) {
-    const page = await listStreamedActivities({ afterId, limit: PAGE_SIZE });
+    const page = await listStreamedActivities(owner, { afterId, limit: PAGE_SIZE });
     if (page.length === 0) return;
     for (const activity of page) yield activity;
     afterId = page[page.length - 1].id;
@@ -156,7 +156,7 @@ async function main() {
   let unparseable = 0;
   let nothingToStore = 0;
 
-  for await (const activity of eachStreamedActivity()) {
+  for await (const activity of eachStreamedActivity(owner)) {
     scanned += 1;
     // Any stored row means this activity is done: the full-resolution rows the fetch
     // pass writes are strictly better than anything computable here. Unless the
@@ -261,7 +261,7 @@ async function main() {
   }
 
   for (const item of pending) {
-    await upsertActivityMetrics(item.activityId, item.metrics, METRICS_VERSION_DOWNSAMPLED);
+    await upsertActivityMetrics(owner, item.activityId, item.metrics, METRICS_VERSION_DOWNSAMPLED);
     console.log(`  wrote activity ${item.activityId}`);
   }
   console.log(`Wrote ${pending.length} rows.`);

@@ -18,7 +18,7 @@ export async function ShoesSection() {
   const owner = await requireCurrentUser();
   if (!owner) return null;
   const { t } = await getDict();
-  const shoes = await listShoes();
+  const shoes = await listShoes(owner);
   const connected = await isStravaConnected(owner);
   const gear = await tryFetchGear(owner);
   const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));
@@ -86,7 +86,7 @@ export async function BikesSection() {
   const owner = await requireCurrentUser();
   if (!owner) return null;
   const { t } = await getDict();
-  const bikes = await listBikes();
+  const bikes = await listBikes(owner);
   const connected = await isStravaConnected(owner);
   const gear = await tryFetchBikes(owner);
   const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));

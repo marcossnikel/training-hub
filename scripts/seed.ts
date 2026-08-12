@@ -12,6 +12,7 @@ import type { Feeling } from "../src/lib/types";
 
 const SEED_MARKER = '{"seed":true}';
 const SEED_FILTER = "json_extract(raw_json, '$.seed') = 1";
+const FIXTURE_OWNER = "legacy-local-owner";
 
 /**
  * Guard against seeding a remote (shared/prod Turso) database. Resolves the DB URL
@@ -39,8 +40,11 @@ function assertLocalDb(): void {
 async function clearSeeds(): Promise<number> {
   const results = await client.batch(
     [
-      `DELETE FROM activity_splits WHERE activity_id IN (SELECT id FROM activities WHERE ${SEED_FILTER})`,
-      `DELETE FROM activities WHERE ${SEED_FILTER}`,
+      {
+        sql: `DELETE FROM activity_splits WHERE activity_id IN (SELECT id FROM activities WHERE user_id = ? AND ${SEED_FILTER})`,
+        args: [FIXTURE_OWNER],
+      },
+      { sql: `DELETE FROM activities WHERE user_id = ? AND ${SEED_FILTER}`, args: [FIXTURE_OWNER] },
     ],
     "write"
   );
@@ -54,7 +58,7 @@ async function main() {
   // Fixture data is intentionally seeded only by this explicit disposable-data
   // script, never by schema bootstrap. Its owner exists in both sides of the
   // auth bridge so every root domain write satisfies the #23 foreign key.
-  const fixtureOwner = "legacy-local-owner";
+  const fixtureOwner = FIXTURE_OWNER;
   const fixtureAuthSubject = "seed-fixture-auth-subject";
   const now = new Date().toISOString();
   await client.batch(
@@ -70,7 +74,10 @@ async function main() {
     ],
     "write"
   );
-  const existingShoes = await client.execute("SELECT COUNT(*) AS count FROM shoes");
+  const existingShoes = await client.execute({
+    sql: "SELECT COUNT(*) AS count FROM shoes WHERE user_id = ?",
+    args: [fixtureOwner],
+  });
   if (Number(existingShoes.rows[0].count) === 0) {
     await client.batch(
       [
@@ -93,7 +100,12 @@ async function main() {
     return;
   }
 
-  const shoeRows = (await client.execute("SELECT id, name FROM shoes")).rows as unknown as Array<{
+  const shoeRows = (
+    await client.execute({
+      sql: "SELECT id, name FROM shoes WHERE user_id = ?",
+      args: [fixtureOwner],
+    })
+  ).rows as unknown as Array<{
     id: number;
     name: string;
   }>;

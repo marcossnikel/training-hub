@@ -50,6 +50,13 @@ import { seedCurvePoints, type CurvePoint, type SeedEffort } from "../src/lib/cu
 import { fmtPaceShort } from "../src/lib/format";
 import { assertLocalDb } from "./lib/assert-local-db";
 
+function scriptOwner() {
+  const userId = process.env.TRAINING_HUB_OWNER_ID;
+  if (!userId)
+    throw new Error("TRAINING_HUB_OWNER_ID is required; scripts never select a default owner.");
+  return { userId };
+}
+
 /** Sample activities printed so the writer can eyeball the shape before committing. */
 const SAMPLE_ROWS = 3;
 
@@ -81,16 +88,19 @@ async function main() {
   // ALLOW_REMOTE_DB=1 stays the only way to reach a remote database.
   assertLocalDb();
   await ensureMigrated();
+  const owner = scriptOwner();
 
   const stored = new Set(
-    (await listCurvePointBuckets("pace")).map((row) => bucketKey(row.activity_id, row.bucket))
+    (await listCurvePointBuckets(owner, "pace")).map((row) =>
+      bucketKey(row.activity_id, row.bucket)
+    )
   );
 
   // Grouped by activity, because a curve is a per-activity set of buckets and
   // the fastest duplicate within one activity has to win before anything is
   // stored.
   const byActivity = new Map<number, SeedEffort[]>();
-  const rows = await listSeedEfforts();
+  const rows = await listSeedEfforts(owner);
   for (const row of rows) {
     const efforts = byActivity.get(row.activity_id);
     if (efforts) efforts.push(row);
@@ -155,7 +165,7 @@ async function main() {
   }
 
   for (const item of pending) {
-    await saveActivityCurvePoints(item.activityId, item.points, { overwrite: false });
+    await saveActivityCurvePoints(owner, item.activityId, item.points, { overwrite: false });
     console.log(`  wrote activity ${item.activityId}: ${item.points.length} points`);
   }
   console.log(`Wrote ${pendingPoints} points across ${pending.length} activities.`);

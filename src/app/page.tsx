@@ -181,8 +181,8 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
   const params = await searchParams;
   const { lang, t } = await getDict();
   const [pending, activities, connected] = await Promise.all([
-    countPending(),
-    listConfirmedActivities(),
+    countPending(owner),
+    listConfirmedActivities(owner),
     isStravaConnected(owner),
   ]);
   const configured = stravaConfigured();

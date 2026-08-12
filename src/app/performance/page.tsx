@@ -82,8 +82,8 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   const { lang, t } = await getDict();
   const tp = t.performance;
 
-  const efforts = await listRunEfforts();
-  const storedEfforts = await listFastestBestEfforts();
+  const efforts = await listRunEfforts(owner);
+  const storedEfforts = await listFastestBestEfforts(owner);
   const thresholds = await getAthleteThresholds(owner);
   const trainingZones = await getTrainingZones(owner);
 
@@ -97,7 +97,7 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   const predictions = reference ? predictRaceTimes(reference) : [];
   // VDOT reads EVERY stored segment effort with its date (not just the fastest per
   // name), because the trend is per month: the same effort table, a different shape.
-  const vdot = vdotTrend(await listBestEffortsForVdot(), new Date());
+  const vdot = vdotTrend(await listBestEffortsForVdot(owner), new Date());
 
   // Consistency and volume. Both are keyed by moving time rather than a training
   // load: this app deliberately does not compute TSS (TrainingPeaks owns that
@@ -106,8 +106,8 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   const period: TotalsPeriod = params.period === "months" ? "months" : "weeks";
   const heatFrom = heatmapFrom();
   const [sessionStarts, totalsActivities] = await Promise.all([
-    listSessionStarts(heatFrom),
-    listTotalsActivities(totalsFrom(period)),
+    listSessionStarts(owner, heatFrom),
+    listTotalsActivities(owner, totalsFrom(period)),
   ]);
   // The minutes come from the totals rows on purpose: one read feeds both cards,
   // and `minutesByDay` re-buckets them onto the heatmap's own day key.
@@ -130,12 +130,12 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   const since = curveWindowStart(curveWindow.days, now);
   const [paceWindowed, paceAllTime, powerWindowed, powerAllTime, powerRecent, powerRides] =
     await Promise.all([
-      listCurveBests("pace", since),
-      listCurveBests("pace", null),
-      listCurveBests("power", since),
-      listCurveBests("power", null),
-      listCurveBests("power", curveWindowStart(EFTP_WINDOW_DAYS, now)),
-      countCurveActivities("power"),
+      listCurveBests(owner, "pace", since),
+      listCurveBests(owner, "pace", null),
+      listCurveBests(owner, "power", since),
+      listCurveBests(owner, "power", null),
+      listCurveBests(owner, "power", curveWindowStart(EFTP_WINDOW_DAYS, now)),
+      countCurveActivities(owner, "power"),
     ]);
   // eFTP (T28) reads its OWN fixed EFTP_WINDOW_DAYS window, not the display
   // pills: an FTP that changed because someone clicked "6 months" on a chart

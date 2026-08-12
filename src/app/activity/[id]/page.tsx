@@ -70,8 +70,10 @@ import { isRunSport } from "@/lib/validate";
 import { toGearOption } from "@/lib/gear";
 
 export async function generateMetadata({ params }: PageProps<"/activity/[id]">) {
+  const owner = await requireCurrentUser();
+  if (!owner) return { title: "Activity" };
   const { id } = await params;
-  const activity = Number.isInteger(Number(id)) ? await getActivity(Number(id)) : null;
+  const activity = Number.isInteger(Number(id)) ? await getActivity(owner, Number(id)) : null;
   return { title: activity?.name ?? "Activity" };
 }
 
@@ -405,7 +407,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) notFound();
 
-  const activity = await getActivity(numericId);
+  const activity = await getActivity(owner, numericId);
   if (!activity) notFound();
 
   const { lang, t } = await getDict();
@@ -413,8 +415,8 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const ride = isRideSport(activity.sport_type);
   const confirmed = activity.status === "confirmed";
 
-  const shoes = ride ? [] : (await listShoes()).map(toGearOption);
-  const bikes = ride ? (await listBikes()).map(toGearOption) : [];
+  const shoes = ride ? [] : (await listShoes(owner)).map(toGearOption);
+  const bikes = ride ? (await listBikes(owner)).map(toGearOption) : [];
   const metrics = ride ? rideMetrics(activity) : null;
   // Run form (T14): cadence and the stride it implies. runMetrics owns the sport
   // gate, so non-runs come back as nulls and the tiles stay hidden.
@@ -445,7 +447,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const prNames = claimsRecord
     ? prBadgeEffortNames(
         bestEfforts,
-        await listFastestBestEfforts({ includeActivityId: activity.id })
+        await listFastestBestEfforts(owner, { includeActivityId: activity.id })
       )
     : new Set<string>();
   // Devices auto-lap every km; only show laps when they carry real structure.
@@ -469,7 +471,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // pipeline still shows the same tiles — the persisted value is just cheaper,
   // and (at metrics_version 2) taken at full resolution rather than off the
   // 400-point downsample.
-  const storedMetrics = await getActivityMetrics(activity.id);
+  const storedMetrics = await getActivityMetrics(owner, activity.id);
   // Aerobic quality (T12): rides read watts against HR, but only from a real
   // power meter; runs read speed against HR. Every other sport (and a ride with
   // estimated wattage) gets no basis, so its EF and decoupling tiles stay hidden.

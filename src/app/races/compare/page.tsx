@@ -54,7 +54,7 @@ async function buildSide(
 ): Promise<CompareSide> {
   const raceStartIso = race.started_at ?? race.created_at;
   const blockStartIso = new Date(Date.parse(raceStartIso) - weeks * 7 * DAY_MS).toISOString();
-  const activities = await listBlockActivities(blockStartIso, raceStartIso);
+  const activities = await listBlockActivities(owner, blockStartIso, raceStartIso);
   const block = buildBlock(activities, raceStartIso, weeks, thresholds);
   const streams = await ensureActivityStreams(owner, race);
   const analysis = analyzeRace(race, streams, thresholds);
@@ -77,7 +77,7 @@ export default async function RaceComparePage({ searchParams }: PageProps<"/race
   if (!owner) return null;
   const { t } = await getDict();
   const params = await searchParams;
-  const races = await listRaces();
+  const races = await listRaces(owner);
 
   if (races.length < 2) {
     return (
