@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const dbFile = path.join(os.tmpdir(), `training-hub-curves-${process.pid}-${Date.now()}.db`);
 
 let db: typeof import("./db");
+const TEST_OWNER = "curves-test-owner";
 
 /** Every stored activity, so each test can read the ones it inserted by name. */
 const ids: Record<string, number> = {};
@@ -23,9 +24,9 @@ async function insertActivity(
   status = "confirmed"
 ): Promise<number> {
   const row = await db.client.execute({
-    sql: `INSERT INTO activities (name, sport_type, started_at, started_at_local, distance_km, status)
-          VALUES (?, 'Run', ?, ?, 10, ?)`,
-    args: [name, startedAt, startedAt, status],
+    sql: `INSERT INTO activities (user_id, name, sport_type, started_at, started_at_local, distance_km, status)
+          VALUES (?, ?, 'Run', ?, ?, 10, ?)`,
+    args: [TEST_OWNER, name, startedAt, startedAt, status],
   });
   return Number(row.lastInsertRowid);
 }
@@ -36,6 +37,20 @@ beforeAll(async () => {
   process.env.DATABASE_URL = `file:${dbFile}`;
   db = await import("./db");
   await db.ensureMigrated();
+  const now = new Date().toISOString();
+  await db.client.batch(
+    [
+      {
+        sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: ["curves-test-auth", "Curves Test", "curves@example.test", 0, now, now],
+      },
+      {
+        sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [TEST_OWNER, "curves-test-auth"],
+      },
+    ],
+    "write"
+  );
 });
 
 afterAll(() => {

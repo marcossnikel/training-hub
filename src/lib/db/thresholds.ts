@@ -4,8 +4,7 @@
 import { exec, one } from "./helpers";
 import { THRESHOLD_DEFAULTS } from "../baseline";
 import type { AthleteThresholds } from "../fitness";
-
-const LEGACY_COMPATIBILITY_USER_ID = "legacy-local-owner";
+import type { OwnerContext } from "../owner-context";
 
 interface AthleteThresholdsRow {
   max_hr: number | null;
@@ -18,12 +17,12 @@ interface AthleteThresholdsRow {
   updated_at: string | null;
 }
 
-export async function getAthleteThresholds(): Promise<AthleteThresholds> {
+export async function getAthleteThresholds(owner: OwnerContext): Promise<AthleteThresholds> {
   const row = await one<AthleteThresholdsRow>(
     `SELECT max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
             resting_hr_estimated, ftp_provisional, updated_at
      FROM athlete_profiles WHERE user_id = ?`,
-    [LEGACY_COMPATIBILITY_USER_ID]
+    [owner.userId]
   );
   if (!row) return { ...THRESHOLD_DEFAULTS };
   return {
@@ -48,7 +47,10 @@ export interface AthleteThresholdFields {
   ftpProvisional: boolean;
 }
 
-export async function saveAthleteThresholds(fields: AthleteThresholdFields): Promise<void> {
+export async function saveAthleteThresholds(
+  owner: OwnerContext,
+  fields: AthleteThresholdFields
+): Promise<void> {
   await exec(
     `INSERT INTO athlete_profiles
        (user_id, max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
@@ -64,7 +66,7 @@ export async function saveAthleteThresholds(fields: AthleteThresholdFields): Pro
        ftp_provisional = excluded.ftp_provisional,
        updated_at = excluded.updated_at`,
     [
-      LEGACY_COMPATIBILITY_USER_ID,
+      owner.userId,
       fields.maxHr,
       fields.restingHr,
       fields.lthr,

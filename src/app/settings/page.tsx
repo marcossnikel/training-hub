@@ -12,23 +12,26 @@ import { getDict } from "@/lib/lang";
 import { isStravaConnected, stravaConfigured, tryFetchAllGear } from "@/lib/strava";
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
+import { requireCurrentUser } from "@/lib/auth";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
+  const owner = await requireCurrentUser();
+  if (!owner) return null;
   const params = await searchParams;
   const { lang, t } = await getDict();
   const configured = stravaConfigured();
-  const connected = await isStravaConnected();
-  const athleteName = await getMeta("athlete_name");
-  const lastSync = await getMeta("last_sync_at");
-  const baselineDate = await getMeta("baseline_date");
-  const allGear = connected ? await tryFetchAllGear() : null;
+  const connected = await isStravaConnected(owner);
+  const athleteName = await getMeta(owner, "athlete_name");
+  const lastSync = await getMeta(owner, "last_sync_at");
+  const baselineDate = await getMeta(owner, "baseline_date");
+  const allGear = connected ? await tryFetchAllGear(owner) : null;
   const gear = allGear?.shoes ?? null;
   const bikeGear = allGear?.bikes ?? null;
   const shoes = await listShoes();
   const bikes = await listBikes();
-  const thresholds = await getAthleteThresholds();
+  const thresholds = await getAthleteThresholds(owner);
   const goals = await listGoals();
 
   const justConnected = params.connected === "1";

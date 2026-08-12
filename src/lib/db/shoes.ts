@@ -1,6 +1,7 @@
 import { batchWrite, clearGearFromOthers, exec, many, one } from "./helpers";
 import type { InStatement } from "./client";
 import type { ShoeWithMileage } from "../types";
+import type { OwnerContext } from "../owner-context";
 
 const SHOE_SELECT = `
 SELECT s.*, s.initial_km + COALESCE((
@@ -30,15 +31,20 @@ export interface ShoeFields {
   strava_gear_id: string | null;
 }
 
-export async function createShoe(fields: ShoeFields, photoPath: string | null): Promise<number> {
+export async function createShoe(
+  owner: OwnerContext,
+  fields: ShoeFields,
+  photoPath: string | null
+): Promise<number> {
   const statements: InStatement[] = [];
   if (fields.strava_gear_id) {
     statements.push(clearGearFromOthers("shoes", fields.strava_gear_id));
   }
   statements.push({
-    sql: `INSERT INTO shoes (name, role, initial_km, retirement_km, strava_gear_id, photo_path)
-          VALUES (?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO shoes (user_id, name, role, initial_km, retirement_km, strava_gear_id, photo_path)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [
+      owner.userId,
       fields.name,
       fields.role,
       fields.initial_km,

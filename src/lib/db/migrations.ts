@@ -43,14 +43,6 @@ const OWNER_SCHEMA: string[] = [
      created_at TEXT NOT NULL DEFAULT (datetime('now')),
      deleted_at TEXT
    )`,
-  // Temporary compatibility identity for the still-single-user repository code.
-  // It is not an id=1 database constraint and is removed when #24/#25 route all
-  // writes through the session-derived owner. Keeping it here lets the fresh
-  // schema run safely while those separately scoped query changes land.
-  `INSERT OR IGNORE INTO "user" (id, name, email, emailVerified, "createdAt", "updatedAt")
-   VALUES ('legacy-local-owner-auth', 'Local fixture', 'local-fixture@example.test', 0, datetime('now'), datetime('now'))`,
-  `INSERT OR IGNORE INTO users (id, auth_subject)
-   VALUES ('legacy-local-owner', 'legacy-local-owner-auth')`,
   `CREATE TABLE IF NOT EXISTS athlete_profiles (
      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
      max_hr INTEGER,
@@ -95,7 +87,7 @@ const OWNER_SCHEMA: string[] = [
    )`,
   `CREATE TABLE IF NOT EXISTS activities (
      id INTEGER PRIMARY KEY,
-     user_id TEXT NOT NULL DEFAULT 'legacy-local-owner' REFERENCES users(id) ON DELETE CASCADE,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
      strava_id INTEGER,
      name TEXT,
      sport_type TEXT,

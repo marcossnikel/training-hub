@@ -9,6 +9,7 @@ import type { SessionStart } from "../consistency";
 import { parseZoneSecs } from "../stream-metrics";
 import type { TotalsActivity } from "../totals";
 import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
+import type { OwnerContext } from "../owner-context";
 
 // The activities table stores `is_race` as 0/1; SELECT hands it back as a number.
 // `ActivityRow` is that raw shape, decoded to the `boolean`-carrying `Activity`
@@ -263,6 +264,7 @@ const INSERT_SPLIT_SQL = "INSERT INTO activity_splits (activity_id, shoe_id, km)
 const DELETE_SPLITS_SQL = "DELETE FROM activity_splits WHERE activity_id = ?";
 
 export async function insertSyncedActivity(
+  owner: OwnerContext,
   input: SyncedActivityInput,
   splits: SplitInput[]
 ): Promise<void> {
@@ -271,10 +273,11 @@ export async function insertSyncedActivity(
   try {
     const result = await tx.execute({
       sql: `INSERT INTO activities
-            (strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s,
+            (user_id, strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s,
              avg_pace_s_per_km, avg_hr, elevation_gain_m, status, raw_json, bike_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
+        owner.userId,
         input.strava_id,
         input.name,
         input.sport_type,
@@ -562,12 +565,15 @@ export async function replaceActivitySplits(id: number, splits: SplitInput[]): P
   ]);
 }
 
-export async function createManualActivity(input: {
-  date: string;
-  km: number;
-  shoe_id: number;
-  name?: string;
-}): Promise<number> {
+export async function createManualActivity(
+  owner: OwnerContext,
+  input: {
+    date: string;
+    km: number;
+    shoe_id: number;
+    name?: string;
+  }
+): Promise<number> {
   await ensureMigrated();
   // The picked date is already a local calendar day, so its noon stamp is both the
   // stored instant and the local wall-clock — carry it in both columns.
@@ -575,9 +581,9 @@ export async function createManualActivity(input: {
   const tx = await client.transaction("write");
   try {
     const result = await tx.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, started_at_local, distance_km, status)
-            VALUES (?, 'Manual', ?, ?, ?, 'confirmed')`,
-      args: [input.name ?? "Manual adjustment", startedAt, startedAt, input.km],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, started_at_local, distance_km, status)
+            VALUES (?, ?, 'Manual', ?, ?, ?, 'confirmed')`,
+      args: [owner.userId, input.name ?? "Manual adjustment", startedAt, startedAt, input.km],
     });
     const activityId = Number(result.lastInsertRowid);
     await tx.execute({ sql: INSERT_SPLIT_SQL, args: [activityId, input.shoe_id, input.km] });

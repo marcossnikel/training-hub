@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { constantTimeEqual } from "@/lib/crypto";
 import { exchangeCode } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
 
 function settingsRedirect(request: NextRequest, params: string) {
   const response = NextResponse.redirect(new URL(`/settings?${params}`, request.url));
@@ -9,6 +10,8 @@ function settingsRedirect(request: NextRequest, params: string) {
 }
 
 export async function GET(request: NextRequest) {
+  const owner = await requireCurrentUser();
+  if (!owner) return new NextResponse(null, { status: 401 });
   const search = request.nextUrl.searchParams;
 
   if (search.get("error")) {
@@ -23,7 +26,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    await exchangeCode(code);
+    await exchangeCode(owner, code);
   } catch {
     return settingsRedirect(request, "error=exchange");
   }

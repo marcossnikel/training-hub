@@ -49,6 +49,7 @@ import {
   type StravaLap,
   type StravaSplit,
 } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
 import { fmtCadence, fmtEnergy, fmtPower, fmtSpeed, isRideSport, rideMetrics } from "@/lib/cycling";
 import {
   fmtDateLong,
@@ -398,6 +399,8 @@ function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
 }
 
 export default async function ActivityPage({ params }: PageProps<"/activity/[id]">) {
+  const owner = await requireCurrentUser();
+  if (!owner) notFound();
   const { id } = await params;
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) notFound();
@@ -417,10 +420,10 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // gate, so non-runs come back as nulls and the tiles stay hidden.
   const runStats = runMetrics(activity);
 
-  const thresholds = await getAthleteThresholds();
+  const thresholds = await getAthleteThresholds(owner);
 
-  const detail = await ensureActivityDetail(activity);
-  const streams = await ensureActivityStreams(activity);
+  const detail = await ensureActivityDetail(owner, activity);
+  const streams = await ensureActivityStreams(owner, activity);
 
   const laps = (detail?.laps ?? []).filter(
     (lap) => (lap.distance ?? 0) > 0 || (lap.moving_time ?? 0) > 0

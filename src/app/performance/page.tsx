@@ -44,6 +44,7 @@ import { curveSeries, curveWindowStart, showPowerCurve, MIN_POWER_CURVE_RIDES } 
 import { fmtDate, fmtDuration, fmtKm, fmtPace } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { timeWindows } from "@/lib/windows";
+import { requireCurrentUser } from "@/lib/auth";
 
 export const metadata = { title: "Performance" };
 
@@ -75,14 +76,16 @@ function StatTile({
 }
 
 export default async function PerformancePage({ searchParams }: PageProps<"/performance">) {
+  const owner = await requireCurrentUser();
+  if (!owner) return null;
   const params = await searchParams;
   const { lang, t } = await getDict();
   const tp = t.performance;
 
   const efforts = await listRunEfforts();
   const storedEfforts = await listFastestBestEfforts();
-  const thresholds = await getAthleteThresholds();
-  const trainingZones = await getTrainingZones();
+  const thresholds = await getAthleteThresholds(owner);
+  const trainingZones = await getTrainingZones(owner);
 
   // Best times come from the true sub-segments Strava cut out of runs where we have
   // them, and from whole-activity summaries everywhere else. The critical-speed fit

@@ -13,6 +13,7 @@ import { localStartedAt } from "@/lib/format";
 const dbFile = path.join(os.tmpdir(), `training-hub-local-start-${process.pid}-${Date.now()}.db`);
 
 let db: typeof import("./db");
+const TEST_OWNER = "local-start-test-owner";
 
 beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
@@ -20,6 +21,27 @@ beforeAll(async () => {
   process.env.DATABASE_URL = `file:${dbFile}`;
   db = await import("./db");
   await db.ensureMigrated();
+  const now = new Date().toISOString();
+  await db.client.batch(
+    [
+      {
+        sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [
+          "local-start-test-auth",
+          "Local start Test",
+          "local-start@example.test",
+          0,
+          now,
+          now,
+        ],
+      },
+      {
+        sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [TEST_OWNER, "local-start-test-auth"],
+      },
+    ],
+    "write"
+  );
 });
 
 afterAll(() => {
@@ -41,9 +63,9 @@ describe("migration 6: started_at_local", () => {
 
   it("round-trips a captured local stamp and localStartedAt prefers it", async () => {
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, started_at_local, distance_km, status)
-            VALUES (?, 'Run', ?, ?, ?, 'confirmed')`,
-      args: ["evening run", "2026-03-16T00:00:00Z", "2026-03-15T21:00:00Z", 10],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, started_at_local, distance_km, status)
+            VALUES (?, ?, 'Run', ?, ?, ?, 'confirmed')`,
+      args: [TEST_OWNER, "evening run", "2026-03-16T00:00:00Z", "2026-03-15T21:00:00Z", 10],
     });
     const activity = await db.getActivity(Number(inserted.lastInsertRowid));
     expect(activity).not.toBeNull();
@@ -54,9 +76,9 @@ describe("migration 6: started_at_local", () => {
 
   it("falls back to the UTC started_at when the local stamp is null", async () => {
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status)
-            VALUES (?, 'Run', ?, ?, 'confirmed')`,
-      args: ["legacy row", "2026-03-16T00:00:00Z", 10],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status)
+            VALUES (?, ?, 'Run', ?, ?, 'confirmed')`,
+      args: [TEST_OWNER, "legacy row", "2026-03-16T00:00:00Z", 10],
     });
     const activity = await db.getActivity(Number(inserted.lastInsertRowid));
     expect(activity).not.toBeNull();

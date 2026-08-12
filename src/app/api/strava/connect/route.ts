@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildAuthorizeUrl, stravaConfigured } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
+  if (!(await requireCurrentUser())) return new NextResponse(null, { status: 401 });
   if (!stravaConfigured()) {
     return NextResponse.redirect(new URL("/settings?error=missing_env", request.url));
   }

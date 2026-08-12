@@ -1,5 +1,6 @@
 import { exec, many } from "./helpers";
 import type { Goal, GoalInput } from "../types";
+import type { OwnerContext } from "../owner-context";
 
 // Athlete goals (races/targets). Small CRUD through the plain-object seam;
 // primary goals first, then soonest race date.
@@ -11,11 +12,19 @@ export async function listGoals(): Promise<Goal[]> {
   );
 }
 
-export async function createGoal(input: GoalInput): Promise<void> {
+export async function createGoal(owner: OwnerContext, input: GoalInput): Promise<void> {
   await exec(
-    `INSERT INTO athlete_goals (name, race_date, distance_km, goal_time_s, notes, priority)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.name, input.race_date, input.distance_km, input.goal_time_s, input.notes, input.priority]
+    `INSERT INTO athlete_goals (user_id, name, race_date, distance_km, goal_time_s, notes, priority)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      owner.userId,
+      input.name,
+      input.race_date,
+      input.distance_km,
+      input.goal_time_s,
+      input.notes,
+      input.priority,
+    ]
   );
 }
 

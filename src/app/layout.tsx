@@ -47,11 +47,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const lang = await getLang();
+  const owner = await requireCurrentUser();
   const pendingCount = await countPending();
-  const connected = await isStravaConnected();
+  const connected = owner ? await isStravaConnected(owner) : false;
   const configured = stravaConfigured();
-  const autoSync = await shouldAutoSync();
-  const auth = (await requireCurrentUser()) ? "in" : "out";
+  const autoSync = owner ? await shouldAutoSync(owner) : false;
+  const auth = owner ? "in" : "out";
 
   return (
     <html

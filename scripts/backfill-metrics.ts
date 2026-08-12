@@ -142,8 +142,12 @@ async function main() {
     console.log("  --allow-downgrade does nothing without --recompute; ignoring it.");
   }
   await ensureMigrated();
+  const ownerId = process.env.TRAINING_HUB_OWNER_ID;
+  if (!ownerId)
+    throw new Error("TRAINING_HUB_OWNER_ID is required; scripts never select a default owner.");
+  const owner = { userId: ownerId };
 
-  const thresholds = await getAthleteThresholds();
+  const thresholds = await getAthleteThresholds(owner);
 
   const pending: PendingActivity[] = [];
   let scanned = 0;

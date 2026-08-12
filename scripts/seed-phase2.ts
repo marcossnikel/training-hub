@@ -77,6 +77,10 @@ async function main() {
   }
 
   await ensureMigrated();
+  const ownerId = process.env.TRAINING_HUB_OWNER_ID;
+  if (!ownerId)
+    throw new Error("TRAINING_HUB_OWNER_ID is required; scripts never select a default owner.");
+  const owner = { userId: ownerId };
   const version = await client.execute("SELECT version FROM schema_version WHERE id = 1");
   console.log(`schema_version: ${version.rows[0]?.version}`);
 
@@ -92,10 +96,10 @@ async function main() {
   console.log(`  total marked: ${count.rows[0]?.n}`);
 
   console.log("\nSeeding training zones...");
-  await setTrainingZones(ZONES);
+  await setTrainingZones(owner, ZONES);
 
   console.log("Updating measured resting HR (50 estimated -> 52 measured)...");
-  await saveAthleteThresholds({
+  await saveAthleteThresholds(owner, {
     maxHr: 199,
     restingHr: 52,
     lthr: 178,

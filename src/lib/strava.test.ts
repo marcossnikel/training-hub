@@ -14,8 +14,21 @@ import { hrZones, zoneIndexOf, zoneSeconds } from "./fitness";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-strava-${process.pid}-${Date.now()}.db`);
 
-let strava: typeof import("./strava");
+type StravaModule = typeof import("./strava");
+type StravaTestApi = Pick<StravaModule, "backoff"> & {
+  apiGet<T>(pathname: string, params?: Record<string, string>): Promise<T>;
+  exchangeCode(code: string): Promise<void>;
+  ensureActivityStreams(
+    activity: Parameters<StravaModule["ensureActivityStreams"]>[1]
+  ): ReturnType<StravaModule["ensureActivityStreams"]>;
+  ensureActivityDetail(
+    activity: Parameters<StravaModule["ensureActivityDetail"]>[1]
+  ): ReturnType<StravaModule["ensureActivityDetail"]>;
+};
+
+let strava: StravaTestApi;
 let db: typeof import("./db");
+const TEST_OWNER = { userId: "strava-test-owner" };
 
 const realFetch = global.fetch;
 
@@ -44,7 +57,7 @@ function rateLimitResponse(retryAfter: string | null): Response {
 // A valid, far-from-expiry token so apiGet never triggers a refresh fetch — the
 // only fetches a test sees are the ones it mocks for the endpoint under test.
 async function connectWithFreshToken(): Promise<void> {
-  await db.saveStravaAuth({
+  await db.saveStravaAuth(TEST_OWNER, {
     access_token: "access-abc",
     refresh_token: "refresh-abc",
     expires_at: Math.floor(Date.now() / 1000) + 3600,
@@ -58,8 +71,25 @@ beforeAll(async () => {
   process.env.STRAVA_CLIENT_ID = "test-client";
   process.env.STRAVA_CLIENT_SECRET = "test-secret";
   db = await import("./db");
-  strava = await import("./strava");
+  const stravaModule = await import("./strava");
+  strava = {
+    backoff: stravaModule.backoff,
+    apiGet: <T>(pathname: string, params?: Record<string, string>) =>
+      stravaModule.apiGet<T>(TEST_OWNER, pathname, params),
+    exchangeCode: (code: string) => stravaModule.exchangeCode(TEST_OWNER, code),
+    ensureActivityStreams: (activity) => stravaModule.ensureActivityStreams(TEST_OWNER, activity),
+    ensureActivityDetail: (activity) => stravaModule.ensureActivityDetail(TEST_OWNER, activity),
+  };
   await db.ensureMigrated();
+  const now = new Date().toISOString();
+  await db.client.execute({
+    sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+    args: ["strava-test-auth", "Strava test", "strava@example.test", 0, now, now],
+  });
+  await db.client.execute({
+    sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+    args: [TEST_OWNER.userId, "strava-test-auth"],
+  });
 });
 
 afterAll(() => {
@@ -138,9 +168,9 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
   it("does not re-hit the API on a second view of a streamless activity", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('No streams', 'Run', '2026-01-01T12:00:00Z', 5, 'confirmed', 99999)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'No streams', 'Run', '2026-01-01T12:00:00Z', 5, 'confirmed', 99999)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -160,9 +190,9 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
   it("still caches and returns non-empty streams unchanged", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('With streams', 'Run', '2026-01-02T12:00:00Z', 5, 'confirmed', 88888)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'With streams', 'Run', '2026-01-02T12:00:00Z', 5, 'confirmed', 88888)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -191,9 +221,9 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
     // short of deleting their cached streams.
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('Key list', 'Run', '2026-01-03T12:00:00Z', 5, 'confirmed', 88801)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'Key list', 'Run', '2026-01-03T12:00:00Z', 5, 'confirmed', 88801)`,
+      args: [TEST_OWNER.userId],
     });
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ time: { data: [0, 1, 2] } }));
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -223,10 +253,10 @@ describe("derived metrics are written from the fetched stream", () => {
   it("stores a full-resolution row on the fetch and nothing on a cached view", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, moving_time_s,
                                     avg_hr, status, strava_id)
-            VALUES ('Metrics run', 'Run', '2026-01-04T12:00:00Z', 10, 3000, 150, 'confirmed', 77777)`,
-      args: [],
+            VALUES (?, 'Metrics run', 'Run', '2026-01-04T12:00:00Z', 10, 3000, 150, 'confirmed', 77777)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -255,7 +285,7 @@ describe("derived metrics are written from the fetched stream", () => {
 
     const downsampled = await strava.ensureActivityStreams({ id: activityId, strava_id: 77777 });
 
-    const zones = hrZones(await db.getAthleteThresholds());
+    const zones = hrZones(await db.getAthleteThresholds(TEST_OWNER));
     const spikeZone = zoneIndexOf(190, zones);
     expect(spikeZone).toBeGreaterThan(zoneIndexOf(150, zones));
     expect(spikeCount).toBe(350);
@@ -294,10 +324,10 @@ describe("derived metrics are written from the fetched stream", () => {
   it("stamps version 3 and stores a grade-adjusted pace when the payload carries grade", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, moving_time_s,
                                     avg_pace_s_per_km, avg_hr, status, strava_id)
-            VALUES ('Hill run', 'Run', '2026-01-06T12:00:00Z', 6, 1800, 300, 150, 'confirmed', 77701)`,
-      args: [],
+            VALUES (?, 'Hill run', 'Run', '2026-01-06T12:00:00Z', 6, 1800, 300, 150, 'confirmed', 77701)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -336,10 +366,10 @@ describe("derived metrics are written from the fetched stream", () => {
     // resolution exists.
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, moving_time_s,
                                     avg_pace_s_per_km, status, strava_id)
-            VALUES ('Seeded run', 'Run', '2026-01-07T12:00:00Z', 0.8, 240, 300, 'confirmed', 77702)`,
-      args: [],
+            VALUES (?, 'Seeded run', 'Run', '2026-01-07T12:00:00Z', 0.8, 240, 300, 'confirmed', 77702)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
     await db.saveActivityCurvePoints(activityId, [{ kind: "pace", bucket: "400m", value: 999 }], {
@@ -369,9 +399,9 @@ describe("derived metrics are written from the fetched stream", () => {
   it("caches the stream even when the metrics cannot be derived", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('Cadence only', 'Workout', '2026-01-05T12:00:00Z', 0, 'confirmed', 66666)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'Cadence only', 'Workout', '2026-01-05T12:00:00Z', 0, 'confirmed', 66666)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -399,9 +429,9 @@ describe("best efforts are mirrored once, not on every view", () => {
       ],
     });
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, detail_json)
-            VALUES ('Cached detail', 'Run', '2026-01-03T12:00:00Z', 10, 'confirmed', ?)`,
-      args: [detailJson],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, detail_json)
+            VALUES (?, 'Cached detail', 'Run', '2026-01-03T12:00:00Z', 10, 'confirmed', ?)`,
+      args: [TEST_OWNER.userId, detailJson],
     });
     const activityId = Number(inserted.lastInsertRowid);
     const activity = { id: activityId, strava_id: null, detail_json: detailJson };

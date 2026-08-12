@@ -1,6 +1,7 @@
 import { batchWrite, clearGearFromOthers, exec, many, one } from "./helpers";
 import type { InStatement } from "./client";
 import type { BikeWithMileage } from "../types";
+import type { OwnerContext } from "../owner-context";
 
 // Each bike's confirmed-ride mileage aggregated ONCE (grouped by bike_id), then
 // LEFT JOINed so every derived column is read from a single computed row instead
@@ -43,15 +44,26 @@ export interface BikeFields {
   strava_gear_id: string | null;
 }
 
-export async function createBike(fields: BikeFields, photoPath: string | null): Promise<number> {
+export async function createBike(
+  owner: OwnerContext,
+  fields: BikeFields,
+  photoPath: string | null
+): Promise<number> {
   const statements: InStatement[] = [];
   if (fields.strava_gear_id) {
     statements.push(clearGearFromOthers("bikes", fields.strava_gear_id));
   }
   statements.push({
-    sql: `INSERT INTO bikes (name, role, initial_km, strava_gear_id, photo_path)
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [fields.name, fields.role, fields.initial_km, fields.strava_gear_id, photoPath],
+    sql: `INSERT INTO bikes (user_id, name, role, initial_km, strava_gear_id, photo_path)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      owner.userId,
+      fields.name,
+      fields.role,
+      fields.initial_km,
+      fields.strava_gear_id,
+      photoPath,
+    ],
   });
   const results = await batchWrite(statements);
   return Number(results[results.length - 1].lastInsertRowid);

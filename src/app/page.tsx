@@ -16,6 +16,7 @@ import { SportIcon } from "@/components/sport-icon";
 import { countPending, listConfirmedActivities } from "@/lib/db";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected, stravaConfigured } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
 import {
   fmtDate,
   fmtDateWithYear,
@@ -175,12 +176,14 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
 const LOG_PAGE_SIZE = 150;
 
 export default async function TrainingLogPage({ searchParams }: PageProps<"/">) {
+  const owner = await requireCurrentUser();
+  if (!owner) return null;
   const params = await searchParams;
   const { lang, t } = await getDict();
   const [pending, activities, connected] = await Promise.all([
     countPending(),
     listConfirmedActivities(),
-    isStravaConnected(),
+    isStravaConnected(owner),
   ]);
   const configured = stravaConfigured();
 

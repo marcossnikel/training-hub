@@ -202,6 +202,10 @@ function failureReason(events: StravaRequestEvent[]): string {
 }
 
 async function main() {
+  const ownerId = process.env.TRAINING_HUB_OWNER_ID;
+  if (!ownerId)
+    throw new Error("TRAINING_HUB_OWNER_ID is required; scripts never select a default owner.");
+  const owner = { userId: ownerId };
   const dryRun = process.argv.includes("--dry-run");
   const limit = parseLimit();
 
@@ -279,7 +283,7 @@ async function main() {
 
       if (activity.needs_detail) {
         const outcome = await runAttempt(() =>
-          ensureActivityDetail({
+          ensureActivityDetail(owner, {
             id: activity.id,
             strava_id: activity.strava_id,
             detail_json: null,
@@ -291,7 +295,7 @@ async function main() {
         // Writes the stream cache AND, through the fetch-time hook, this
         // activity's full-resolution metrics row.
         const outcome = await runAttempt(() =>
-          ensureActivityStreams({ id: activity.id, strava_id: activity.strava_id })
+          ensureActivityStreams(owner, { id: activity.id, strava_id: activity.strava_id })
         );
         if (outcome === "ok") streamsFetched += 1;
       }

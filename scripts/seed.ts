@@ -52,9 +52,24 @@ async function main() {
   await ensureMigrated();
 
   // Fixture data is intentionally seeded only by this explicit disposable-data
-  // script, never by schema bootstrap. #24/#25 replace this temporary owner with
-  // the authenticated fixture owner used by the E2E harness.
+  // script, never by schema bootstrap. Its owner exists in both sides of the
+  // auth bridge so every root domain write satisfies the #23 foreign key.
   const fixtureOwner = "legacy-local-owner";
+  const fixtureAuthSubject = "seed-fixture-auth-subject";
+  const now = new Date().toISOString();
+  await client.batch(
+    [
+      {
+        sql: 'INSERT OR IGNORE INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [fixtureAuthSubject, "Seed Fixture", "seed@example.test", 0, now, now],
+      },
+      {
+        sql: "INSERT OR IGNORE INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [fixtureOwner, fixtureAuthSubject],
+      },
+    ],
+    "write"
+  );
   const existingShoes = await client.execute("SELECT COUNT(*) AS count FROM shoes");
   if (Number(existingShoes.rows[0].count) === 0) {
     await client.batch(
@@ -313,11 +328,12 @@ async function main() {
     const startedAtLocal = localWallClock(started);
     const result = await client.execute({
       sql: `INSERT INTO activities
-            (strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s,
+            (user_id, strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s,
              avg_pace_s_per_km, avg_hr, elevation_gain_m, status, rpe, feeling,
              workout_notes, health_notes, raw_json)
-            VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
+        fixtureOwner,
         a.name,
         a.sport,
         startedAtUtc,

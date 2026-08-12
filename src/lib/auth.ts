@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Kysely } from "kysely";
 import { LibsqlDialect } from "@libsql/kysely-libsql";
 import { client } from "./db/client";
+import { ensureMigrated } from "./db/migrations";
 
 // `@libsql/kysely-libsql` 0.4.x predates the current client type declaration,
 // though both use the same stable Client runtime API. The compatibility spike
@@ -26,8 +27,9 @@ export const auth = betterAuth({
 });
 
 export interface CurrentUser {
-  /** Better Auth's server-validated local subject. Domain ownership follows in #23. */
+  /** Application owner id, resolved from the server-validated Better Auth subject. */
   userId: string;
+  authSubject: string;
   sessionId: string;
   email: string;
 }
@@ -39,14 +41,31 @@ export async function requireCurrentUser(): Promise<CurrentUser | null> {
     query: { disableCookieCache: true },
   });
   if (!session) return null;
+  // The application owner is a separate, local key.  Never use a submitted
+  // owner id (or the provider subject) to authorize domain records.
+  await ensureMigrated();
+  const existing = await client.execute({
+    sql: "SELECT id FROM users WHERE auth_subject = ?",
+    args: [session.user.id],
+  });
+  let userId = existing.rows[0]?.id;
+  if (typeof userId !== "string") {
+    const id = crypto.randomUUID();
+    await client.execute({
+      sql: "INSERT OR IGNORE INTO users (id, auth_subject) VALUES (?, ?)",
+      args: [id, session.user.id],
+    });
+    const resolved = await client.execute({
+      sql: "SELECT id FROM users WHERE auth_subject = ?",
+      args: [session.user.id],
+    });
+    userId = resolved.rows[0]?.id;
+  }
+  if (typeof userId !== "string") return null;
   return {
-    userId: session.user.id,
+    userId,
+    authSubject: session.user.id,
     sessionId: session.session.id,
     email: session.user.email,
   };
-}
-
-/** Temporary compatibility boundary for existing actions until #24 consumes CurrentUser. */
-export async function requireAuth(): Promise<boolean> {
-  return (await requireCurrentUser()) !== null;
 }

@@ -4,6 +4,7 @@ import { get } from "@vercel/blob";
 import type { NextRequest } from "next/server";
 import { UPLOADS_DIR } from "@/lib/db";
 import { blobEnabled, contentTypeForName } from "@/lib/storage";
+import { requireCurrentUser } from "@/lib/auth";
 
 // Photos are mutable at the app level (a gear photo can be replaced, and the old
 // asset is deleted), so they must NOT be cached as year-long immutables (T3.8):
@@ -16,6 +17,7 @@ const CACHE_HEADERS = {
 
 /** Serves gear photos: local data/uploads first, then the private Blob store. */
 export async function GET(_request: NextRequest, context: { params: Promise<{ name: string }> }) {
+  if (!(await requireCurrentUser())) return new Response(null, { status: 401 });
   const { name } = await context.params;
   const safeName = path.basename(name);
   const type = contentTypeForName(safeName);

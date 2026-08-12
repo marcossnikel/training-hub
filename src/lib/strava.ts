@@ -33,6 +33,7 @@ import type { Activity } from "./types";
 import { round2 } from "./format";
 import { isRunSport } from "./validate";
 import type { SplitInput, StravaGear } from "./types";
+import type { OwnerContext } from "./owner-context";
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
@@ -112,14 +113,14 @@ export function stravaConfigured(): boolean {
   return !!(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET);
 }
 
-export async function isStravaConnected(): Promise<boolean> {
-  return (await getStravaAuth()) !== null;
+export async function isStravaConnected(owner: OwnerContext): Promise<boolean> {
+  return (await getStravaAuth(owner)) !== null;
 }
 
 /** True when connected and the last sync is more than an hour old (or never ran). */
-export async function shouldAutoSync(): Promise<boolean> {
-  if (!stravaConfigured() || !(await isStravaConnected())) return false;
-  const lastSync = await getMeta("last_sync_at");
+export async function shouldAutoSync(owner: OwnerContext): Promise<boolean> {
+  if (!stravaConfigured() || !(await isStravaConnected(owner))) return false;
+  const lastSync = await getMeta(owner, "last_sync_at");
   return !lastSync || Date.now() - Date.parse(lastSync) > 60 * 60 * 1000;
 }
 
@@ -172,22 +173,22 @@ async function requestToken(params: Record<string, string>): Promise<TokenRespon
   return (await res.json()) as TokenResponse;
 }
 
-export async function exchangeCode(code: string): Promise<void> {
+export async function exchangeCode(owner: OwnerContext, code: string): Promise<void> {
   const token = await requestToken({ grant_type: "authorization_code", code });
-  await saveStravaAuth({
+  await saveStravaAuth(owner, {
     access_token: token.access_token,
     refresh_token: token.refresh_token,
     expires_at: token.expires_at,
   });
   if (token.athlete) {
     const name = [token.athlete.firstname, token.athlete.lastname].filter(Boolean).join(" ");
-    if (name) await setMeta("athlete_name", name);
+    if (name) await setMeta(owner, "athlete_name", name);
   }
 }
 
 /** Returns a valid access token, refreshing it first when close to expiry. */
-async function getAccessToken(): Promise<string> {
-  const auth = await getStravaAuth();
+async function getAccessToken(owner: OwnerContext): Promise<string> {
+  const auth = await getStravaAuth(owner);
   if (!auth) throw new Error("Strava is not connected.");
   const now = Math.floor(Date.now() / 1000);
   if (auth.expires_at > now + 120) return auth.access_token;
@@ -195,7 +196,7 @@ async function getAccessToken(): Promise<string> {
     grant_type: "refresh_token",
     refresh_token: auth.refresh_token,
   });
-  await saveStravaAuth({
+  await saveStravaAuth(owner, {
     access_token: token.access_token,
     refresh_token: token.refresh_token,
     expires_at: token.expires_at,
@@ -203,8 +204,12 @@ async function getAccessToken(): Promise<string> {
   return token.access_token;
 }
 
-export async function apiGet<T>(pathname: string, params?: Record<string, string>): Promise<T> {
-  const token = await getAccessToken();
+export async function apiGet<T>(
+  owner: OwnerContext,
+  pathname: string,
+  params?: Record<string, string>
+): Promise<T> {
+  const token = await getAccessToken(owner);
   const url = new URL(`${API_BASE}${pathname}`);
   for (const [key, value] of Object.entries(params ?? {})) {
     url.searchParams.set(key, value);
@@ -263,16 +268,18 @@ function mapGear(list: RawGear[] | undefined): StravaGear[] {
   }));
 }
 
-export async function fetchAthleteGear(): Promise<{ shoes: StravaGear[]; bikes: StravaGear[] }> {
-  const athlete = await apiGet<StravaAthlete>("/athlete");
+export async function fetchAthleteGear(
+  owner: OwnerContext
+): Promise<{ shoes: StravaGear[]; bikes: StravaGear[] }> {
+  const athlete = await apiGet<StravaAthlete>(owner, "/athlete");
   return { shoes: mapGear(athlete.shoes), bikes: mapGear(athlete.bikes) };
 }
 
 /** Shoe gear list for dropdowns; null when not connected or the request fails. */
-export async function tryFetchGear(): Promise<StravaGear[] | null> {
-  if (!stravaConfigured() || !(await isStravaConnected())) return null;
+export async function tryFetchGear(owner: OwnerContext): Promise<StravaGear[] | null> {
+  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
   try {
-    return (await fetchAthleteGear()).shoes;
+    return (await fetchAthleteGear(owner)).shoes;
   } catch (error) {
     logger.error("strava.tryFetchGear", { error });
     return null;
@@ -280,10 +287,10 @@ export async function tryFetchGear(): Promise<StravaGear[] | null> {
 }
 
 /** Bike gear list for dropdowns; null when not connected or the request fails. */
-export async function tryFetchBikes(): Promise<StravaGear[] | null> {
-  if (!stravaConfigured() || !(await isStravaConnected())) return null;
+export async function tryFetchBikes(owner: OwnerContext): Promise<StravaGear[] | null> {
+  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
   try {
-    return (await fetchAthleteGear()).bikes;
+    return (await fetchAthleteGear(owner)).bikes;
   } catch (error) {
     logger.error("strava.tryFetchBikes", { error });
     return null;
@@ -291,13 +298,13 @@ export async function tryFetchBikes(): Promise<StravaGear[] | null> {
 }
 
 /** Both gear lists in one athlete call; null when not connected or it fails. */
-export async function tryFetchAllGear(): Promise<{
+export async function tryFetchAllGear(owner: OwnerContext): Promise<{
   shoes: StravaGear[];
   bikes: StravaGear[];
 } | null> {
-  if (!stravaConfigured() || !(await isStravaConnected())) return null;
+  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
   try {
-    return await fetchAthleteGear();
+    return await fetchAthleteGear(owner);
   } catch (error) {
     logger.error("strava.tryFetchAllGear", { error });
     return null;
@@ -404,6 +411,7 @@ async function cacheBestEfforts(
  * mirrored into `activity_best_efforts` on the way out, once per activity.
  */
 export async function ensureActivityDetail(
+  owner: OwnerContext,
   activity: Pick<Activity, "id" | "strava_id" | "detail_json">
 ): Promise<StravaActivityDetail | null> {
   if (activity.detail_json) {
@@ -412,9 +420,9 @@ export async function ensureActivityDetail(
     return cached;
   }
   if (!activity.strava_id) return null;
-  if (!stravaConfigured() || !(await isStravaConnected())) return null;
+  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
   try {
-    const detail = await apiGet<StravaActivityDetail>(`/activities/${activity.strava_id}`);
+    const detail = await apiGet<StravaActivityDetail>(owner, `/activities/${activity.strava_id}`);
     await saveActivityDetail(activity.id, JSON.stringify(detail));
     await cacheBestEfforts(activity.id, detail);
     return detail;
@@ -447,6 +455,7 @@ export async function ensureActivityDetail(
  * call — so every error is logged and swallowed.
  */
 async function cacheStreamMetrics(
+  owner: OwnerContext,
   activityId: number,
   raw: Record<string, { data: number[] }>
 ): Promise<void> {
@@ -455,7 +464,7 @@ async function cacheStreamMetrics(
     if (!streams) return;
     const activity = await getMetricsActivity(activityId);
     if (!activity) return;
-    const metrics = computeStreamMetrics({ streams, activity }, await getAthleteThresholds());
+    const metrics = computeStreamMetrics({ streams, activity }, await getAthleteThresholds(owner));
     if (hasAnyMetric(metrics)) {
       await upsertActivityMetrics(activityId, metrics, fullResMetricsVersion(streams));
     }
@@ -482,14 +491,16 @@ async function cacheStreamMetrics(
  * is never cached — only a confirmed "checked, none" result is.
  */
 export async function ensureActivityStreams(
+  owner: OwnerContext,
   activity: Pick<Activity, "id" | "strava_id">
 ): Promise<ActivityStreams | null> {
   const cached = await getActivityStreamsJson(activity.id);
   if (cached) return JSON.parse(cached) as ActivityStreams | null;
   if (!activity.strava_id) return null;
-  if (!stravaConfigured() || !(await isStravaConnected())) return null;
+  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
   try {
     const raw = await apiGet<Record<string, { data: number[] }>>(
+      owner,
       `/activities/${activity.strava_id}/streams`,
       {
         keys: "time,distance,heartrate,velocity_smooth,watts,cadence,altitude,grade_smooth",
@@ -498,7 +509,7 @@ export async function ensureActivityStreams(
     );
     // The payload is worth more than the chart's 400 points, so it is measured
     // before it is downsampled — this is the only moment full resolution exists.
-    await cacheStreamMetrics(activity.id, raw);
+    await cacheStreamMetrics(owner, activity.id, raw);
     const streams = normalizeStreams(raw);
     // Persist even when null: JSON.stringify(null) === "null", a non-empty
     // marker that getActivityStreamsJson returns and the read above parses back
@@ -544,9 +555,9 @@ export interface SyncResult {
  * shoe baselines already cover their mileage. Everything newer lands in the
  * review queue with one pre-filled split.
  */
-export async function syncActivities(): Promise<SyncResult> {
+export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
   const afterEpoch = await latestSyncedStartEpoch();
-  const baselineIso = await getMeta("baseline_date");
+  const baselineIso = await getMeta(owner, "baseline_date");
   const baselineMs = baselineIso ? Date.parse(baselineIso) : 0;
 
   let imported = 0;
@@ -560,7 +571,7 @@ export async function syncActivities(): Promise<SyncResult> {
     };
     if (afterEpoch) params.after = String(afterEpoch);
 
-    const batch = await apiGet<StravaActivity[]>("/athlete/activities", params);
+    const batch = await apiGet<StravaActivity[]>(owner, "/athlete/activities", params);
     if (batch.length === 0) break;
 
     for (const activity of batch) {
@@ -597,6 +608,7 @@ export async function syncActivities(): Promise<SyncResult> {
       }
 
       await insertSyncedActivity(
+        owner,
         {
           strava_id: activity.id,
           name: activity.name ?? null,
@@ -620,6 +632,6 @@ export async function syncActivities(): Promise<SyncResult> {
     if (batch.length < perPage) break;
   }
 
-  await setMeta("last_sync_at", new Date().toISOString());
+  await setMeta(owner, "last_sync_at", new Date().toISOString());
   return { imported, pendingNew, pendingTotal: await countPending() };
 }
