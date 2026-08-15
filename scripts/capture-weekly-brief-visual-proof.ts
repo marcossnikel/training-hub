@@ -116,8 +116,9 @@ async function captureDefaultAndMobile(): Promise<void> {
     fullPage: false,
   });
   await baseline.scrollIntoViewIfNeeded();
-  await baseline.screenshot({
+  await mobilePage.screenshot({
     path: path.join(evidence, "35-weekly-brief-default-baseline-390.png"),
+    fullPage: false,
   });
   await mobile.close();
   await browser.close();
@@ -126,7 +127,11 @@ async function captureDefaultAndMobile(): Promise<void> {
 async function captureError(): Promise<void> {
   const database = createClient({ url: dbUrl, intMode: "number" });
   const browser = await chromium.launch();
-  const context = await browser.newContext({ storageState, viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({
+    storageState,
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+  });
   const page = await context.newPage();
   try {
     await database.execute("DROP TABLE activities");

@@ -1,4 +1,6 @@
 import { WeeklyBriefView, rangeLabel } from "./weekly-brief-view";
+import { WeeklyBriefSkeleton } from "./weekly-brief-skeleton";
+import { Suspense } from "react";
 import { requireCurrentUser } from "@/lib/auth";
 import { listWeeklyBriefActivities } from "@/lib/db";
 import { buildWeeklyBrief } from "@/lib/weekly-brief";
@@ -6,7 +8,19 @@ import { mostRecentCompletedWeeklyBriefPeriod } from "@/lib/weekly-brief-window"
 
 export const metadata = { title: "Weekly brief" };
 
-export default async function WeeklyBriefPage() {
+export default function WeeklyBriefPage() {
+  return (
+    <Suspense fallback={<WeeklyBriefSkeleton />}>
+      <WeeklyBriefContent />
+    </Suspense>
+  );
+}
+
+/**
+ * Keep all request-time identity and owner-scoped data access inside the
+ * boundary so the shared static fallback can stream during real route work.
+ */
+export async function WeeklyBriefContent() {
   const owner = await requireCurrentUser();
   if (!owner) return null;
   const period = mostRecentCompletedWeeklyBriefPeriod();
