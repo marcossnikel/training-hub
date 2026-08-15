@@ -65,8 +65,6 @@ afterEach(() => {
 
 describe("owner-bound Strava callback", () => {
   it("consumes state before owner-only exchange, promotes exact scope, syncs, and redirects safely", async () => {
-    process.env.STRAVA_CLIENT_ID = "founder-client-must-not-be-used";
-    process.env.STRAVA_CLIENT_SECRET = "founder-secret-must-not-be-used";
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.status).toBe(307);
@@ -90,8 +88,6 @@ describe("owner-bound Strava callback", () => {
       location: response.headers.get("location"),
       calls: mocks.exchangeByoCode.mock.calls,
     });
-    expect(artifact).not.toContain("founder-client-must-not-be-used");
-    expect(artifact).not.toContain("founder-secret-must-not-be-used");
     expect(artifact).not.toContain("access-token");
     expect(artifact).not.toContain("refresh-token");
   });

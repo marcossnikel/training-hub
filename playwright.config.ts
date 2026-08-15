@@ -26,9 +26,8 @@ process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = E2E_CONNECTION_ENCRYPTION_KEY;
 /**
  * E2E harness for Training Hub. The webServer command reseeds the isolated DB and
  * only then starts `next dev`, so the server always opens an already-seeded file
- * (no stale-inode race). Strava is deliberately kept out of the loop: STRAVA_CLIENT_ID
- * and STRAVA_CLIENT_SECRET are blank, so stravaConfigured() is false and no server-side
- * Strava request is ever made — the connect UI simply shows its disconnected state.
+ * (no stale-inode race). The E2E harness uses only each disposable owner's stored
+ * BYO connection; no process-wide Strava credential is available to the app.
  *
  * A disposable loopback Strava double runs only for this E2E process. Production
  * ignores its explicit loopback-only origin, so normal deployments retain
@@ -116,9 +115,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       DATABASE_URL: E2E_DATABASE_URL,
-      // No valid Strava app; blank Turso creds keep every DB access local.
-      STRAVA_CLIENT_ID: "",
-      STRAVA_CLIENT_SECRET: "",
+      // Blank Turso credentials keep every DB access local.
       TURSO_DATABASE_URL: "",
       TURSO_AUTH_TOKEN: "",
       BETTER_AUTH_SECRET: "e2e-signing-secret-please-do-not-reuse",

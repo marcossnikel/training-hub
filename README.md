@@ -12,9 +12,9 @@ The v0 direction and delivery queue live in the
 
 ## Current boundaries
 
-- The current app resolves one owner and one Strava connection. Multi-tenant
-  accounts, secure per-user connections, and BYO Strava onboarding are planned
-  work, not capabilities to promise today.
+- Each signed-in athlete owns their own encrypted Strava connection. BYO Strava
+  onboarding is the current beta path; do not add a shared credential to local
+  configuration or a deployment.
 - The beta will use an athlete's own Strava developer app until a compliant
   standard connection model is available. Never use founder credentials as a
   product default.
@@ -40,8 +40,8 @@ npm run dev
 
 Create a Strava API application at
 [strava.com/settings/api](https://www.strava.com/settings/api), set its local
-callback domain to `localhost`, and add its credentials to `.env.local` when
-you need real sync. Leave `TURSO_*` empty locally: development uses
+callback domain to `localhost`, then sign in and submit that app's credentials
+in Settings when you need real sync. Leave `TURSO_*` empty locally: development uses
 `data/app.db` and must never target a shared or production database.
 
 To explore the UI without Strava:

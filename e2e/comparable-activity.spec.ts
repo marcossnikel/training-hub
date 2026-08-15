@@ -4,7 +4,7 @@ import { createClient } from "@libsql/client";
 import { expect, test, type Page } from "@playwright/test";
 
 const dbUrl = `file:${path.join(process.cwd(), "data", "e2e.db")}`;
-const ownerId = "legacy-local-owner";
+const ownerId = "e2e-fixture-owner";
 
 type ComparableFixture = { sourceId: number; priorId: number; pendingId: number };
 const fixtureActivityIds = new Set<number>();

@@ -1,7 +1,7 @@
 /**
  * The first BYO step deliberately knows nothing about process-level Strava
- * credentials. The submitted app belongs to the current owner and the legacy
- * singleton adapter remains isolated until #31 replaces its callback/sync path.
+ * credentials. The submitted app belongs to the current owner; the complete
+ * callback, sync, reconnect, and deletion lifecycle stays owner-bound.
  */
 export const STRAVA_BYO_SCOPE = "activity:read_all,profile:read_all";
 const REQUIRED_STRAVA_BYO_SCOPES = new Set(STRAVA_BYO_SCOPE.split(","));

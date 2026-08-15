@@ -85,7 +85,7 @@ describe("migration 6: started_at_local", () => {
     const inserted = await db.client.execute({
       sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status)
             VALUES (?, ?, 'Run', ?, ?, 'confirmed')`,
-      args: [TEST_OWNER, "legacy row", "2026-03-16T00:00:00Z", 10],
+      args: [TEST_OWNER, "fixture row", "2026-03-16T00:00:00Z", 10],
     });
     const activity = await db.getActivity(Number(inserted.lastInsertRowid));
     expect(activity).not.toBeNull();

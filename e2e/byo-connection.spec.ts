@@ -59,7 +59,7 @@ test("BYO credential form is owner-bound, keyboard accessible, and gives only a 
   await expect(page.getByLabel("Strava Client Secret")).toHaveAttribute("type", "password");
   await expect(page.getByLabel("Strava Client Secret")).toHaveAttribute("required", "");
   await expect(page.getByLabel("Strava Client Secret")).toHaveAttribute("aria-required", "true");
-  await expect(page.getByText("Set STRAVA_CLIENT_ID", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("Set an environment variable", { exact: false })).toHaveCount(0);
   await captureEvidence(page, "30-settings-default-1440.png");
 
   await page.setViewportSize({ width: 390, height: 844 });

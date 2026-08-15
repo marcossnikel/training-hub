@@ -10,7 +10,7 @@
 import { createClient } from "@libsql/client";
 import path from "node:path";
 
-const OWNER = "legacy-local-owner";
+const OWNER = "e2e-fixture-owner";
 const MARKER = '{"seed":true,"weeklyBriefLoadingProof":true}';
 // Five thousand rows occasionally resolve from a warmed local SQLite database
 // before React emits its fallback. Ten thousand keeps this proof workload

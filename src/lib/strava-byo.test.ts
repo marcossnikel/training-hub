@@ -10,15 +10,9 @@ import {
   validateByoCredentials,
 } from "./strava-byo";
 
-const ENV_ID = process.env.STRAVA_CLIENT_ID;
-const ENV_SECRET = process.env.STRAVA_CLIENT_SECRET;
 const ENV_PUBLIC_ORIGIN = process.env.TRAINING_HUB_PUBLIC_ORIGIN;
 
 afterEach(() => {
-  if (ENV_ID === undefined) delete process.env.STRAVA_CLIENT_ID;
-  else process.env.STRAVA_CLIENT_ID = ENV_ID;
-  if (ENV_SECRET === undefined) delete process.env.STRAVA_CLIENT_SECRET;
-  else process.env.STRAVA_CLIENT_SECRET = ENV_SECRET;
   if (ENV_PUBLIC_ORIGIN === undefined) delete process.env.TRAINING_HUB_PUBLIC_ORIGIN;
   else process.env.TRAINING_HUB_PUBLIC_ORIGIN = ENV_PUBLIC_ORIGIN;
 });
@@ -69,8 +63,6 @@ describe("BYO Strava authorization contract", () => {
   });
 
   it("uses only the supplied owner credential, exact scope, server-derived callback, and opaque state", () => {
-    process.env.STRAVA_CLIENT_ID = "legacy-founder-client";
-    process.env.STRAVA_CLIENT_SECRET = "legacy-founder-secret";
     const url = new URL(
       buildByoAuthorizeUrl({
         clientId: "athlete-owned-client",
@@ -87,8 +79,6 @@ describe("BYO Strava authorization contract", () => {
     );
     expect(url.searchParams.get("state")).toBe("opaque-random-state");
     expect(url.searchParams.get("response_type")).toBe("code");
-    expect(url.toString()).not.toContain("legacy-founder-client");
-    expect(url.toString()).not.toContain("legacy-founder-secret");
     for (const forbidden of [
       "client_secret",
       "access_token",

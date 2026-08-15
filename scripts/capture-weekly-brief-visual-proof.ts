@@ -36,7 +36,7 @@ async function authenticateDisposableFixture(): Promise<void> {
           { sql: "DELETE FROM users WHERE auth_subject = ?", args: [session.user.id] },
           {
             sql: "UPDATE users SET auth_subject = ? WHERE id = ?",
-            args: [session.user.id, "legacy-local-owner"],
+            args: [session.user.id, "e2e-fixture-owner"],
           },
         ],
         "write"

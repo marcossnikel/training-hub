@@ -78,3 +78,19 @@ npm run check:env
   billing issues.
 - The existing seed/backfill scripts refuse remote databases unless a human sets
   `ALLOW_REMOTE_DB=1`. Autonomous local or preview work must not set it.
+
+## Retired Strava credential decommission
+
+After the source cleanup is deployed, the follow-up operator must verify the
+deployed commit includes the passing `npm run check:retired-strava-config` gate,
+then smoke the cookie-free connection entrypoint and the authenticated BYO
+handoff without submitting credentials or touching imported data. Review the
+deployed source and redacted logs for owner-bound connection handling; never
+inspect, print, or paste secret values to establish this.
+
+Only after that clean deployment and smoke result may an explicitly authorized
+operator remove unused global Strava credential variables from Preview and
+Production configuration. Remove configuration one environment at a time and
+record only variable names and outcomes. The old configuration is not a
+rollback mechanism: source rollback is the only permitted recovery for a
+verified application regression.

@@ -4,7 +4,7 @@ import { createClient } from "@libsql/client";
 
 const STORAGE_STATE = "e2e/.auth/owner.json";
 const PASSWORD = "e2e-test-password";
-const FIXTURE_OWNER = "legacy-local-owner";
+const FIXTURE_OWNER = "e2e-fixture-owner";
 
 setup("create and authenticate the E2E athlete", async ({ page }) => {
   await page.goto("/sign-up");

@@ -76,8 +76,6 @@ beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
   delete process.env.TURSO_AUTH_TOKEN;
   process.env.DATABASE_URL = `file:${dbFile}`;
-  process.env.STRAVA_CLIENT_ID = "test-client";
-  process.env.STRAVA_CLIENT_SECRET = "test-secret";
   process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 37).toString("base64url");
   db = await import("./db");
   const stravaModule = await import("./strava");
@@ -188,8 +186,6 @@ describe("token refresh fetch carries a timeout signal (G7.4)", () => {
       refresh_token: "owner-refresh-token",
       expires_at: 1,
     });
-    process.env.STRAVA_CLIENT_ID = "founder-client-must-not-be-used";
-    process.env.STRAVA_CLIENT_SECRET = "founder-secret-must-not-be-used";
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -208,8 +204,6 @@ describe("token refresh fetch carries a timeout signal (G7.4)", () => {
     const tokenBody = new URLSearchParams(String(tokenOptions?.body));
     expect(tokenBody.get("client_id")).toBe("owner-refresh-client");
     expect(tokenBody.get("client_secret")).toBe("owner-refresh-secret");
-    expect(tokenBody.toString()).not.toContain("founder-client-must-not-be-used");
-    expect(tokenBody.toString()).not.toContain("founder-secret-must-not-be-used");
     expect(fetchMock.mock.calls[1][1]?.headers).toEqual({
       Authorization: "Bearer refreshed-owner-access",
     });

@@ -12,7 +12,7 @@ import type { Feeling } from "../src/lib/types";
 
 const SEED_MARKER = '{"seed":true}';
 const SEED_FILTER = "json_extract(raw_json, '$.seed') = 1";
-const FIXTURE_OWNER = "legacy-local-owner";
+const FIXTURE_OWNER = "e2e-fixture-owner";
 
 /**
  * Guard against seeding a remote (shared/prod Turso) database. Resolves the DB URL

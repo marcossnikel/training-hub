@@ -77,7 +77,7 @@ repository); no public helper accepts a caller-provided `userId`. In particular:
   tenants.
 - Singleton seams: `currentAthlete`/`requireAthlete`, `strava_auth(id=1)`,
   `athlete_thresholds(id=1)`, global `app_meta`, `AUTH_PASSWORD`/`AUTH_SECRET`,
-  environment `STRAVA_CLIENT_ID/SECRET`, and `strava_oauth_state` cookie. The
+  process-wide Strava credential environment and `strava_oauth_state` cookie. The
   first four become per-user storage; the password gate is removed only as part
   of #22 after the new session boundary exists. Environment-wide Strava
   credentials must not be silently reused in BYO mode.
