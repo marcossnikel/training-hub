@@ -25,9 +25,7 @@ import {
 import { GearSelectItem } from "@/components/gear-select-item";
 import { useI18n } from "@/components/i18n-provider";
 import {
-  saveBikeAction,
   saveBikeFormAction,
-  saveShoeAction,
   saveShoeFormAction,
   setBikeRetiredAction,
   setShoeRetiredAction,

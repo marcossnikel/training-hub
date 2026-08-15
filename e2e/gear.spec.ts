@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import path from "node:path";
+
+const EVIDENCE = path.join(process.cwd(), "evidence", "issue-56");
 
 async function addGear(
   page: import("@playwright/test").Page,
@@ -44,13 +47,18 @@ test("bikes page shows a seeded baseline bike", async ({ page }) => {
 test("authenticated athlete adds a shoe with click submission through a Server Action", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await addGear(page, "shoe", "Browser click shoe", "click");
+  await page.screenshot({ path: path.join(EVIDENCE, "56-gear-success-1440.png"), fullPage: true });
 });
 
 test("authenticated athlete adds a shoe with Enter submission through a Server Action", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await addGear(page, "shoe", "Browser Enter shoe", "enter");
+  await expect(page.locator("html")).toHaveJSProperty("scrollWidth", 390);
+  await page.screenshot({ path: path.join(EVIDENCE, "56-gear-success-390.png"), fullPage: true });
 });
 
 test("authenticated athlete adds a bike through its Server Action", async ({ page }) => {
