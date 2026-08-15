@@ -4,6 +4,7 @@
  * singleton adapter remains isolated until #31 replaces its callback/sync path.
  */
 export const STRAVA_BYO_SCOPE = "activity:read_all,profile:read_all";
+const REQUIRED_STRAVA_BYO_SCOPES = new Set(STRAVA_BYO_SCOPE.split(","));
 export const STRAVA_BYO_HANDOFF_PATH = "/api/strava/byo-connect";
 export const STRAVA_CALLBACK_PATH = "/api/strava/callback";
 export const TRAINING_HUB_PUBLIC_ORIGIN_ENV = "TRAINING_HUB_PUBLIC_ORIGIN";
@@ -144,4 +145,22 @@ export function buildByoAuthorizeUrl(input: {
   url.searchParams.set("scope", STRAVA_BYO_SCOPE);
   url.searchParams.set("state", input.state);
   return url.toString();
+}
+
+/**
+ * Strava may delimit granted scopes with commas, spaces, or both. Persist a
+ * single canonical value only when the normalized set is exactly the two
+ * approved scopes: missing scopes and expansions both fail closed.
+ */
+export function normalizeExactByoGrantedScope(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512) return null;
+  const scopes = value.split(/[\s,]+/).filter(Boolean);
+  const normalized = new Set(scopes);
+  if (
+    normalized.size !== REQUIRED_STRAVA_BYO_SCOPES.size ||
+    [...normalized].some((scope) => !REQUIRED_STRAVA_BYO_SCOPES.has(scope))
+  ) {
+    return null;
+  }
+  return STRAVA_BYO_SCOPE;
 }

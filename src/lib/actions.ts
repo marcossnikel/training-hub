@@ -36,7 +36,6 @@ import {
 import { FTP_RANGE, THRESHOLD_PACE_RANGE } from "./fitness";
 import {
   ensureActivityStreams,
-  stravaConfigured,
   isStravaConnected,
   syncActivities,
   type SyncResult,
@@ -82,7 +81,6 @@ export async function syncNowAction(): Promise<SyncActionResult> {
   const t = await dict();
   const owner = await requireCurrentUser();
   if (!owner) return { ok: false, error: t.errors.unauthorized };
-  if (!stravaConfigured()) return { ok: false, error: t.errors.envMissing };
   if (!(await isStravaConnected(owner))) return { ok: false, error: t.errors.notConnected };
   try {
     const result = await syncActivities(owner);

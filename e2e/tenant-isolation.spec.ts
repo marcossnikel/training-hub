@@ -261,7 +261,7 @@ test("two authenticated browser contexts preserve tenant boundaries", async ({ b
     // The test server has no Strava client ID/secret, so Settings intentionally
     // shows the missing-app setup copy. The enabled header control proves its
     // server-side owner-bound connection read/decryption still succeeded.
-    await expect(pageB.getByRole("button", { name: "Sync" })).toBeEnabled();
+    await expect(pageB.getByRole("banner").getByRole("button", { name: "Sync" })).toBeEnabled();
     assertNoSecretMaterial(await pageB.content(), forbiddenTransportValues);
     await captureEvidence(pageB, "27-owner-b-settings-390.png");
 

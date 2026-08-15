@@ -1,10 +1,9 @@
 import { headers } from "next/headers";
 import { CableIcon, CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SyncButton } from "@/components/sync-button";
-import { DisconnectButton, GearMatcher, ManualActivityForm } from "@/components/settings-forms";
+import { GearMatcher, ManualActivityForm } from "@/components/settings-forms";
 import { ByoConnectionForm } from "@/components/byo-connection-form";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { GoalsManager } from "@/components/goals-manager";
@@ -18,7 +17,7 @@ import {
 } from "@/lib/db";
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
-import { isStravaConnected, stravaConfigured, tryFetchAllGear } from "@/lib/strava";
+import { isStravaConnected, tryFetchAllGear } from "@/lib/strava";
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { requireCurrentUser } from "@/lib/auth";
@@ -32,9 +31,6 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const params = await searchParams;
   const { lang, t } = await getDict();
   const connected = await isStravaConnected(owner);
-  // This stays deliberately limited to the unmodified legacy connection UI.
-  // The new BYO credential form and handoff never read either global env value.
-  const legacyConfigured = stravaConfigured();
   const connectionStatus = await getStravaConnectionStatus(owner);
   const callbackOrigin = resolveSettingsByoOrigin(await headers());
   const callbackUrl = callbackOrigin ? callbackUrlForOrigin(callbackOrigin) : null;
@@ -49,9 +45,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const thresholds = await getAthleteThresholds(owner);
   const goals = await listGoals(owner);
 
-  const justConnected = params.connected === "1";
-  const errorKey = typeof params.error === "string" ? params.error : null;
-  const errorMessage = errorKey ? (t.settingsPage.errors[errorKey] ?? t.errors.generic) : null;
+  const callbackResult = typeof params.strava === "string" ? params.strava : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -59,18 +53,31 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       <p className="mt-1 text-sm text-muted-foreground">{t.settingsPage.subtitle}</p>
 
       <div className="mt-6 space-y-6">
-        {justConnected ? (
+        {callbackResult === "connected" ? (
           <Alert className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
             <CheckCircle2Icon />
-            <AlertTitle>{t.settingsPage.connectedAlert}</AlertTitle>
-            <AlertDescription>{t.settingsPage.connectedAlertBody}</AlertDescription>
+            <AlertTitle>Strava is connected</AlertTitle>
+            <AlertDescription>
+              Your authorized scopes were confirmed. Import status is shown from your account data.
+            </AlertDescription>
           </Alert>
         ) : null}
-        {errorMessage ? (
+        {callbackResult === "scope" ? (
           <Alert variant="destructive">
             <CircleAlertIcon />
-            <AlertTitle>{t.settingsPage.failedAlert}</AlertTitle>
-            <AlertDescription>{errorMessage}</AlertDescription>
+            <AlertTitle>Strava access wasn’t approved</AlertTitle>
+            <AlertDescription>
+              This connection needs activity and profile access. You can try authorization again.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {callbackResult === "recovery" ? (
+          <Alert variant="destructive">
+            <CircleAlertIcon />
+            <AlertTitle>We couldn’t connect Strava</AlertTitle>
+            <AlertDescription>
+              Your app credentials remain private. Try authorization again.
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -80,7 +87,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             <CardDescription>{t.settingsPage.stravaBody}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {connected && legacyConfigured ? (
+            {connected && connectionStatus === "connected" ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm">
                   <p className="flex items-center gap-2 font-medium">
@@ -100,21 +107,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
                 </div>
                 <div className="flex items-center gap-2">
                   <SyncButton connected={connected} />
-                  <Button asChild variant="outline" size="sm">
-                    <a href="/api/strava/connect">{t.settingsPage.reconnect}</a>
-                  </Button>
-                  <DisconnectButton />
                 </div>
               </div>
-            ) : connectionStatus === "connected" ? (
-              <Alert>
-                <CircleAlertIcon aria-hidden />
-                <AlertTitle>Connection completion is not available yet</AlertTitle>
-                <AlertDescription>
-                  This existing connection cannot be changed from Settings until its authorization
-                  completion path is available. No credentials are shown here.
-                </AlertDescription>
-              </Alert>
             ) : (
               <div className="space-y-5">
                 <div className="space-y-2 text-sm">

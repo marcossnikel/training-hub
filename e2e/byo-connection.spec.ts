@@ -6,7 +6,11 @@ const TEST_SECRET = "byo-secret-must-not-render";
 
 async function captureEvidence(page: Page, name: string) {
   if (process.env.CAPTURE_BYO_CONNECTION_EVIDENCE !== "1") return;
-  const evidenceDir = path.join(process.cwd(), "evidence", "issue-30");
+  const evidenceDir = path.join(
+    process.cwd(),
+    "evidence",
+    name.startsWith("31-") ? "issue-31" : "issue-30"
+  );
   await fs.mkdir(evidenceDir, { recursive: true });
   // A viewport capture avoids duplicating the sticky navigation in a stitched
   // full-page image while keeping the decisive credential state inspectable.
@@ -116,6 +120,80 @@ test("BYO credential form is owner-bound, keyboard accessible, and gives only a 
   expect(url.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]{43}$/);
   for (const key of ["client_secret", "access_token", "refresh_token", "owner", "redirect"]) {
     expect(url.searchParams.has(key)).toBe(false);
+  }
+});
+
+test("the authenticated callback consumes denial/replay safely and keeps the pending owner connection retryable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const authorization = await page.request.get("/api/strava/byo-connect", { maxRedirects: 0 });
+  const state = new URL(authorization.headers().location!).searchParams.get("state");
+  expect(state).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+  const denied = await page.request.get(
+    `/api/strava/callback?state=${encodeURIComponent(state!)}&error=access_denied`,
+    { maxRedirects: 0 }
+  );
+  expect(denied.headers().location).toBe("http://localhost:3100/settings?strava=scope");
+  await page.goto(denied.headers().location!);
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Strava access wasn’t approved" })
+  ).toBeVisible();
+  await captureEvidence(page, "31-settings-scope-reduced-motion-390.png");
+
+  const replay = await page.request.get(
+    `/api/strava/callback?state=${encodeURIComponent(state!)}&error=access_denied`,
+    { maxRedirects: 0 }
+  );
+  expect(replay.headers().location).toBe("http://localhost:3100/settings?strava=recovery");
+  await page.goto(replay.headers().location!);
+  await expect(
+    page.getByRole("alert").filter({ hasText: "We couldn’t connect Strava" })
+  ).toBeVisible();
+  expect(await page.content()).not.toContain(TEST_SECRET);
+  expect(await page.content()).not.toContain(state!);
+  await captureEvidence(page, "31-settings-recovery-reduced-motion-390.png");
+});
+
+test("the authenticated callback reaches a real owner-bound mock exchange and initial sync without a Strava request", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const authorization = await page.request.get("/api/strava/byo-connect", { maxRedirects: 0 });
+  const state = new URL(authorization.headers().location!).searchParams.get("state");
+  expect(state).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+  const callback = await page.request.get(
+    `/api/strava/callback?state=${encodeURIComponent(state!)}&code=e2e-authorized-code`,
+    { maxRedirects: 0 }
+  );
+  expect(callback.headers().location).toBe("http://localhost:3100/settings?strava=connected");
+  await page.goto(callback.headers().location!);
+  await expect(page.getByRole("alert").filter({ hasText: "Strava is connected" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Your authorized scopes were confirmed. Import status is shown from your account data."
+    )
+  ).toBeVisible();
+  await captureEvidence(page, "31-settings-connected-1440.png");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const syncButtons = page.getByRole("button", { name: "Sync", exact: true });
+  await expect(syncButtons).toHaveCount(2);
+  await expect(syncButtons.first()).toBeVisible();
+  await captureEvidence(page, "31-settings-connected-reduced-motion-390.png");
+  const rendered = await page.content();
+  for (const forbidden of [
+    TEST_SECRET,
+    state!,
+    "e2e-access-token-not-a-secret",
+    "e2e-refresh-token-not-a-secret",
+    "client_secret_ciphertext",
+  ]) {
+    expect(rendered).not.toContain(forbidden);
   }
 });
 

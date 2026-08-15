@@ -103,4 +103,76 @@ describe("owner-scoped pending BYO credentials", () => {
       client_id: "athlete-client-b",
     });
   });
+
+  it("atomically promotes only the initiating pending owner and never writes a failed token", async () => {
+    expect(
+      await db.promotePendingStravaConnection(ownerA, {
+        access_token: "callback-access-a",
+        refresh_token: "callback-refresh-a",
+        expires_at: 4_000_000_000,
+        strava_athlete_id: 123,
+        granted_scope: "activity:read_all,profile:read_all",
+      })
+    ).toBe(true);
+    expect(
+      await db.promotePendingStravaConnection(ownerB, {
+        access_token: "callback-access-b",
+        refresh_token: "callback-refresh-b",
+        expires_at: 4_000_000_000,
+        strava_athlete_id: 456,
+        granted_scope: "activity:read_all,profile:read_all",
+      })
+    ).toBe(true);
+    // A replay cannot update an already-promoted connection.
+    expect(
+      await db.promotePendingStravaConnection(ownerA, {
+        access_token: "replayed-token",
+        refresh_token: "replayed-refresh",
+        expires_at: 4_000_000_001,
+        strava_athlete_id: 999,
+        granted_scope: "activity:read_all,profile:read_all",
+      })
+    ).toBe(false);
+
+    expect(await db.getStravaConnection(ownerA)).toMatchObject({
+      client_id: "athlete-client-a",
+      access_token: "callback-access-a",
+      refresh_token: "callback-refresh-a",
+      strava_athlete_id: 123,
+      granted_scope: "activity:read_all,profile:read_all",
+    });
+    expect(await db.getStravaConnection(ownerB)).toMatchObject({
+      client_id: "athlete-client-b",
+      access_token: "callback-access-b",
+      refresh_token: "callback-refresh-b",
+      strava_athlete_id: 456,
+    });
+
+    const raw = await db.client.execute({
+      sql: "SELECT access_token_ciphertext, refresh_token_ciphertext FROM strava_connections WHERE user_id = ?",
+      args: [ownerA.userId],
+    });
+    expect(JSON.stringify(raw.rows[0])).not.toContain("callback-access-a");
+    expect(JSON.stringify(raw.rows[0])).not.toContain("callback-refresh-a");
+  });
+
+  it("makes only a failed owner recoverable by clearing tokens but retaining encrypted retry credentials", async () => {
+    await db.markStravaConnectionRecoverable(ownerA);
+    expect(await db.getStravaConnectionStatus(ownerA)).toBe("pending_authorization");
+    expect(await db.getStravaAuth(ownerA)).toBeNull();
+    expect(await db.getPendingStravaAuthorization(ownerA)).toEqual({
+      client_id: "athlete-client-a",
+    });
+    expect(await db.getStravaConnectionStatus(ownerB)).toBe("connected");
+    expect(await db.getStravaConnection(ownerB)).toMatchObject({
+      access_token: "callback-access-b",
+    });
+
+    const raw = await db.client.execute({
+      sql: "SELECT access_token_ciphertext, refresh_token_ciphertext FROM strava_connections WHERE user_id = ?",
+      args: [ownerA.userId],
+    });
+    expect(raw.rows[0].access_token_ciphertext).toBeNull();
+    expect(raw.rows[0].refresh_token_ciphertext).toBeNull();
+  });
 });

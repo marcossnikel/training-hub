@@ -5,6 +5,7 @@ import {
   parseConfiguredPublicOrigin,
   resolveAuthorizationByoOrigin,
   resolveSettingsByoOrigin,
+  normalizeExactByoGrantedScope,
   STRAVA_BYO_SCOPE,
   validateByoCredentials,
 } from "./strava-byo";
@@ -20,6 +21,28 @@ afterEach(() => {
   else process.env.STRAVA_CLIENT_SECRET = ENV_SECRET;
   if (ENV_PUBLIC_ORIGIN === undefined) delete process.env.TRAINING_HUB_PUBLIC_ORIGIN;
   else process.env.TRAINING_HUB_PUBLIC_ORIGIN = ENV_PUBLIC_ORIGIN;
+});
+
+describe("granted BYO scopes", () => {
+  it("normalizes only the exact order-insensitive approved scope set", () => {
+    for (const scope of [
+      "activity:read_all,profile:read_all",
+      "profile:read_all activity:read_all",
+      "activity:read_all, profile:read_all activity:read_all",
+    ]) {
+      expect(normalizeExactByoGrantedScope(scope)).toBe(STRAVA_BYO_SCOPE);
+    }
+    for (const scope of [
+      "activity:read_all",
+      "activity:read_all,profile:read_all,read_all",
+      "profile:read_all,activity:read",
+      "ACTIVITY:READ_ALL,PROFILE:READ_ALL",
+      "",
+      "activity:read_all\u0000,profile:read_all",
+    ]) {
+      expect(normalizeExactByoGrantedScope(scope)).toBeNull();
+    }
+  });
 });
 
 describe("BYO Strava authorization contract", () => {

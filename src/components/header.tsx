@@ -104,13 +104,11 @@ function LangToggle() {
 export function Header({
   pendingCount,
   connected,
-  configured,
   autoSync,
   auth,
 }: {
   pendingCount: number;
   connected: boolean;
-  configured: boolean;
   autoSync: boolean;
   auth: AuthControl;
 }) {
@@ -119,7 +117,7 @@ export function Header({
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-[25px]">
-      {autoSync && configured ? <AutoSync /> : null}
+      {autoSync ? <AutoSync /> : null}
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:gap-5 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center gap-1.5">
           <span className="font-display text-xl font-bold tracking-tight">Training Hub</span>

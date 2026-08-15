@@ -15,7 +15,7 @@ import { ReviewBanner } from "@/components/review-banner";
 import { SportIcon } from "@/components/sport-icon";
 import { countPending, listConfirmedActivities } from "@/lib/db";
 import { getDict } from "@/lib/lang";
-import { isStravaConnected, stravaConfigured } from "@/lib/strava";
+import { isStravaConnected } from "@/lib/strava";
 import { requireCurrentUser } from "@/lib/auth";
 import {
   fmtDate,
@@ -185,7 +185,6 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
     listConfirmedActivities(owner),
     isStravaConnected(owner),
   ]);
-  const configured = stravaConfigured();
 
   const counts = new Map<SportCategory, number>();
   for (const activity of activities) {
@@ -285,11 +284,11 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
                 <Link href="/review">{t.log.goToReview}</Link>
               </Button>
             </EmptyState>
-          ) : !configured || !connected ? (
+          ) : !connected ? (
             <EmptyState
               icon={CableIcon}
               title={t.log.connectTitle}
-              description={configured ? t.log.connectBodyConfigured : t.log.connectBodyMissing}
+              description={t.log.connectBodyConfigured}
             >
               <Button asChild>
                 <Link href="/settings">{t.log.openSettings}</Link>

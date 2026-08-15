@@ -17,7 +17,10 @@ const dbFile = path.join(os.tmpdir(), `training-hub-strava-${process.pid}-${Date
 type StravaModule = typeof import("./strava");
 type StravaTestApi = Pick<StravaModule, "backoff"> & {
   apiGet<T>(pathname: string, params?: Record<string, string>): Promise<T>;
-  exchangeCode(code: string): Promise<void>;
+  exchangeByoCode(
+    credentials: { client_id: string; client_secret: string },
+    code: string
+  ): ReturnType<StravaModule["exchangeByoCode"]>;
   ensureActivityStreams(
     activity: Parameters<StravaModule["ensureActivityStreams"]>[1]
   ): ReturnType<StravaModule["ensureActivityStreams"]>;
@@ -57,7 +60,9 @@ function rateLimitResponse(retryAfter: string | null): Response {
 // A valid, far-from-expiry token so apiGet never triggers a refresh fetch — the
 // only fetches a test sees are the ones it mocks for the endpoint under test.
 async function connectWithFreshToken(): Promise<void> {
-  await db.saveStravaAuth(TEST_OWNER, {
+  await db.saveStravaConnection(TEST_OWNER, {
+    client_id: "athlete-test-client",
+    client_secret: "athlete-test-secret",
     access_token: "access-abc",
     refresh_token: "refresh-abc",
     expires_at: Math.floor(Date.now() / 1000) + 3600,
@@ -77,7 +82,7 @@ beforeAll(async () => {
     backoff: stravaModule.backoff,
     apiGet: <T>(pathname: string, params?: Record<string, string>) =>
       stravaModule.apiGet<T>(TEST_OWNER, pathname, params),
-    exchangeCode: (code: string) => stravaModule.exchangeCode(TEST_OWNER, code),
+    exchangeByoCode: (credentials, code) => stravaModule.exchangeByoCode(credentials, code),
     ensureActivityStreams: (activity) => stravaModule.ensureActivityStreams(TEST_OWNER, activity),
     ensureActivityDetail: (activity) => stravaModule.ensureActivityDetail(TEST_OWNER, activity),
   };
@@ -156,12 +161,59 @@ describe("token refresh fetch carries a timeout signal (G7.4)", () => {
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    await strava.exchangeCode("auth-code");
+    await strava.exchangeByoCode(
+      { client_id: "athlete-owned-client", client_secret: "athlete-owned-secret" },
+      "auth-code"
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [tokenUrl, options] = fetchMock.mock.calls[0];
     expect(String(tokenUrl)).toContain("/oauth/token");
     expect(options?.signal).toBeInstanceOf(AbortSignal);
+    const body = new URLSearchParams(String(options?.body));
+    expect(body.get("client_id")).toBe("athlete-owned-client");
+    expect(body.get("client_secret")).toBe("athlete-owned-secret");
+    expect(body.toString()).not.toContain("test-client");
+  });
+
+  it("refreshes only with the encrypted current owner's client credentials, never process globals", async () => {
+    await db.saveStravaConnection(TEST_OWNER, {
+      client_id: "owner-refresh-client",
+      client_secret: "owner-refresh-secret",
+      access_token: "expired-access",
+      refresh_token: "owner-refresh-token",
+      expires_at: 1,
+    });
+    process.env.STRAVA_CLIENT_ID = "founder-client-must-not-be-used";
+    process.env.STRAVA_CLIENT_SECRET = "founder-secret-must-not-be-used";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: "refreshed-owner-access",
+          refresh_token: "refreshed-owner-token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ athlete: "owner only" }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await strava.apiGet("/athlete");
+
+    const [, tokenOptions] = fetchMock.mock.calls[0];
+    const tokenBody = new URLSearchParams(String(tokenOptions?.body));
+    expect(tokenBody.get("client_id")).toBe("owner-refresh-client");
+    expect(tokenBody.get("client_secret")).toBe("owner-refresh-secret");
+    expect(tokenBody.toString()).not.toContain("founder-client-must-not-be-used");
+    expect(tokenBody.toString()).not.toContain("founder-secret-must-not-be-used");
+    expect(fetchMock.mock.calls[1][1]?.headers).toEqual({
+      Authorization: "Bearer refreshed-owner-access",
+    });
+    expect(await db.getStravaConnection(TEST_OWNER)).toMatchObject({
+      client_id: "owner-refresh-client",
+      access_token: "refreshed-owner-access",
+      refresh_token: "refreshed-owner-token",
+    });
   });
 });
 

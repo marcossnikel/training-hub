@@ -9,7 +9,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Header } from "@/components/header";
 import { countPending } from "@/lib/db";
 import { getLang } from "@/lib/lang";
-import { isStravaConnected, shouldAutoSync, stravaConfigured } from "@/lib/strava";
+import { isStravaConnected, shouldAutoSync } from "@/lib/strava";
 import { requireCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,6 @@ export default async function RootLayout({
   // domain context, so never query the activity queue merely to render chrome.
   const pendingCount = owner ? await countPending(owner) : 0;
   const connected = owner ? await isStravaConnected(owner) : false;
-  const configured = stravaConfigured();
   const autoSync = owner ? await shouldAutoSync(owner) : false;
   const auth = owner ? "in" : "out";
 
@@ -73,7 +72,6 @@ export default async function RootLayout({
             <Header
               pendingCount={pendingCount}
               connected={connected}
-              configured={configured}
               autoSync={autoSync}
               auth={auth}
             />

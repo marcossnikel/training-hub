@@ -25,9 +25,9 @@ process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = E2E_CONNECTION_ENCRYPTION_KEY;
  * and STRAVA_CLIENT_SECRET are blank, so stravaConfigured() is false and no server-side
  * Strava request is ever made — the connect UI simply shows its disconnected state.
  *
- * Strava-sync E2E (which would need a mock HTTP server) is intentionally out of scope
- * here; the Strava client in src/lib/strava.ts is covered by mocked-fetch unit tests.
- * These specs cover seeded-data read flows only.
+ * A disposable loopback Strava double runs only for this E2E process. Production
+ * ignores its explicit loopback-only origin, so normal deployments retain
+ * Strava's fixed HTTPS endpoints.
  */
 export default defineConfig({
   testDir: "e2e",
@@ -77,7 +77,7 @@ export default defineConfig({
     // Reset + seed the isolated DB, then boot `next dev` (fast boot; a build+start
     // is unnecessary for these read flows). Seeding runs before the server opens
     // the file, so the server never sees an empty database.
-    command: `npm run e2e:seed && npm run dev -- --port ${PORT}`,
+    command: `sh -c 'node scripts/e2e-strava-provider.mjs & training_hub_mock_pid=$!; trap "kill $training_hub_mock_pid 2>/dev/null || true" EXIT INT TERM; npm run e2e:seed && npm run dev -- --port ${PORT}'`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     // Generous timeout for seeding plus the first on-demand route compile.
@@ -92,6 +92,8 @@ export default defineConfig({
       BETTER_AUTH_SECRET: "e2e-signing-secret-please-do-not-reuse",
       BETTER_AUTH_URL: BASE_URL,
       STRAVA_CONNECTION_ENCRYPTION_KEY: E2E_CONNECTION_ENCRYPTION_KEY,
+      TRAINING_HUB_E2E: "1",
+      TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN: "http://127.0.0.1:3210",
     },
   },
 });

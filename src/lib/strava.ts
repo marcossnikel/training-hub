@@ -8,6 +8,7 @@ import {
   getMeta,
   getMetricsActivity,
   getStravaAuth,
+  getStravaConnection,
   insertSyncedActivity,
   latestSyncedStartEpoch,
   listBestEffortCounts,
@@ -15,6 +16,7 @@ import {
   saveActivityDetail,
   saveActivityStreams,
   saveStravaAuth,
+  markStravaConnectionRecoverable,
   setMeta,
   upsertActivityBestEfforts,
   upsertActivityMetrics,
@@ -38,6 +40,8 @@ import type { OwnerContext } from "./owner-context";
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
 const API_BASE = "https://www.strava.com/api/v3";
+const TEST_PROVIDER_ORIGIN_ENV = "TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN";
+const E2E_TEST_ENV = "TRAINING_HUB_E2E";
 
 // Every outbound Strava request is bounded by this timeout so a hung socket can
 // never stall a sync (or a token refresh) indefinitely.
@@ -48,6 +52,34 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const RATE_LIMIT_MAX_RETRIES = 2; // initial attempt + 2 retries = 3 tries max
 const RATE_LIMIT_DEFAULT_BACKOFF_S = 5; // used when Retry-After is absent/unparseable
 const RATE_LIMIT_MAX_BACKOFF_S = 30; // cap so we never sleep unreasonably long
+
+/**
+ * E2E may use a disposable loopback Strava double. The explicit test switch
+ * and origin are both ignored in production; the origin must also be loopback,
+ * so a deployed server cannot redirect to an arbitrary provider.
+ */
+function testProviderOrigin(): string | null {
+  if (process.env.NODE_ENV === "production" || process.env[E2E_TEST_ENV] !== "1") return null;
+  const value = process.env[TEST_PROVIDER_ORIGIN_ENV];
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function tokenUrl(): string {
+  return testProviderOrigin() ? `${testProviderOrigin()}/oauth/token` : TOKEN_URL;
+}
+
+function apiBase(): string {
+  return testProviderOrigin() ? `${testProviderOrigin()}/api/v3` : API_BASE;
+}
 
 /**
  * Backoff sleep seam. Kept behind an object so tests can replace it with an
@@ -119,7 +151,7 @@ export async function isStravaConnected(owner: OwnerContext): Promise<boolean> {
 
 /** True when connected and the last sync is more than an hour old (or never ran). */
 export async function shouldAutoSync(owner: OwnerContext): Promise<boolean> {
-  if (!stravaConfigured() || !(await isStravaConnected(owner))) return false;
+  if (!(await isStravaConnected(owner))) return false;
   const lastSync = await getMeta(owner, "last_sync_at");
   return !lastSync || Date.now() - Date.parse(lastSync) > 60 * 60 * 1000;
 }
@@ -141,18 +173,76 @@ interface TokenResponse {
   access_token: string;
   refresh_token: string;
   expires_at: number;
+  scope?: string;
   athlete?: { id: number; firstname?: string; lastname?: string };
 }
 
-async function requestToken(params: Record<string, string>): Promise<TokenResponse> {
+interface TokenCredentials {
+  client_id: string;
+  client_secret: string;
+}
+
+function isTokenString(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 4096 &&
+    !/[\u0000-\u001F\u007F]/.test(value)
+  );
+}
+
+function parseTokenResponse(value: unknown): TokenResponse {
+  if (!value || typeof value !== "object") throw new Error("Invalid Strava token response.");
+  const token = value as Record<string, unknown>;
+  const athlete = token.athlete;
+  const expiresAt = token.expires_at;
+  if (
+    !isTokenString(token.access_token) ||
+    !isTokenString(token.refresh_token) ||
+    typeof expiresAt !== "number" ||
+    !Number.isInteger(expiresAt) ||
+    !Number.isSafeInteger(expiresAt) ||
+    expiresAt <= 0
+  ) {
+    throw new Error("Invalid Strava token response.");
+  }
+  const parsed: TokenResponse = {
+    access_token: token.access_token,
+    refresh_token: token.refresh_token,
+    expires_at: expiresAt,
+  };
+  if (isTokenString(token.scope)) parsed.scope = token.scope;
+  if (
+    athlete &&
+    typeof athlete === "object" &&
+    Number.isSafeInteger((athlete as Record<string, unknown>).id) &&
+    Number((athlete as Record<string, unknown>).id) > 0
+  ) {
+    parsed.athlete = {
+      id: Number((athlete as Record<string, unknown>).id),
+      ...(typeof (athlete as Record<string, unknown>).firstname === "string"
+        ? { firstname: (athlete as Record<string, unknown>).firstname as string }
+        : {}),
+      ...(typeof (athlete as Record<string, unknown>).lastname === "string"
+        ? { lastname: (athlete as Record<string, unknown>).lastname as string }
+        : {}),
+    };
+  }
+  return parsed;
+}
+
+async function requestToken(
+  credentials: TokenCredentials,
+  params: Record<string, string>
+): Promise<TokenResponse> {
   const body = new URLSearchParams({
-    client_id: process.env.STRAVA_CLIENT_ID ?? "",
-    client_secret: process.env.STRAVA_CLIENT_SECRET ?? "",
+    client_id: credentials.client_id,
+    client_secret: credentials.client_secret,
     ...params,
   });
   let res: Response;
   try {
-    res = await fetch(TOKEN_URL, {
+    res = await fetch(tokenUrl(), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
@@ -167,41 +257,43 @@ async function requestToken(params: Record<string, string>): Promise<TokenRespon
   }
   notifyRequest({ kind: "token", path: "/oauth/token", status: res.status });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Strava token request failed (${res.status}): ${text.slice(0, 200)}`);
+    // Provider bodies can contain arbitrary detail. Do not read, log, or expose
+    // them; the status is enough for bounded diagnostics and the caller returns
+    // one generic recovery outcome.
+    throw new Error(`Strava token request failed (${res.status}).`);
   }
-  return (await res.json()) as TokenResponse;
+  try {
+    return parseTokenResponse(await res.json());
+  } catch {
+    throw new Error("Invalid Strava token response.");
+  }
 }
 
-export async function exchangeCode(owner: OwnerContext, code: string): Promise<void> {
-  const token = await requestToken({ grant_type: "authorization_code", code });
-  await saveStravaAuth(owner, {
-    access_token: token.access_token,
-    refresh_token: token.refresh_token,
-    expires_at: token.expires_at,
-  });
-  if (token.athlete) {
-    const name = [token.athlete.firstname, token.athlete.lastname].filter(Boolean).join(" ");
-    if (name) await setMeta(owner, "athlete_name", name);
-  }
+/** Exchanges only caller-supplied encrypted BYO credentials; no global fallback exists. */
+export async function exchangeByoCode(
+  credentials: TokenCredentials,
+  code: string
+): Promise<TokenResponse> {
+  return requestToken(credentials, { grant_type: "authorization_code", code });
 }
 
 /** Returns a valid access token, refreshing it first when close to expiry. */
 async function getAccessToken(owner: OwnerContext): Promise<string> {
-  const auth = await getStravaAuth(owner);
-  if (!auth) throw new Error("Strava is not connected.");
+  const connection = await getStravaConnection(owner);
+  if (!connection) throw new Error("Strava is not connected.");
   const now = Math.floor(Date.now() / 1000);
-  if (auth.expires_at > now + 120) return auth.access_token;
-  const token = await requestToken({
-    grant_type: "refresh_token",
-    refresh_token: auth.refresh_token,
-  });
-  await saveStravaAuth(owner, {
-    access_token: token.access_token,
-    refresh_token: token.refresh_token,
-    expires_at: token.expires_at,
-  });
-  return token.access_token;
+  if (connection.expires_at > now + 120) return connection.access_token;
+  try {
+    const token = await requestToken(connection, {
+      grant_type: "refresh_token",
+      refresh_token: connection.refresh_token,
+    });
+    if (!(await saveStravaAuth(owner, token))) throw new Error("Strava connection changed.");
+    return token.access_token;
+  } catch (error) {
+    await markStravaConnectionRecoverable(owner);
+    throw error;
+  }
 }
 
 export async function apiGet<T>(
@@ -210,7 +302,7 @@ export async function apiGet<T>(
   params?: Record<string, string>
 ): Promise<T> {
   const token = await getAccessToken(owner);
-  const url = new URL(`${API_BASE}${pathname}`);
+  const url = new URL(`${apiBase()}${pathname}`);
   for (const [key, value] of Object.entries(params ?? {})) {
     url.searchParams.set(key, value);
   }
@@ -277,7 +369,7 @@ export async function fetchAthleteGear(
 
 /** Shoe gear list for dropdowns; null when not connected or the request fails. */
 export async function tryFetchGear(owner: OwnerContext): Promise<StravaGear[] | null> {
-  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
+  if (!(await isStravaConnected(owner))) return null;
   try {
     return (await fetchAthleteGear(owner)).shoes;
   } catch (error) {
@@ -288,7 +380,7 @@ export async function tryFetchGear(owner: OwnerContext): Promise<StravaGear[] | 
 
 /** Bike gear list for dropdowns; null when not connected or the request fails. */
 export async function tryFetchBikes(owner: OwnerContext): Promise<StravaGear[] | null> {
-  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
+  if (!(await isStravaConnected(owner))) return null;
   try {
     return (await fetchAthleteGear(owner)).bikes;
   } catch (error) {
@@ -302,7 +394,7 @@ export async function tryFetchAllGear(owner: OwnerContext): Promise<{
   shoes: StravaGear[];
   bikes: StravaGear[];
 } | null> {
-  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
+  if (!(await isStravaConnected(owner))) return null;
   try {
     return await fetchAthleteGear(owner);
   } catch (error) {
@@ -421,7 +513,7 @@ export async function ensureActivityDetail(
     return cached;
   }
   if (!activity.strava_id) return null;
-  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
+  if (!(await isStravaConnected(owner))) return null;
   try {
     const detail = await apiGet<StravaActivityDetail>(owner, `/activities/${activity.strava_id}`);
     await saveActivityDetail(owner, activity.id, JSON.stringify(detail));
@@ -500,7 +592,7 @@ export async function ensureActivityStreams(
   const cached = await getActivityStreamsJson(owner, activity.id);
   if (cached) return JSON.parse(cached) as ActivityStreams | null;
   if (!activity.strava_id) return null;
-  if (!stravaConfigured() || !(await isStravaConnected(owner))) return null;
+  if (!(await isStravaConnected(owner))) return null;
   try {
     const raw = await apiGet<Record<string, { data: number[] }>>(
       owner,
