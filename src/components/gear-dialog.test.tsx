@@ -16,6 +16,8 @@ import { en } from "@/lib/i18n/en";
 const mocks = vi.hoisted(() => ({
   saveShoeFormAction: vi.fn(),
   saveBikeFormAction: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 vi.mock("@/lib/actions", () => ({
@@ -26,6 +28,8 @@ vi.mock("@/lib/actions", () => ({
   setShoeRetiredAction: vi.fn(),
   setBikeRetiredAction: vi.fn(),
 }));
+
+vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError } }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
@@ -107,6 +111,34 @@ describe("GearDialog kind=bike (bike-specific: no retirement, 'Type' role)", () 
 });
 
 describe("GearDialog direct Server Action form bindings", () => {
+  it("shows pending feedback, prevents a duplicate action, then closes and toasts exactly once", async () => {
+    let resolve!: (value: { ok: true }) => void;
+    mocks.saveShoeFormAction.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      })
+    );
+    render(
+      <GearDialog kind="shoe" gearOptions={[]} connected={true}>
+        <button>open</button>
+      </GearDialog>
+    );
+    open("open");
+    fireEvent.change(screen.getByLabelText(en.shoeDialog.name), { target: { value: "Test shoe" } });
+    const form = screen.getByRole("button", { name: en.shoeDialog.add }).closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: en.shoeDialog.add }).hasAttribute("disabled")).toBe(
+        true
+      )
+    );
+    expect(document.querySelector("svg.animate-spin")).toBeTruthy();
+    expect(mocks.saveShoeFormAction).toHaveBeenCalledTimes(1);
+    resolve({ ok: true });
+  });
+
   it("submits a shoe through the static form action and keeps the dialog open on a safe error", async () => {
     mocks.saveShoeFormAction.mockResolvedValueOnce({ ok: false, error: "Could not save gear." });
     render(

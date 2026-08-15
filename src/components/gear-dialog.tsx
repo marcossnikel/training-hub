@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useState, useTransition } from "react";
 import { ArchiveIcon, ArchiveRestoreIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ export function GearDialog(props: GearDialogProps) {
   const { kind, gear, gearOptions, connected, children } = props;
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
 
   const d = kind === "shoe" ? t.shoeDialog : t.bikeDialog;
 
@@ -63,14 +64,14 @@ export function GearDialog(props: GearDialogProps) {
             gear={gear}
             gearOptions={gearOptions}
             connected={connected}
-            onSuccess={() => setOpen(false)}
+            onSuccess={close}
           />
         ) : (
           <BikeGearForm
             gear={gear}
             gearOptions={gearOptions}
             connected={connected}
-            onSuccess={() => setOpen(false)}
+            onSuccess={close}
           />
         )}
       </DialogContent>
