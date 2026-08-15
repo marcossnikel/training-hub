@@ -1,3 +1,5 @@
+import { client } from "./client";
+import { ensureMigrated } from "./migrations";
 import { exec, one } from "./helpers";
 import type { OwnerContext } from "../owner-context";
 import { decryptStravaSecret, encryptStravaSecret, StravaSecretStorageError } from "../crypto";
@@ -31,6 +33,12 @@ interface EncryptedConnectionRow {
 }
 
 export type StravaConnectionStatus = "disconnected" | "pending_authorization" | "connected";
+
+/** The local deletion result contains counts only, never provider data or secrets. */
+export interface DeletedStravaData {
+  activities: number;
+  connection: boolean;
+}
 
 export interface PendingStravaConnectionInput {
   client_id: string;
@@ -318,4 +326,83 @@ export async function markStravaConnectionRecoverable(owner: OwnerContext): Prom
      WHERE user_id = ? AND status = 'connected'`,
     [owner.userId]
   );
+}
+
+/**
+ * Moves a connected owner back to the existing owner-bound authorization
+ * continuation. The saved BYO client credentials remain encrypted so a
+ * reconnect does not ask the athlete to copy a secret again; current tokens
+ * are deliberately unusable while the provider authorization is renewed.
+ */
+export async function prepareStravaReconnect(owner: OwnerContext): Promise<boolean> {
+  const result = await exec(
+    `UPDATE strava_connections
+     SET status = 'pending_authorization', updated_at = datetime('now')
+     WHERE user_id = ?
+       AND status = 'connected'
+       AND client_id IS NOT NULL
+       AND client_secret_ciphertext IS NOT NULL
+       AND encryption_key_version = 1
+     RETURNING id`,
+    [owner.userId]
+  );
+  return result.rows.length === 1;
+}
+
+/**
+ * Permanently removes one owner's Strava connection and imported graph.
+ *
+ * Deletion is intentionally a single write transaction. Activity children
+ * cascade through their foreign keys (splits, streams, best efforts, metrics,
+ * and curve points); manually entered activities have `strava_id IS NULL` and
+ * are never selected. Gear rows are preserved but their provider mapping is
+ * cleared, so a future connection cannot inherit a stale Strava gear link.
+ */
+export async function deleteOwnerStravaData(owner: OwnerContext): Promise<DeletedStravaData> {
+  await ensureMigrated();
+  const transaction = await client.transaction("write");
+  try {
+    const imported = await transaction.execute({
+      sql: "SELECT COUNT(*) AS count FROM activities WHERE user_id = ? AND strava_id IS NOT NULL",
+      args: [owner.userId],
+    });
+    const connection = await transaction.execute({
+      sql: "SELECT 1 AS present FROM strava_connections WHERE user_id = ?",
+      args: [owner.userId],
+    });
+
+    // OAuth states and sync/person metadata are connection material too. Do
+    // this before the connection disappears so retries are fully idempotent.
+    await transaction.execute({
+      sql: "DELETE FROM oauth_states WHERE user_id = ?",
+      args: [owner.userId],
+    });
+    await transaction.execute({
+      sql: "DELETE FROM user_meta WHERE user_id = ? AND key IN ('athlete_name', 'last_sync_at')",
+      args: [owner.userId],
+    });
+    await transaction.execute({
+      sql: "UPDATE shoes SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id IS NOT NULL",
+      args: [owner.userId],
+    });
+    await transaction.execute({
+      sql: "UPDATE bikes SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id IS NOT NULL",
+      args: [owner.userId],
+    });
+    await transaction.execute({
+      sql: "DELETE FROM activities WHERE user_id = ? AND strava_id IS NOT NULL",
+      args: [owner.userId],
+    });
+    await transaction.execute({
+      sql: "DELETE FROM strava_connections WHERE user_id = ?",
+      args: [owner.userId],
+    });
+    await transaction.commit();
+    return {
+      activities: Number(imported.rows[0]?.count ?? 0),
+      connection: connection.rows.length > 0,
+    };
+  } finally {
+    transaction.close();
+  }
 }

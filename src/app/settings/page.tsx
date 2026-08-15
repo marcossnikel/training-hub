@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SyncButton } from "@/components/sync-button";
 import { GearMatcher, ManualActivityForm } from "@/components/settings-forms";
 import { ByoConnectionForm } from "@/components/byo-connection-form";
+import { StravaConnectionControls } from "@/components/strava-connection-controls";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { GoalsManager } from "@/components/goals-manager";
 import {
@@ -81,6 +82,30 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             </AlertDescription>
           </Alert>
         ) : null}
+        {callbackResult === "reconnect" ? (
+          <Alert className="border-state-blue-fg/30 text-state-blue-fg">
+            <CheckCircle2Icon />
+            <AlertTitle>Reconnect your Strava app</AlertTitle>
+            <AlertDescription>Continue to Strava to renew this connection.</AlertDescription>
+          </Alert>
+        ) : null}
+        {callbackResult === "deleted" ? (
+          <Alert className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2Icon />
+            <AlertTitle>Disconnected and local imported data deleted</AlertTitle>
+            <AlertDescription>Your manual training records stay in Training Hub.</AlertDescription>
+          </Alert>
+        ) : null}
+        {callbackResult === "deleted_provider_unconfirmed" ? (
+          <Alert variant="destructive">
+            <CircleAlertIcon />
+            <AlertTitle>Disconnected and local imported data deleted</AlertTitle>
+            <AlertDescription>
+              We couldn’t confirm revocation with Strava. Remove this app in Strava settings if
+              needed.
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         <Card>
           <CardHeader>
@@ -89,27 +114,30 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </CardHeader>
           <CardContent className="space-y-4">
             {connected && connectionStatus === "connected" ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm">
-                  <p className="flex items-center gap-2 font-medium">
-                    <span aria-hidden className="size-2 rounded-full bg-positive" />
-                    {fillStr(t.settingsPage.connectedAs, {
-                      name: athleteName ? ` · ${athleteName}` : "",
-                    })}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {lastSync
-                      ? fillStr(t.settingsPage.lastSync, {
-                          date: fmtDate(lastSync, lang),
-                          time: fmtTime(lastSync),
-                        })
-                      : t.settingsPage.neverSynced}
-                  </p>
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm">
+                    <p className="flex items-center gap-2 font-medium">
+                      <span aria-hidden className="size-2 rounded-full bg-positive" />
+                      {fillStr(t.settingsPage.connectedAs, {
+                        name: athleteName ? ` · ${athleteName}` : "",
+                      })}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {lastSync
+                        ? fillStr(t.settingsPage.lastSync, {
+                            date: fmtDate(lastSync, lang),
+                            time: fmtTime(lastSync),
+                          })
+                        : t.settingsPage.neverSynced}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <SyncButton connected={connected} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <SyncButton connected={connected} />
-                </div>
-              </div>
+                <StravaConnectionControls />
+              </>
             ) : (
               <div className="space-y-5">
                 <div className="space-y-2 text-sm">

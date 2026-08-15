@@ -70,7 +70,7 @@ describe("owner-bound Strava callback", () => {
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=connected`);
+    expect(response.headers.get("location")).toBe(`${ORIGIN}/?strava=connected`);
     expect(mocks.consumeOAuthState).toHaveBeenCalledWith(OWNER, STATE);
     expect(mocks.exchangeByoCode).toHaveBeenCalledWith(
       { client_id: "athlete-client", client_secret: "athlete-secret" },

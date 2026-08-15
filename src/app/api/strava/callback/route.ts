@@ -24,6 +24,13 @@ function settingsRedirect(origin: string, result: CallbackResult): NextResponse 
   return NextResponse.redirect(url);
 }
 
+/** A completed first sync starts with the athlete's own imported records. */
+function recentTrainingRedirect(origin: string): NextResponse {
+  const url = new URL("/", origin);
+  url.searchParams.set("strava", "connected");
+  return NextResponse.redirect(url);
+}
+
 /**
  * The OAuth provider returns here in the athlete's authenticated browser.
  * State is consumed before any exchange, and both state ownership and pending
@@ -82,5 +89,5 @@ export async function GET(request: NextRequest) {
     // the owner can retry through the existing owner-scoped sync action.
     return settingsRedirect(origin, "recovery");
   }
-  return settingsRedirect(origin, "connected");
+  return recentTrainingRedirect(origin);
 }

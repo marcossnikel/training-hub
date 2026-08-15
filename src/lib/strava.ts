@@ -39,6 +39,7 @@ import type { OwnerContext } from "./owner-context";
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const API_BASE = "https://www.strava.com/api/v3";
+const DEAUTHORIZE_URL = "https://www.strava.com/oauth/deauthorize";
 const TEST_PROVIDER_ORIGIN_ENV = "TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN";
 const E2E_TEST_ENV = "TRAINING_HUB_E2E";
 
@@ -78,6 +79,10 @@ function tokenUrl(): string {
 
 function apiBase(): string {
   return testProviderOrigin() ? `${testProviderOrigin()}/api/v3` : API_BASE;
+}
+
+function deauthorizeUrl(): string {
+  return testProviderOrigin() ? `${testProviderOrigin()}/oauth/deauthorize` : DEAUTHORIZE_URL;
 }
 
 /**
@@ -142,6 +147,27 @@ function parseRetryAfterMs(header: string | null): number {
 
 export async function isStravaConnected(owner: OwnerContext): Promise<boolean> {
   return (await getStravaAuth(owner)) !== null;
+}
+
+/**
+ * Makes the provider-side deauthorization request with a server-only current
+ * owner token. It intentionally reads neither a response body nor any provider
+ * detail: the lifecycle caller only needs a boolean and must still perform its
+ * mandatory local deletion if this request fails or times out.
+ */
+export async function deauthorizeStravaAccessToken(accessToken: string): Promise<boolean> {
+  try {
+    const response = await fetch(deauthorizeUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ access_token: accessToken }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** True when connected and the last sync is more than an hour old (or never ran). */

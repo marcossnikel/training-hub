@@ -16,6 +16,9 @@ const dbFile = path.join(os.tmpdir(), `training-hub-strava-${process.pid}-${Date
 
 type StravaModule = typeof import("./strava");
 type StravaTestApi = Pick<StravaModule, "backoff"> & {
+  deauthorizeStravaAccessToken(
+    accessToken: string
+  ): ReturnType<StravaModule["deauthorizeStravaAccessToken"]>;
   apiGet<T>(pathname: string, params?: Record<string, string>): Promise<T>;
   exchangeByoCode(
     credentials: { client_id: string; client_secret: string },
@@ -80,6 +83,7 @@ beforeAll(async () => {
   const stravaModule = await import("./strava");
   strava = {
     backoff: stravaModule.backoff,
+    deauthorizeStravaAccessToken: stravaModule.deauthorizeStravaAccessToken,
     apiGet: <T>(pathname: string, params?: Record<string, string>) =>
       stravaModule.apiGet<T>(TEST_OWNER, pathname, params),
     exchangeByoCode: (credentials, code) => stravaModule.exchangeByoCode(credentials, code),
@@ -214,6 +218,32 @@ describe("token refresh fetch carries a timeout signal (G7.4)", () => {
       access_token: "refreshed-owner-access",
       refresh_token: "refreshed-owner-token",
     });
+  });
+});
+
+describe("provider deauthorization is bounded and redacted", () => {
+  it("uses a no-store form request and treats provider failure as an opaque false result", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ignored: "provider body" }, 500));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await strava.deauthorizeStravaAccessToken("owner-access-token");
+
+    expect(result).toBe(false);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("https://www.strava.com/oauth/deauthorize");
+    expect(options).toMatchObject({ method: "POST", cache: "no-store" });
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+    expect(new URLSearchParams(String(options?.body)).get("access_token")).toBe(
+      "owner-access-token"
+    );
+  });
+
+  it("maps a timeout/network rejection to false without leaking an error", async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error("provider says secret response")) as unknown as typeof fetch;
+
+    await expect(strava.deauthorizeStravaAccessToken("owner-access-token")).resolves.toBe(false);
   });
 });
 

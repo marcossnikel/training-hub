@@ -9,6 +9,7 @@ import {
   SearchXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
 import { FeelingBadge } from "@/components/feeling-badge";
 import { FilterPill } from "@/components/filter-pill";
@@ -250,6 +251,17 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
           </p>
         </div>
       </div>
+
+      {params.strava === "connected" ? (
+        <Alert className="mt-5 border-emerald-500/30 text-emerald-800 dark:text-emerald-200">
+          <CableIcon aria-hidden />
+          <AlertTitle>Strava is connected</AlertTitle>
+          <AlertDescription>
+            Your import has finished. Review the recent records below before drawing conclusions
+            from them.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {pending > 0 ? (
         <div className="mt-5">

@@ -16,9 +16,14 @@ const server = createServer(async (req, res) => {
     for await (const chunk of req) body += String(chunk);
     const params = new URLSearchParams(body);
     if (params.get("grant_type") === "authorization_code") {
+      const revocationFailure = params.get("code") === "e2e-authorized-code-revocation-failure";
       return reply(res, 200, {
-        access_token: "e2e-access-token-not-a-secret",
-        refresh_token: "e2e-refresh-token-not-a-secret",
+        access_token: revocationFailure
+          ? "e2e-revocation-failure-access-token"
+          : "e2e-access-token-not-a-secret",
+        refresh_token: revocationFailure
+          ? "e2e-revocation-failure-refresh-token"
+          : "e2e-refresh-token-not-a-secret",
         expires_at: 4_000_000_000,
         scope: "profile:read_all activity:read_all",
         athlete: { id: 314, firstname: "E2E", lastname: "Athlete" },
@@ -32,6 +37,15 @@ const server = createServer(async (req, res) => {
       });
     }
     return reply(res, 400, { message: "invalid request" });
+  }
+  if (req.method === "POST" && url.pathname === "/oauth/deauthorize") {
+    // Deliberately supports the two lifecycle outcomes without ever logging the
+    // form body. The failure token can only be minted by this local fixture.
+    let body = "";
+    for await (const chunk of req) body += String(chunk);
+    const failed =
+      new URLSearchParams(body).get("access_token") === "e2e-revocation-failure-access-token";
+    return reply(res, failed ? 503 : 200, {});
   }
   if (req.method === "GET" && url.pathname === "/api/v3/athlete/activities") {
     return reply(res, 200, []);

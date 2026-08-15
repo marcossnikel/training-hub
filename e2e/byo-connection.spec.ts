@@ -9,7 +9,7 @@ async function captureEvidence(page: Page, name: string) {
   const evidenceDir = path.join(
     process.cwd(),
     "evidence",
-    name.startsWith("31-") ? "issue-31" : "issue-30"
+    name.startsWith("32-") ? "issue-32" : name.startsWith("31-") ? "issue-31" : "issue-30"
   );
   await fs.mkdir(evidenceDir, { recursive: true });
   // A viewport capture avoids duplicating the sticky navigation in a stitched
@@ -169,22 +169,22 @@ test("the authenticated callback reaches a real owner-bound mock exchange and in
     `/api/strava/callback?state=${encodeURIComponent(state!)}&code=e2e-authorized-code`,
     { maxRedirects: 0 }
   );
-  expect(callback.headers().location).toBe("http://localhost:3100/settings?strava=connected");
+  expect(callback.headers().location).toBe("http://localhost:3100/?strava=connected");
   await page.goto(callback.headers().location!);
   await expect(page.getByRole("alert").filter({ hasText: "Strava is connected" })).toBeVisible();
   await expect(
     page.getByText(
-      "Your authorized scopes were confirmed. Import status is shown from your account data."
+      "Your import has finished. Review the recent records below before drawing conclusions from them."
     )
   ).toBeVisible();
-  await captureEvidence(page, "31-settings-connected-1440.png");
+  await captureEvidence(page, "32-recent-training-first-value-1440.png");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const syncButtons = page.getByRole("button", { name: "Sync", exact: true });
-  await expect(syncButtons).toHaveCount(2);
+  await expect(syncButtons).toHaveCount(1);
   await expect(syncButtons.first()).toBeVisible();
-  await captureEvidence(page, "31-settings-connected-reduced-motion-390.png");
+  await captureEvidence(page, "32-recent-training-first-value-reduced-motion-390.png");
   const rendered = await page.content();
   for (const forbidden of [
     TEST_SECRET,
@@ -194,6 +194,74 @@ test("the authenticated callback reaches a real owner-bound mock exchange and in
     "client_secret_ciphertext",
   ]) {
     expect(rendered).not.toContain(forbidden);
+  }
+});
+
+test("connected Settings performs confirmed revoke/delete and a failed provider revoke still deletes local data", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/settings");
+  await expect(page.getByRole("link", { name: "View recent training" })).toBeVisible();
+  const firstTrigger = page.getByRole("button", { name: "Disconnect and delete" });
+  await captureEvidence(page, "32-settings-connected-1440.png");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await firstTrigger.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await captureEvidence(page, "32-settings-delete-confirmation-reduced-motion-390.png");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(firstTrigger).toBeFocused();
+
+  await firstTrigger.press("Enter");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Disconnect and delete" })
+    .press("Enter");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Disconnected and local imported data deleted" })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/settings\?strava=deleted$/);
+  await captureEvidence(page, "32-settings-local-delete-success-reduced-motion-390.png");
+  await page.reload();
+  await expect(page.getByLabel("Strava Client ID")).toBeVisible();
+
+  // Establish a second disposable connected fixture whose local provider
+  // intentionally returns a deauthorization failure. The local delete must
+  // still complete and disclose the only honest recovery path.
+  await page.getByLabel("Strava Client ID").fill("athlete-client-32");
+  await page.getByLabel("Strava Client Secret").fill("byo-secret-must-not-render");
+  await page.getByRole("button", { name: "Validate and continue" }).press("Enter");
+  const authorization = await page.request.get("/api/strava/byo-connect", { maxRedirects: 0 });
+  const state = new URL(authorization.headers().location!).searchParams.get("state");
+  const callback = await page.request.get(
+    `/api/strava/callback?state=${encodeURIComponent(state!)}&code=e2e-authorized-code-revocation-failure`,
+    { maxRedirects: 0 }
+  );
+  await page.goto(callback.headers().location!);
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Disconnect and delete" }).press("Enter");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Disconnect and delete" })
+    .press("Enter");
+  const failedRevocation = page
+    .getByRole("alert")
+    .filter({ hasText: "We couldn’t confirm revocation with Strava" });
+  await expect(failedRevocation).toBeVisible();
+  await expect(page).toHaveURL(/\/settings\?strava=deleted_provider_unconfirmed$/);
+  await captureEvidence(page, "32-settings-provider-revocation-failed-reduced-motion-390.png");
+  for (const forbidden of [
+    "byo-secret-must-not-render",
+    "e2e-revocation-failure-access-token",
+    "e2e-revocation-failure-refresh-token",
+  ]) {
+    expect(await page.content()).not.toContain(forbidden);
   }
 });
 
