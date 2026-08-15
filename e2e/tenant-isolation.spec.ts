@@ -1,9 +1,13 @@
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@libsql/client";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { encryptStravaSecret } from "@/lib/crypto";
+import { expect, test, type BrowserContext, type Page, type Request } from "@playwright/test";
 
 const PASSWORD = "e2e-test-password";
+const E2E_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 58).toString("base64url");
+process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = E2E_CONNECTION_ENCRYPTION_KEY;
 const SECRET_SENTINELS = [
   "access-token-sentinel",
   "refresh-token-sentinel",
@@ -23,8 +27,23 @@ type BRecords = {
   shoeId: number;
 };
 
-function assertNoSecretMaterial(text: string) {
-  for (const sentinel of SECRET_SENTINELS) expect(text).not.toContain(sentinel);
+async function captureEvidence(page: Page, name: string) {
+  if (process.env.CAPTURE_TENANT_ISOLATION_EVIDENCE !== "1") return;
+  const evidenceDir = path.join(process.cwd(), "evidence", "issue-27");
+  await fs.mkdir(evidenceDir, { recursive: true });
+  await page.screenshot({ path: path.join(evidenceDir, name), fullPage: true });
+}
+
+async function tabTo(page: Page, target: ReturnType<Page["locator"]>, maxTabs = 5) {
+  for (let attempt = 0; attempt < maxTabs; attempt += 1) {
+    await page.keyboard.press("Tab");
+    if (await target.evaluate((element) => document.activeElement === element)) return;
+  }
+  await expect(target).toBeFocused();
+}
+
+function assertNoSecretMaterial(text: string, forbidden: readonly string[] = SECRET_SENTINELS) {
+  for (const value of forbidden) expect(text).not.toContain(value);
 }
 
 async function currentOwner(page: Page): Promise<BrowserOwner> {
@@ -95,12 +114,23 @@ async function createBRecords(page: Page, owner: BrowserOwner, suffix: string): 
   await expect(page.locator("html")).toHaveJSProperty("scrollWidth", 390);
 
   await page.goto("/settings");
-  await page.getByLabel("Date", { exact: true }).fill("2026-08-15");
+  const manualDate = page.getByLabel("Date", { exact: true });
   const manualKm = page.locator("#manual-km");
+  const manualShoe = page.locator("#manual-shoe");
+  const addEntry = page.getByRole("button", { name: "Add entry" });
+  await manualDate.fill("2026-08-15");
+  // Native date inputs can tab through browser-managed day/month/year segments;
+  // stay on the real keyboard path until the next actual form control is focused.
+  await tabTo(page, manualKm);
+  await expect(manualKm).toBeFocused();
   await manualKm.fill("12.34");
-  await page.locator("#manual-shoe").click();
+  await tabTo(page, manualShoe);
+  await expect(manualShoe).toBeFocused();
+  await manualShoe.press("Enter");
   await page.getByRole("option", { name: shoeName }).click();
-  await page.getByRole("button", { name: "Add entry" }).click();
+  await tabTo(page, addEntry);
+  await expect(addEntry).toBeFocused();
+  await addEntry.press("Enter");
   await expect(manualKm).toHaveValue("");
 
   const database = createClient({
@@ -130,6 +160,84 @@ async function createBRecords(page: Page, owner: BrowserOwner, suffix: string): 
   }
 }
 
+async function seedEncryptedConnection(owner: BrowserOwner, suffix: string): Promise<string[]> {
+  const plaintext = SECRET_SENTINELS.map((kind) => `${kind}-${suffix}`);
+  const [accessToken, refreshToken, clientSecret, ciphertextMarker, keyMarker] = plaintext;
+  const clientSecretCiphertext = encryptStravaSecret(owner.ownerId, "client_secret", clientSecret!);
+  const accessTokenCiphertext = encryptStravaSecret(owner.ownerId, "access_token", accessToken!);
+  const refreshTokenCiphertext = encryptStravaSecret(owner.ownerId, "refresh_token", refreshToken!);
+  const database = createClient({
+    url: `file:${path.join(process.cwd(), "data", "e2e.db")}`,
+    intMode: "number",
+  });
+  try {
+    await database.execute({
+      sql: `INSERT INTO strava_connections
+              (id, user_id, client_id, client_secret_ciphertext, access_token_ciphertext,
+               refresh_token_ciphertext, encryption_key_version, expires_at, status)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'connected')`,
+      args: [
+        crypto.randomUUID(),
+        owner.ownerId,
+        "e2e-client-id",
+        clientSecretCiphertext,
+        accessTokenCiphertext,
+        refreshTokenCiphertext,
+        4_000_000_000,
+      ],
+    });
+  } finally {
+    database.close();
+  }
+  return [
+    ...plaintext,
+    ciphertextMarker!,
+    keyMarker!,
+    E2E_CONNECTION_ENCRYPTION_KEY,
+    clientSecretCiphertext,
+    accessTokenCiphertext,
+    refreshTokenCiphertext,
+  ];
+}
+
+async function captureRetireAction(page: Page): Promise<Request> {
+  await page.goto("/gear");
+  const requestPromise = page.waitForRequest(
+    (request) => request.method() === "POST" && Boolean(request.headers()["next-action"])
+  );
+  await page.getByRole("button", { name: "Retire" }).click();
+  const request = await requestPromise;
+  expect(request.postData()).toContain("true");
+  return request;
+}
+
+async function replayActionAsOwnerA(page: Page, request: Request, forbidden: readonly string[]) {
+  const capturedHeaders = request.headers();
+  const headers = Object.fromEntries(
+    Object.entries(capturedHeaders).filter(([name]) =>
+      [
+        "accept",
+        "content-type",
+        "next-action",
+        "next-router-state-tree",
+        "next-url",
+        "origin",
+        "referer",
+        "rsc",
+      ].includes(name)
+    )
+  );
+  const response = await page.request.fetch(request.url(), {
+    method: request.method(),
+    headers,
+    data: request.postDataBuffer()!,
+  });
+  expect(response.status()).toBe(200);
+  const responseBody = await response.text();
+  expect(responseBody).toContain("Shoe not found");
+  assertNoSecretMaterial(responseBody, forbidden);
+}
+
 test("two authenticated browser contexts preserve tenant boundaries", async ({ browser, page }) => {
   const suffix = crypto.randomUUID();
   const ownerA = await currentOwner(page);
@@ -140,37 +248,54 @@ test("two authenticated browser contexts preserve tenant boundaries", async ({ b
     expect(ownerA.authSubject).not.toBe(ownerB.authSubject);
     expect(ownerA.ownerId).not.toBe(ownerB.ownerId);
     const b = await createBRecords(pageB, ownerB, suffix);
+    const forbiddenTransportValues = await seedEncryptedConnection(ownerB, suffix);
 
     // B can read both records it created through the normal UI/route path.
     await pageB.goto(`/activity/${b.activityId}`);
     await expect(pageB.getByText("Manual adjustment", { exact: true })).toBeVisible();
     const bPhoto = await pageB.request.get(`/api/uploads/${encodeURIComponent(b.photoPath)}`);
     expect(bPhoto.status()).toBe(200);
+    assertNoSecretMaterial(await pageB.content(), forbiddenTransportValues);
+    assertNoSecretMaterial(await bPhoto.text(), forbiddenTransportValues);
+    await pageB.goto("/settings");
+    // The test server has no Strava client ID/secret, so Settings intentionally
+    // shows the missing-app setup copy. The enabled header control proves its
+    // server-side owner-bound connection read/decryption still succeeded.
+    await expect(pageB.getByRole("button", { name: "Sync" })).toBeEnabled();
+    assertNoSecretMaterial(await pageB.content(), forbiddenTransportValues);
+    await captureEvidence(pageB, "27-owner-b-settings-390.png");
 
     // A has seeded data, but no B labels, activity, gear-photo content, or IDs.
     await page.goto("/");
     await expect(page.getByText("Long Run 28k with 10k @ MP")).toBeVisible();
     await expect(page.getByText(`B isolation shoe ${suffix}`, { exact: true })).toHaveCount(0);
+    await page.goto("/gear");
+    await expect(page.getByText(`B isolation shoe ${suffix}`, { exact: true })).toHaveCount(0);
+    assertNoSecretMaterial(await page.content(), forbiddenTransportValues);
+    await captureEvidence(page, "27-owner-a-gear-1440.png");
     const hiddenActivity = await page.goto(`/activity/${b.activityId}`);
     // In Next dev, this streamed App Router notFound boundary reports 200 while
     // rendering an empty main region. The observable security contract is no
     // domain payload, rather than its development-only outer response status.
     expect(hiddenActivity?.status()).toBe(200);
     await expect(page.locator("main")).toBeEmpty();
-    assertNoSecretMaterial(await page.content());
+    assertNoSecretMaterial(await page.content(), forbiddenTransportValues);
     await expect(page.getByText("Manual adjustment", { exact: true })).toHaveCount(0);
     await expect(page.getByText(String(b.activityId), { exact: true })).toHaveCount(0);
 
     const hiddenPhoto = await page.request.get(`/api/uploads/${encodeURIComponent(b.photoPath)}`);
     expect(hiddenPhoto.status()).toBe(404);
-    assertNoSecretMaterial(await hiddenPhoto.text());
+    assertNoSecretMaterial(await hiddenPhoto.text(), forbiddenTransportValues);
 
-    // The browser proof covers guessed reads. This complement proves the supported
-    // server-action owner check denies a guessed B shoe before its mutation helper.
-    // B's record is then re-read in its own context, unchanged.
+    // Capture B's actual Server Action protocol, then replay its exact body and
+    // action identifier as A. This is a real authenticated action denial, with no
+    // fabricated owner field or application endpoint.
+    const retireAction = await captureRetireAction(pageB);
+    expect(retireAction.postData()).toContain(String(b.shoeId));
+    await replayActionAsOwnerA(page, retireAction, forbiddenTransportValues);
     await pageB.goto("/gear");
     await expect(pageB.getByText(`B isolation shoe ${suffix}`, { exact: true })).toBeVisible();
-    expect(b.shoeId).toBeGreaterThan(0);
+    await expect(pageB.getByRole("button", { name: "Unretire" })).toBeVisible();
 
     // Logout removes A's usable session; page/API/OAuth entry points all stop
     // before returning domain data or initiating an external redirect.
@@ -186,7 +311,7 @@ test("two authenticated browser contexts preserve tenant boundaries", async ({ b
     });
     expect(guestUpload.status()).toBe(307);
     expect(guestUpload.headers().location).toContain("/login?next=%2Fapi%2Fuploads");
-    assertNoSecretMaterial(await guestUpload.text());
+    assertNoSecretMaterial(await guestUpload.text(), forbiddenTransportValues);
 
     const guestConnect = await page.request.get("/api/strava/connect", { maxRedirects: 0 });
     expect(guestConnect.status()).toBe(307);
@@ -200,7 +325,7 @@ test("two authenticated browser contexts preserve tenant boundaries", async ({ b
       }
     );
     expect(guestCallback.status()).toBe(401);
-    assertNoSecretMaterial(await guestCallback.text());
+    assertNoSecretMaterial(await guestCallback.text(), forbiddenTransportValues);
   } finally {
     await contextB.close();
   }

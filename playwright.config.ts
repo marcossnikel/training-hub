@@ -13,6 +13,10 @@ const STORAGE_STATE = "e2e/.auth/owner.json";
 // reads it via the DATABASE_URL override in src/lib/db.ts. The seed step and the
 // dev server are given this exact same URL so they hit the same file.
 const E2E_DATABASE_URL = `file:${path.join(process.cwd(), "data", "e2e.db")}`;
+// This deterministic throwaway key exists only in the test process and the local
+// Playwright web server. It is never read from an env file or deployment config.
+const E2E_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 58).toString("base64url");
+process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = E2E_CONNECTION_ENCRYPTION_KEY;
 
 /**
  * E2E harness for Training Hub. The webServer command reseeds the isolated DB and
@@ -87,6 +91,7 @@ export default defineConfig({
       TURSO_AUTH_TOKEN: "",
       BETTER_AUTH_SECRET: "e2e-signing-secret-please-do-not-reuse",
       BETTER_AUTH_URL: BASE_URL,
+      STRAVA_CONNECTION_ENCRYPTION_KEY: E2E_CONNECTION_ENCRYPTION_KEY,
     },
   },
 });
