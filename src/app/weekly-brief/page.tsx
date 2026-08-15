@@ -1,6 +1,7 @@
 import { WeeklyBriefView, rangeLabel } from "./weekly-brief-view";
 import { WeeklyBriefSkeleton } from "./weekly-brief-skeleton";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/lib/auth";
 import { listWeeklyBriefActivities } from "@/lib/db";
 import { buildWeeklyBrief } from "@/lib/weekly-brief";
@@ -22,7 +23,7 @@ export default function WeeklyBriefPage() {
  */
 export async function WeeklyBriefContent() {
   const owner = await requireCurrentUser();
-  if (!owner) return null;
+  if (!owner) redirect("/login");
   const period = mostRecentCompletedWeeklyBriefPeriod();
   const activities = await listWeeklyBriefActivities(owner, period.fromDay, period.toDay);
   const result = buildWeeklyBrief({

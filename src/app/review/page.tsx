@@ -1,4 +1,5 @@
 import { ReviewFlow } from "@/components/review-flow";
+import { redirect } from "next/navigation";
 import { listBikes, listPendingActivities, listShoes } from "@/lib/db";
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
@@ -8,7 +9,7 @@ export const metadata = { title: "Review" };
 
 export default async function ReviewPage() {
   const owner = await requireCurrentUser();
-  if (!owner) return null;
+  if (!owner) redirect("/login");
   const { t } = await getDict();
   const items = await listPendingActivities(owner);
   const shoes = (await listShoes(owner)).map(toGearOption);

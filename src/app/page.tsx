@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   CableIcon,
   ChevronRightIcon,
@@ -35,6 +36,10 @@ import { isRunSport } from "@/lib/validate";
 import type { ActivityWithSplits } from "@/lib/types";
 
 export const metadata = { title: "Training log" };
+// The root log is per-owner data. Keep this explicit even though the parent
+// proxy handles the ordinary HTTP request, so a future proxy matcher change
+// cannot turn a missing session into a rendered empty/data-bearing route.
+export const dynamic = "force-dynamic";
 
 interface WeekGroup {
   key: string;
@@ -177,7 +182,7 @@ const LOG_PAGE_SIZE = 150;
 
 export default async function TrainingLogPage({ searchParams }: PageProps<"/">) {
   const owner = await requireCurrentUser();
-  if (!owner) return null;
+  if (!owner) redirect("/login");
   const params = await searchParams;
   const { lang, t } = await getDict();
   const [pending, activities, connected] = await Promise.all([

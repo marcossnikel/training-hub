@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeftIcon, GitCompareIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { RaceCompare, type CompareSide, type RaceOption } from "@/components/race-compare";
@@ -74,7 +75,7 @@ async function buildSide(
 
 export default async function RaceComparePage({ searchParams }: PageProps<"/races/compare">) {
   const owner = await requireCurrentUser();
-  if (!owner) return null;
+  if (!owner) redirect("/login");
   const { t } = await getDict();
   const params = await searchParams;
   const races = await listRaces(owner);

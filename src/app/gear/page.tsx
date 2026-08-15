@@ -1,5 +1,7 @@
 import { FilterPill } from "@/components/filter-pill";
+import { redirect } from "next/navigation";
 import { BikesSection, ShoesSection } from "@/components/gear-sections";
+import { requireCurrentUser } from "@/lib/auth";
 import { getDict } from "@/lib/lang";
 
 export const metadata = { title: "Gear" };
@@ -7,6 +9,8 @@ export const metadata = { title: "Gear" };
 // Consolidated gear page: one nav entry with Shoes / Bikes tabs (?tab=bikes),
 // replacing the two separate nav items. Each tab renders its collection section.
 export default async function GearPage({ searchParams }: PageProps<"/gear">) {
+  const owner = await requireCurrentUser();
+  if (!owner) redirect("/login");
   const params = await searchParams;
   const { t } = await getDict();
   const tab = params.tab === "bikes" ? "bikes" : "shoes";

@@ -1,4 +1,5 @@
 import { GaugeIcon, MedalIcon } from "lucide-react";
+import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { ApplyFtpButton } from "@/components/apply-ftp";
@@ -77,7 +78,7 @@ function StatTile({
 
 export default async function PerformancePage({ searchParams }: PageProps<"/performance">) {
   const owner = await requireCurrentUser();
-  if (!owner) return null;
+  if (!owner) redirect("/login");
   const params = await searchParams;
   const { lang, t } = await getDict();
   const tp = t.performance;

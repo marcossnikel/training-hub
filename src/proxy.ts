@@ -7,6 +7,17 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((base) => pathname === base || pathname.startsWith(`${base}/`));
 }
 
+/**
+ * Protected pages are personalised by the database-backed session. Explicitly
+ * prohibit intermediary caches from retaining either an authenticated response
+ * or a guest recovery redirect. This is defense in depth alongside the page
+ * and route owner checks: a later request must always be authorized again.
+ */
+function privateNoStore(response: NextResponse): NextResponse {
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  return response;
+}
+
 /** Redirect UX only; every action still validates the database-backed session server-side. */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next();
@@ -18,11 +29,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     headers: request.headers,
     query: { disableCookieCache: true },
   });
-  if (session) return NextResponse.next();
+  if (session) return privateNoStore(NextResponse.next());
 
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-  return NextResponse.redirect(loginUrl);
+  return privateNoStore(NextResponse.redirect(loginUrl));
 }
 
 export const config = {

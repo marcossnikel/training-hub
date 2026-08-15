@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { GitCompareIcon, MedalIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
@@ -15,7 +16,7 @@ export const metadata = { title: "Races" };
 
 export default async function RacesPage() {
   const owner = await requireCurrentUser();
-  if (!owner) return null;
+  if (!owner) redirect("/login");
   const { lang, t } = await getDict();
   const races = await listRaces(owner);
 

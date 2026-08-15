@@ -29,8 +29,21 @@ describe("auth proxy", () => {
     const response = await proxy(new NextRequest("http://localhost:3100/settings?tab=strava"));
 
     expect(response.status).toBe(307);
+    expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
     expect(response.headers.get("location")).toBe(
       "http://localhost:3100/login?next=%2Fsettings%3Ftab%3Dstrava"
     );
+  });
+
+  it("marks authenticated protected responses private so one athlete's render is never reusable", async () => {
+    mocks.getSession.mockResolvedValue({
+      user: { id: "auth-subject" },
+      session: { id: "session-id" },
+    });
+
+    const response = await proxy(new NextRequest("http://localhost:3100/"));
+
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
   });
 });

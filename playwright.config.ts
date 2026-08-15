@@ -57,6 +57,7 @@ export default defineConfig({
         /auth\.setup\.ts/,
         /auth\.spec\.ts/,
         /comparable-activity\.spec\.ts/,
+        /guest-data-boundary\.spec\.ts/,
         /mobile\.spec\.ts/,
       ],
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
@@ -76,6 +77,16 @@ export default defineConfig({
     {
       name: "chromium-guest",
       testMatch: /auth\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["comparable-activity"],
+    },
+    // #58 needs a completely cookie-free browser and HTTP client. It creates
+    // disposable owner data first, then proves both HTML and RSC guests cannot
+    // receive it after an authenticated render has primed the app.
+    {
+      name: "guest-data-boundary",
+      testMatch: /guest-data-boundary\.spec\.ts/,
+      workers: 1,
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["comparable-activity"],
     },

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, CheckCircle2Icon, ClockIcon, DownloadIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MedalIcon } from "lucide-react";
@@ -404,7 +404,7 @@ function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
 
 export default async function ActivityPage({ params }: PageProps<"/activity/[id]">) {
   const owner = await requireCurrentUser();
-  if (!owner) notFound();
+  if (!owner) redirect("/login");
   const { id } = await params;
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) notFound();

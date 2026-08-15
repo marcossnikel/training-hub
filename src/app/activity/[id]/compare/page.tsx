@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ComparableActivitySkeleton } from "./comparable-activity-skeleton";
 import { ComparableActivityView } from "./comparable-activity-view";
 import { requireCurrentUser } from "@/lib/auth";
@@ -25,7 +25,7 @@ export default function ComparableActivityPage({ params }: PageProps<"/activity/
 /** Request-time auth and data work stays inside the route's real Suspense boundary. */
 export async function ComparableActivityContent({ id }: { id: string }) {
   const owner = await requireCurrentUser();
-  if (!owner) notFound();
+  if (!owner) redirect("/login");
   const numericId = Number(id);
   if (!Number.isSafeInteger(numericId) || numericId <= 0) notFound();
 
