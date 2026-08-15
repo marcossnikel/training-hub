@@ -131,7 +131,7 @@ Allowed conclusion language is factual: “A prior running activity met the dist
 
 Use this exact copy:
 
-> **No reliable prior match**  
+> **No reliable prior match**<br>
 > There isn’t a prior activity that meets the current comparison criteria.
 
 Keep the current source activity linked or named. Explain the method in immediately available text: “Matches require the same sport family, distance within 10%, and moving time within 20%.” Do not say that history is missing, insufficient, incomplete, or weak unless a future accepted rule distinguishes that condition.
@@ -177,7 +177,7 @@ The intended feeling is calm confidence in a bounded observation, not a performa
 | Error/retry | On a recoverable owner-scoped read failure, retain safe source context, announce a plain-language error, and offer an action-specific retry. Never expose IDs that failed ownership, raw errors, secrets, or another athlete's data. Capture the retryable state and successful retry. |
 | Disabled/unavailable source | A pending, invalid, missing, or unowned source never enters the comparison surface. The authenticated route returns its existing safe not-found/access behavior; do not render a disabled comparison card that leaks why. Document this no-card state in the PR. |
 | Hover/focus/press | Source links and retry controls have visible `focus.ring`, a 100–150 ms nonessential tone/opacity response, and immediate press acknowledgement. Keyboard has the same meaning as pointer input; no information depends on hover. |
-| Keyboard | Tab order follows heading → current source link → prior source link → method disclosure → retry when present. Enter activates links/buttons; any disclosure uses semantic control and returns focus normally. Include focus evidence. |
+| Keyboard | Tab order follows heading → current source link → prior source link → method disclosure → retry when present. Enter activates links; Enter or Space activates semantic buttons/disclosures. Any disclosure returns focus normally. Include focus evidence. |
 | Reduced motion | All state and focus feedback is immediate/static under `prefers-reduced-motion: reduce`; no animation is needed to understand a match or retry. Record the result. |
 
 Follow [`docs/design/VISUAL_QA.md`](../design/VISUAL_QA.md): include named 1440 px and 390 px screenshots for the primary and no-match states, plus loading, error/retry, and focus evidence as applicable. Name captures `37-comparable-prior-activity-<state>-<viewport>.png`, record route/test data/commit, and use only disposable owner-scoped test data.
