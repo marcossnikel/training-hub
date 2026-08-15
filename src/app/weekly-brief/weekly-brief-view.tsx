@@ -34,8 +34,23 @@ function SourceRow({ source }: { source: WeeklyBriefSource }) {
   );
 }
 
+function EvidenceGroup({ heading, sources }: { heading: string; sources: WeeklyBriefSource[] }) {
+  const id = heading === "Current-week evidence" ? "current-week-evidence" : "baseline-evidence";
+  return (
+    <section aria-labelledby={id} className="mt-5 first:mt-2">
+      <h3 id={id} className="label-micro">
+        {heading}
+      </h3>
+      <ul className="mt-2">
+        {sources.map((source) => (
+          <SourceRow key={`${source.id}-${source.date}`} source={source} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Observation({ observation }: { observation: WeeklyBriefObservation }) {
-  const allSources = [...observation.sources.current, ...observation.sources.baseline];
   return (
     <>
       <Card>
@@ -53,11 +68,8 @@ function Observation({ observation }: { observation: WeeklyBriefObservation }) {
         </CardHeader>
         <CardContent>
           <h2 className="font-display text-lg font-semibold">Evidence</h2>
-          <ul className="mt-2">
-            {allSources.map((source) => (
-              <SourceRow key={`${source.id}-${source.date}`} source={source} />
-            ))}
-          </ul>
+          <EvidenceGroup heading="Current-week evidence" sources={observation.sources.current} />
+          <EvidenceGroup heading="Baseline evidence" sources={observation.sources.baseline} />
         </CardContent>
       </Card>
       <details className="mt-6 rounded-xl border bg-card px-4 py-3">

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { WeeklyBriefView } from "./weekly-brief-view";
 import { buildWeeklyBrief } from "@/lib/weekly-brief";
 
@@ -27,8 +27,12 @@ describe("WeeklyBriefView", () => {
     });
     render(<WeeklyBriefView result={result} />);
     expect(screen.getByRole("heading", { name: "Evidence" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Current-week evidence" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Baseline evidence" })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Open 4 Aug 2026 Run activity" }).getAttribute("href")
+      within(screen.getByRole("region", { name: "Current-week evidence" }))
+        .getByRole("link", { name: "Open 4 Aug 2026 Run activity" })
+        .getAttribute("href")
     ).toBe("/activity/4");
     expect(
       screen.getByText("Baseline has activity in 3 of the previous 4 completed weeks.")
