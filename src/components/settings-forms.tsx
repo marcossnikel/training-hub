@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { Loader2Icon, PlusIcon, UnplugIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,43 +15,11 @@ import {
 } from "@/components/ui/select";
 import { GearSelectItem } from "@/components/gear-select-item";
 import { useI18n } from "@/components/i18n-provider";
-import {
-  createManualActivityAction,
-  disconnectStravaAction,
-  setBikeGearAction,
-  setShoeGearAction,
-} from "@/lib/actions";
+import { createManualActivityAction, setBikeGearAction, setShoeGearAction } from "@/lib/actions";
 import { NONE } from "@/lib/constants";
 import { fmtKm, localDateInputValue } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import type { GearOption, StravaGear } from "@/lib/types";
-
-export function DisconnectButton() {
-  const { t } = useI18n();
-  const [pending, startTransition] = useTransition();
-
-  function disconnect() {
-    startTransition(async () => {
-      const result = await disconnectStravaAction();
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success(t.toasts.disconnected);
-    });
-  }
-
-  return (
-    <Button variant="outline" size="sm" onClick={disconnect} disabled={pending}>
-      {pending ? (
-        <Loader2Icon className="animate-spin" data-icon="inline-start" />
-      ) : (
-        <UnplugIcon data-icon="inline-start" />
-      )}
-      {t.settingsPage.disconnect}
-    </Button>
-  );
-}
 
 // One matcher for both entities: identical chrome, the only difference is which
 // server action links the row. `kind` selects it so shoes call setShoeGearAction

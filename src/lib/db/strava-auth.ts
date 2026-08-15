@@ -1,4 +1,4 @@
-import { batchWrite, exec, one } from "./helpers";
+import { exec, one } from "./helpers";
 import type { OwnerContext } from "../owner-context";
 import { decryptStravaSecret, encryptStravaSecret, StravaSecretStorageError } from "../crypto";
 
@@ -318,17 +318,4 @@ export async function markStravaConnectionRecoverable(owner: OwnerContext): Prom
      WHERE user_id = ? AND status = 'connected'`,
     [owner.userId]
   );
-}
-
-export async function clearStravaAuth(owner: OwnerContext): Promise<void> {
-  await batchWrite([
-    {
-      sql: "DELETE FROM strava_connections WHERE user_id = ?",
-      args: [owner.userId],
-    },
-    {
-      sql: "DELETE FROM user_meta WHERE user_id = ? AND key = 'athlete_name'",
-      args: [owner.userId],
-    },
-  ]);
 }

@@ -7,7 +7,7 @@ import { buildByoAuthorizeUrl, resolveAuthorizationByoOrigin } from "@/lib/strav
  * Starts only the external authorization navigation. #31 owns callback
  * consumption, token exchange, sync, reconnect, and lifecycle recovery.
  */
-export async function GET(request: NextRequest) {
+export async function startByoAuthorization(request: NextRequest) {
   const owner = await requireCurrentUser();
   if (!owner) return new NextResponse(null, { status: 401 });
 
@@ -28,4 +28,8 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.redirect(new URL("/settings", origin));
   }
+}
+
+export async function GET(request: NextRequest) {
+  return startByoAuthorization(request);
 }

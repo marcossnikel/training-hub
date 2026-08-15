@@ -69,7 +69,6 @@ export const en = {
     bikeUpdated: "Bike updated",
     gearLinked: "Gear linked",
     gearUnlinked: "Gear unlinked",
-    disconnected: "Strava disconnected",
     backInRotation: "{name} is back in rotation",
     retired: "{name} retired",
     manualAdded: "Added {km} to {name}",
@@ -102,7 +101,6 @@ export const en = {
     invalidThresholds: "Check the threshold values — one is out of a sensible range.",
     goalNeedsName: "The goal needs a name.",
     invalidGoal: "Check the goal — a value is out of range.",
-    envMissing: "Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET first (see Settings).",
     notConnected: "Connect Strava from Settings first.",
     syncFailed: "Sync failed.",
     unauthorized: "You need to log in to do that.",
@@ -618,7 +616,6 @@ export const en = {
     lastSync:
       "Last sync {date} at {time}. Syncs run automatically when the app loads after more than an hour.",
     neverSynced: "Never synced. Press Sync to pull your activities.",
-    disconnect: "Disconnect",
     reconnect: "Reconnect",
     gearScopeHint:
       "Gear matching needs Strava's profile permission. Use Reconnect above to grant it, then your shoes and bikes appear here.",
@@ -664,7 +661,6 @@ export const en = {
       denied: "Strava authorization was cancelled.",
       state: "The authorization state did not match. Try connecting again.",
       exchange: "Exchanging the authorization code failed. Check your API keys and try again.",
-      missing_env: "Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET before connecting.",
       // Looked up by an arbitrary `error` URL param (with a generic fallback),
       // so a string index signature is required; the cast stays load-bearing.
     } as Record<string, string>,

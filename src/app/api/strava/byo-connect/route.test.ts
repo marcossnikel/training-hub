@@ -31,6 +31,16 @@ afterEach(() => {
 });
 
 describe("BYO authorization handoff route", () => {
+  it("rejects an unauthenticated request before canonical-origin, credentials, state, or provider navigation", async () => {
+    mocks.requireCurrentUser.mockResolvedValue(null);
+    const response = await GET(new NextRequest("https://attacker.example/api/strava/byo-connect"));
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.getPendingStravaAuthorization).not.toHaveBeenCalled();
+    expect(mocks.createOAuthState).not.toHaveBeenCalled();
+  });
+
   it("rejects a nonlocal request even when hostile forwarding headers name an attacker", async () => {
     const response = await GET(
       new NextRequest("https://app.training-hub.example/api/strava/byo-connect", {
@@ -66,5 +76,19 @@ describe("BYO authorization handoff route", () => {
       { userId: "owner-a" },
       { intent: "connect", redirectKey: "settings" }
     );
+  });
+
+  it("uses the canonical Settings recovery when this owner has no pending credentials", async () => {
+    process.env.TRAINING_HUB_PUBLIC_ORIGIN = "https://preview.training-hub.example";
+    mocks.getPendingStravaAuthorization.mockResolvedValue(null);
+
+    const response = await GET(
+      new NextRequest("https://attacker.example/api/strava/byo-connect", {
+        headers: { "x-forwarded-host": "attacker.example", "x-forwarded-proto": "https" },
+      })
+    );
+
+    expect(response.headers.get("location")).toBe("https://preview.training-hub.example/settings");
+    expect(mocks.createOAuthState).not.toHaveBeenCalled();
   });
 });

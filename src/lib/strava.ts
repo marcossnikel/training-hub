@@ -38,7 +38,6 @@ import type { SplitInput, StravaGear } from "./types";
 import type { OwnerContext } from "./owner-context";
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
-const AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
 const API_BASE = "https://www.strava.com/api/v3";
 const TEST_PROVIDER_ORIGIN_ENV = "TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN";
 const E2E_TEST_ENV = "TRAINING_HUB_E2E";
@@ -141,10 +140,6 @@ function parseRetryAfterMs(header: string | null): number {
   return capped * 1000;
 }
 
-export function stravaConfigured(): boolean {
-  return !!(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET);
-}
-
 export async function isStravaConnected(owner: OwnerContext): Promise<boolean> {
   return (await getStravaAuth(owner)) !== null;
 }
@@ -154,19 +149,6 @@ export async function shouldAutoSync(owner: OwnerContext): Promise<boolean> {
   if (!(await isStravaConnected(owner))) return false;
   const lastSync = await getMeta(owner, "last_sync_at");
   return !lastSync || Date.now() - Date.parse(lastSync) > 60 * 60 * 1000;
-}
-
-export function buildAuthorizeUrl(origin: string, state: string): string {
-  const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", process.env.STRAVA_CLIENT_ID ?? "");
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("redirect_uri", `${origin}/api/strava/callback`);
-  url.searchParams.set("approval_prompt", "auto");
-  // profile:read_all is required for the athlete endpoint to return gear
-  // (shoes + bikes); activity:read_all alone omits them.
-  url.searchParams.set("scope", "activity:read_all,profile:read_all");
-  url.searchParams.set("state", state);
-  return url.toString();
 }
 
 interface TokenResponse {

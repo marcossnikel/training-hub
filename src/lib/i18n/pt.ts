@@ -64,7 +64,6 @@ export const pt: Dict = {
     bikeUpdated: "Bike atualizada",
     gearLinked: "Equipamento vinculado",
     gearUnlinked: "Equipamento desvinculado",
-    disconnected: "Strava desconectado",
     backInRotation: "{name} está de volta",
     retired: "{name} aposentado",
     manualAdded: "{km} adicionados ao {name}",
@@ -97,7 +96,6 @@ export const pt: Dict = {
     invalidThresholds: "Revise os limiares — algum valor está fora de uma faixa razoável.",
     goalNeedsName: "A meta precisa de um nome.",
     invalidGoal: "Verifique a meta — um valor está fora do intervalo.",
-    envMissing: "Defina STRAVA_CLIENT_ID e STRAVA_CLIENT_SECRET primeiro (veja os Ajustes).",
     notConnected: "Conecte o Strava nos Ajustes primeiro.",
     syncFailed: "A sincronização falhou.",
     unauthorized: "Você precisa entrar para fazer isso.",
@@ -613,7 +611,6 @@ export const pt: Dict = {
     lastSync:
       "Última sincronização {date} às {time}. A sincronização roda sozinha ao abrir o app depois de mais de uma hora.",
     neverSynced: "Nunca sincronizado. Aperte Sincronizar para puxar suas atividades.",
-    disconnect: "Desconectar",
     reconnect: "Reconectar",
     gearScopeHint:
       "O vínculo de equipamentos precisa da permissão de perfil do Strava. Use Reconectar acima para concedê-la, e seus tênis e bikes aparecem aqui.",
@@ -660,7 +657,6 @@ export const pt: Dict = {
       denied: "A autorização do Strava foi cancelada.",
       state: "O estado da autorização não confere. Tente conectar de novo.",
       exchange: "A troca do código de autorização falhou. Confira suas chaves e tente de novo.",
-      missing_env: "Defina STRAVA_CLIENT_ID e STRAVA_CLIENT_SECRET antes de conectar.",
     },
   },
 };

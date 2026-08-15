@@ -8,7 +8,6 @@ import { splitErrorText, isLang } from "./i18n";
 import { LANG_COOKIE } from "./lang";
 import { storePhoto, deletePhoto, InvalidImageError } from "./storage";
 import {
-  clearStravaAuth,
   createBike,
   createManualActivity,
   createShoe,
@@ -554,23 +553,6 @@ export async function setBikeGearAction(
   try {
     if (!(await getBike(owner, bikeId))) return { ok: false, error: t.errors.bikeNotFound };
     await setBikeGear(owner, bikeId, gearId);
-    refreshAll();
-    return { ok: true };
-  } catch (error) {
-    return fail(error, t.errors.generic);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------
-
-export async function disconnectStravaAction(): Promise<ActionResult> {
-  const t = await dict();
-  const owner = await requireCurrentUser();
-  if (!owner) return { ok: false, error: t.errors.unauthorized };
-  try {
-    await clearStravaAuth(owner);
     refreshAll();
     return { ok: true };
   } catch (error) {
