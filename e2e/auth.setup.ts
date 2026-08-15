@@ -1,13 +1,14 @@
 import { test as setup, expect } from "@playwright/test";
 import path from "node:path";
 import { createClient } from "@libsql/client";
+import { betaSignUpPath } from "./beta-invite";
 
 const STORAGE_STATE = "e2e/.auth/owner.json";
 const PASSWORD = "e2e-test-password";
 const FIXTURE_OWNER = "e2e-fixture-owner";
 
 setup("create and authenticate the E2E athlete", async ({ page }) => {
-  await page.goto("/sign-up");
+  await page.goto(await betaSignUpPath("e2e@example.test"));
   await page.getByLabel("Name").fill("E2E Athlete");
   await page.getByLabel("Email").fill("e2e@example.test");
   await page.getByLabel("Password").fill(PASSWORD);

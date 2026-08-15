@@ -20,6 +20,9 @@ The v0 direction and delivery queue live in the
   product default.
 - Billing is not implemented. Do not create live Stripe products or deploy a
   product change without the relevant issue and approval.
+- New beta registration is invitation-only and enforced by the server. Read
+  [the private-invitation operator boundary](docs/engineering/BETA_INVITES.md)
+  before using the local issuance command.
 - The v0 direction is evidence and context, not generic AI coaching or
   medical/readiness advice.
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { LogInIcon, UserPlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,25 @@ import { authClient } from "@/lib/auth-client";
 const GENERIC_SIGN_IN_ERROR = "We couldn't sign you in with those details.";
 const GENERIC_SIGN_UP_ERROR = "We couldn't create that account. Try another email or sign in.";
 
-export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
+export function AuthForm({
+  mode,
+  inviteToken,
+}: {
+  mode: "sign-in" | "sign-up";
+  inviteToken?: string;
+}) {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const signUp = mode === "sign-up";
+
+  // Keep the one-time token only in component memory while the athlete fills
+  // this form. It is removed from the address bar before any retry or success
+  // navigation and is never written to storage.
+  useEffect(() => {
+    if (!signUp || !inviteToken) return;
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [inviteToken, signUp]);
 
   function submit(formData: FormData) {
     setError(null);
@@ -28,6 +42,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
             name: String(formData.get("name") ?? ""),
             email,
             password,
+            inviteToken: inviteToken ?? "",
           })
         : await authClient.signIn.email({ email, password });
 

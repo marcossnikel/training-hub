@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@libsql/client";
 import { expect, request, test, type Browser, type Page } from "@playwright/test";
+import { betaSignUpPath } from "./beta-invite";
 
 const BASE_URL = "http://localhost:3100";
 
@@ -73,7 +74,7 @@ async function signUpAndCreateOwnerOnlyActivity(
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   try {
-    await page.goto("/sign-up");
+    await page.goto(await betaSignUpPath(email));
     await page.getByLabel("Name").fill(`Guest boundary ${account}`);
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill("e2e-test-password");

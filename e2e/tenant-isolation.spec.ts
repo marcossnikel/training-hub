@@ -4,6 +4,7 @@ import path from "node:path";
 import { createClient } from "@libsql/client";
 import { encryptStravaSecret } from "@/lib/crypto";
 import { expect, test, type BrowserContext, type Page, type Request } from "@playwright/test";
+import { betaSignUpPath } from "./beta-invite";
 
 const PASSWORD = "e2e-test-password";
 const E2E_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 58).toString("base64url");
@@ -75,11 +76,12 @@ async function signUp(
   suffix: string
 ): Promise<{ page: Page; owner: BrowserOwner }> {
   const page = await context.newPage();
-  await page.goto("/sign-up");
+  const email = `isolation-${suffix}@example.test`;
+  await page.goto(await betaSignUpPath(email));
   await page.getByLabel("Name").fill(`Isolation ${suffix}`);
   await page.getByLabel("Name").press("Tab");
   await expect(page.getByLabel("Email")).toBeFocused();
-  await page.getByLabel("Email").fill(`isolation-${suffix}@example.test`);
+  await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByLabel("Password").press("Enter");
   await expect(page).toHaveURL(/\/$/);

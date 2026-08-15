@@ -7,6 +7,7 @@
  *   npm run seed:clear  remove only seeded activities
  */
 import { client, ensureMigrated } from "../src/lib/db";
+import { betaInviteRegistrationEnabled, ensureBetaInviteSchema } from "../src/lib/beta-invites";
 import { BASELINE_BIKES, BASELINE_SHOES } from "../src/lib/baseline";
 import type { Feeling } from "../src/lib/types";
 
@@ -54,6 +55,7 @@ async function clearSeeds(): Promise<number> {
 async function main() {
   assertLocalDb();
   await ensureMigrated();
+  if (betaInviteRegistrationEnabled()) await ensureBetaInviteSchema();
 
   // Fixture data is intentionally seeded only by this explicit disposable-data
   // script, never by schema bootstrap. Its owner exists in both sides of the

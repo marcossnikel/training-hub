@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { betaSignUpPath } from "./beta-invite";
 
 test.describe("auth", () => {
   const PASSWORD = "e2e-test-password";
@@ -33,7 +34,7 @@ test.describe("auth", () => {
   });
 
   test("sign-up creates a session and logout returns to sign-in", async ({ page }) => {
-    await page.goto("/sign-up");
+    await page.goto(await betaSignUpPath("guest@example.test"));
     await page.getByLabel("Name").fill("Guest Athlete");
     await page.getByLabel("Email").fill("guest@example.test");
     await page.getByLabel("Password").fill(PASSWORD);

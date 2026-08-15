@@ -62,6 +62,7 @@ export default defineConfig({
         /comparable-activity\.spec\.ts/,
         /gear\.spec\.ts/,
         /guest-data-boundary\.spec\.ts/,
+        /beta-invite\.spec\.ts/,
         /mobile\.spec\.ts/,
         /tenant-isolation\.spec\.ts/,
       ],
@@ -72,11 +73,18 @@ export default defineConfig({
     // route's actual error boundary and retry. Run it alone and before other
     // read specs so that proof cannot leak into their shared seeded fixture.
     {
+      name: "beta-invites",
+      testMatch: /beta-invite\.spec\.ts/,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+    },
+    {
       name: "comparable-activity",
       testMatch: /comparable-activity\.spec\.ts/,
       workers: 1,
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
-      dependencies: ["setup"],
+      dependencies: ["beta-invites"],
     },
     // These are the remaining authenticated specs that mutate the one
     // disposable SQLite database. They deliberately run after the schema-error
@@ -150,6 +158,9 @@ export default defineConfig({
       BETTER_AUTH_URL: BASE_URL,
       STRAVA_CONNECTION_ENCRYPTION_KEY: E2E_CONNECTION_ENCRYPTION_KEY,
       TRAINING_HUB_E2E: "1",
+      TRAINING_HUB_ENV: "e2e",
+      TRAINING_HUB_DISPOSABLE_DATA: "1",
+      BETA_INVITE_REGISTRATION_ENABLED: "1",
       TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN: "http://127.0.0.1:3210",
     },
   },

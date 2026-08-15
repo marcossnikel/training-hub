@@ -20,19 +20,34 @@ describe("requireCurrentUser", () => {
   it("derives distinct local owners from authenticated sessions, never a request owner field", async () => {
     vi.stubEnv("DATABASE_URL", `file:${DB_PATH}`);
     vi.stubEnv("TURSO_DATABASE_URL", "");
+    vi.stubEnv("TURSO_AUTH_TOKEN", "");
+    vi.stubEnv("TRAINING_HUB_ENV", "local");
+    vi.stubEnv("TRAINING_HUB_DISPOSABLE_DATA", "1");
+    vi.stubEnv("BETA_INVITE_REGISTRATION_ENABLED", "1");
     vi.stubEnv("BETTER_AUTH_SECRET", "owner-context-test-secret-with-at-least-32-characters");
     vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3100");
     vi.resetModules();
 
     const { ensureMigrated } = await import("./db/migrations");
     await ensureMigrated();
+    const { issueBetaInvite } = await import("./beta-invites");
     const { auth, requireCurrentUser } = await import("./auth");
 
     const signUp = async (email: string) => {
-      const response = await auth.api.signUpEmail({
-        body: { name: email, email, password: "correct-horse-battery-staple" },
-        asResponse: true,
-      });
+      const invite = await issueBetaInvite({ email, issuedBy: "owner-context-test" });
+      const response = await auth.handler(
+        new Request("http://localhost:3100/api/auth/sign-up/email", {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: "http://localhost:3100" },
+          body: JSON.stringify({
+            name: email,
+            email,
+            password: "correct-horse-battery-staple",
+            inviteToken: invite.token,
+          }),
+        })
+      );
+      expect(response.status).toBe(200);
       const session = await response.clone().json();
       const cookie = response.headers.get("set-cookie");
       expect(cookie).toBeTruthy();
