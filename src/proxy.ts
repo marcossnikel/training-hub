@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/sign-up", "/api/auth", "/api/strava/callback"];
+const PUBLIC_PATHS = ["/", "/login", "/sign-up", "/api/auth", "/api/strava/callback"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((base) => pathname === base || pathname.startsWith(`${base}/`));
@@ -20,7 +20,12 @@ function privateNoStore(response: NextResponse): NextResponse {
 
 /** Redirect UX only; every action still validates the database-backed session server-side. */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
-  if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next();
+  const isGuestRoot = request.nextUrl.pathname === "/";
+  // The root is the one guest-readable application route. It still has to
+  // resolve the database-backed session in the proxy so both guest landing
+  // documents and authenticated training logs are private/no-store. The page
+  // repeats its owner check before it reads any product-domain data.
+  if (isPublicPath(request.nextUrl.pathname) && !isGuestRoot) return NextResponse.next();
   // A Server Action has its own session-derived authorization boundary. Let it
   // return its typed safe recovery state instead of converting an expired
   // session into a redirect response that the React action protocol rejects.
@@ -30,6 +35,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     query: { disableCookieCache: true },
   });
   if (session) return privateNoStore(NextResponse.next());
+
+  if (isGuestRoot) return privateNoStore(NextResponse.next());
 
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);

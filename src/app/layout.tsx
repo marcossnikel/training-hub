@@ -69,13 +69,21 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <I18nProvider lang={lang}>
+            <a
+              href="#main-content"
+              className="focus-ring sr-only fixed top-3 left-3 z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm focus:not-sr-only"
+            >
+              Skip to main content
+            </a>
             <Header
               pendingCount={pendingCount}
               connected={connected}
               autoSync={autoSync}
               auth={auth}
             />
-            <main className="flex-1">{children}</main>
+            <main id="main-content" className="flex-1">
+              {children}
+            </main>
             <Toaster />
           </I18nProvider>
         </ThemeProvider>

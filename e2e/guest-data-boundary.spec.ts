@@ -117,9 +117,20 @@ function assertNoDomainPayload(body: string, sentinels: readonly string[]) {
   expect(body).not.toContain("Long Run 28k with 10k @ MP");
 }
 
-test("cookie-free HTTP and RSC requests redirect before owner data can stream", async ({
-  browser,
-}) => {
+function expectGuestRootCacheControl(value: string | undefined): void {
+  // Next 16's development server deliberately overwrites rendered-page cache
+  // headers with `no-cache, must-revalidate`; the production server emits the
+  // documented private/no-store dynamic response. Keep both environments
+  // observable without claiming a dev-only header is production evidence.
+  if (process.env.E2E_PRODUCTION === "1") {
+    expect(value).toContain("private");
+    expect(value).toContain("no-store");
+    return;
+  }
+  expect(value).toBe("no-cache, must-revalidate");
+}
+
+test("cookie-free HTTP and RSC requests stop before owner data can stream", async ({ browser }) => {
   const shoeSentinel = unique("private-shoe-58");
   const accountSentinel = unique("private-account-58");
   const activityPath = await signUpAndCreateOwnerOnlyActivity(
@@ -141,6 +152,15 @@ test("cookie-free HTTP and RSC requests redirect before owner data can stream", 
           headers: requestKind.headers,
           maxRedirects: 0,
         });
+        if (route === "/") {
+          expect(response.status(), `${route} ${requestKind.label}`).toBe(200);
+          expectGuestRootCacheControl(response.headers()["cache-control"]);
+          const body = await response.text();
+          expect(body).toContain("Understand the patterns in your own training history.");
+          assertNoDomainPayload(body, [shoeSentinel, accountSentinel]);
+          continue;
+        }
+
         expect(response.status(), `${route} ${requestKind.label}`).toBe(307);
         expect(response.headers()["cache-control"]).toBe("private, no-store, max-age=0");
         const location = new URL(response.headers().location ?? "", BASE_URL);
@@ -163,7 +183,7 @@ test("cookie-free HTTP and RSC requests redirect before owner data can stream", 
   }
 });
 
-test("guest recovery UI remains a static sign-in boundary at desktop and narrow reduced-motion widths", async ({
+test("guest landing remains separate from protected recovery at desktop and narrow reduced-motion widths", async ({
   browser,
 }) => {
   const shoeSentinel = unique("guest-ui-shoe-58");
@@ -177,13 +197,15 @@ test("guest recovery UI remains a static sign-in boundary at desktop and narrow 
   const page = await context.newPage();
   try {
     await page.goto("/");
-    await expect(page).toHaveURL(/\/login\?next=%2F$/);
-    await expect(page.getByRole("heading", { name: "Log in" })).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Understand the patterns in your own training history.",
+      })
+    ).toBeVisible();
     await expect(page.getByText(shoeSentinel, { exact: true })).toHaveCount(0);
-    await page.getByLabel("Email").focus();
-    await page.keyboard.press("Tab");
-    await expect(page.getByLabel("Password")).toBeFocused();
-    await captureEvidence(page, "58-guest-login-1440.png");
+    await captureEvidence(page, "58-guest-landing-1440.png");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: "reduce" });

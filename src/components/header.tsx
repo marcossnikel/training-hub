@@ -115,6 +115,30 @@ export function Header({
   const pathname = usePathname();
   const { t } = useI18n();
 
+  // Guests do not need an app-navigation shell. Keep the landing utility bar
+  // deliberately small: existing athletes can sign in, while a visitor cannot
+  // discover a public registration or product-data route from it.
+  if (auth === "out") {
+    return (
+      <header className="border-b border-border/70 bg-background">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Link
+            href="/"
+            className="focus-ring rounded-md font-display text-xl font-bold tracking-tight transition-colors duration-150 hover:text-primary motion-reduce:transition-none"
+          >
+            Training Hub
+          </Link>
+          <Link
+            href="/login"
+            className="focus-ring rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground motion-reduce:transition-none"
+          >
+            Log in
+          </Link>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-[25px]">
       {autoSync ? <AutoSync /> : null}

@@ -1,41 +1,31 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Every route here is dynamic, and a dynamic route is only prefetched when it
- * has a loading.js (see next/dist/docs/01-app/02-guides/prefetching.md). So this
- * file has to stay a *static* shell: no getDict/getLang, no cookies(), no DB.
- * Any request-time API in here would disqualify it and forfeit the benefit,
- * which is also why it carries no text and therefore no i18n keys.
- *
- * Mirrors the log page shell: title block, filter pills, then week groups.
+ * This dynamic root can resolve to either a guest landing or an authenticated
+ * log. Its route loading boundary must therefore be safe for a guest: static,
+ * reading-first, and without activity-like rows or invented metrics. It has no
+ * request APIs, so Next can stream it while the session branch resolves.
  */
 export default function Loading() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Skeleton className="h-9 w-52" />
-          <Skeleton className="mt-2 h-4 w-72" />
-        </div>
-        <Skeleton className="h-8 w-28" />
+    <div
+      aria-busy="true"
+      aria-label="Loading Training Hub"
+      className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16"
+    >
+      <div className="max-w-2xl">
+        <Skeleton className="h-11 w-full max-w-xl sm:h-14" />
+        <Skeleton className="mt-6 h-5 w-full" />
+        <Skeleton className="mt-2 h-5 w-11/12" />
+        <Skeleton className="mt-8 h-10 w-48" />
       </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-1.5">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-7 w-20 rounded-full" />
-        ))}
-      </div>
-
-      <div className="mt-6 space-y-6">
-        {Array.from({ length: 3 }, (_, week) => (
-          <div key={week}>
-            <Skeleton className="h-4 w-40" />
-            <div className="mt-2 space-y-1.5">
-              {Array.from({ length: 4 }, (_, row) => (
-                <Skeleton key={row} className="h-14 w-full rounded-xl" />
-              ))}
-            </div>
-          </div>
+      <div className="mt-16 max-w-2xl space-y-12">
+        {Array.from({ length: 5 }, (_, index) => (
+          <section key={index} aria-hidden="true">
+            <Skeleton className="h-6 w-52" />
+            <Skeleton className="mt-4 h-4 w-full" />
+            <Skeleton className="mt-2 h-4 w-5/6" />
+          </section>
         ))}
       </div>
     </div>

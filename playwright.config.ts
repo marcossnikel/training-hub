@@ -64,6 +64,7 @@ export default defineConfig({
         /guest-data-boundary\.spec\.ts/,
         /beta-invite\.spec\.ts/,
         /mobile\.spec\.ts/,
+        /private-beta-landing\.spec\.ts/,
         /tenant-isolation\.spec\.ts/,
       ],
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
@@ -137,6 +138,18 @@ export default defineConfig({
         storageState: STORAGE_STATE,
       },
       dependencies: ["refresh-owner-session"],
+    },
+    // #40 is deliberately exercised with both a cookie-free landing document
+    // and the refreshed authenticated owner state. It reads only, so it can
+    // run beside the other final read-only projects.
+    {
+      name: "private-beta-landing",
+      testMatch: /private-beta-landing\.spec\.ts/,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"] },
+      // This spec writes only a temporary volume fixture to prove the real
+      // root loading boundary. Keep it after all other database consumers.
+      dependencies: ["chromium", "mobile"],
     },
   ],
   webServer: {

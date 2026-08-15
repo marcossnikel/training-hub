@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import {
   CableIcon,
   ChevronRightIcon,
@@ -19,6 +18,7 @@ import { countPending, listConfirmedActivities } from "@/lib/db";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected } from "@/lib/strava";
 import { requireCurrentUser } from "@/lib/auth";
+import { PrivateBetaLanding } from "@/components/private-beta-landing";
 import {
   fmtDate,
   fmtDateWithYear,
@@ -36,7 +36,6 @@ import { fmtPower, fmtSpeed, isRideSport, rideMetrics } from "@/lib/cycling";
 import { isRunSport } from "@/lib/validate";
 import type { ActivityWithSplits } from "@/lib/types";
 
-export const metadata = { title: "Training log" };
 // The root log is per-owner data. Keep this explicit even though the parent
 // proxy handles the ordinary HTTP request, so a future proxy matcher change
 // cannot turn a missing session into a rendered empty/data-bearing route.
@@ -181,9 +180,22 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
 /** Rows the log renders before offering the rest. */
 const LOG_PAGE_SIZE = 150;
 
-export default async function TrainingLogPage({ searchParams }: PageProps<"/">) {
+export default async function RootPage({ searchParams }: PageProps<"/">) {
+  // This branch is deliberately ahead of every product-domain import call.
+  // A cookie-free root request receives only the static beta explanation; the
+  // proxy adds private/no-store before this page starts rendering.
   const owner = await requireCurrentUser();
-  if (!owner) redirect("/login");
+  if (!owner) return <PrivateBetaLanding />;
+  return <TrainingLogPage owner={owner} searchParams={searchParams} />;
+}
+
+async function TrainingLogPage({
+  owner,
+  searchParams,
+}: {
+  owner: NonNullable<Awaited<ReturnType<typeof requireCurrentUser>>>;
+  searchParams: PageProps<"/">["searchParams"];
+}) {
   const params = await searchParams;
   const { lang, t } = await getDict();
   const [pending, activities, connected] = await Promise.all([
