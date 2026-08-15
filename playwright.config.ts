@@ -49,18 +49,24 @@ export default defineConfig({
     // Logs in once and writes STORAGE_STATE; the read project depends on it.
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     // The seeded read flows, run with the saved owner session so the page gate
-    // (src/proxy.ts) lets them through. Excludes the setup and the auth spec.
+    // (src/proxy.ts) lets them through. The mutation lane below owns every
+    // spec that can write to SQLite; this project stays parallel because it
+    // only reads the seeded or already-proven fixture data.
     {
       name: "chromium",
       testIgnore: [
         /auth\.setup\.ts/,
+        /auth\.refresh\.setup\.ts/,
         /auth\.spec\.ts/,
+        /byo-connection\.spec\.ts/,
         /comparable-activity\.spec\.ts/,
+        /gear\.spec\.ts/,
         /guest-data-boundary\.spec\.ts/,
         /mobile\.spec\.ts/,
+        /tenant-isolation\.spec\.ts/,
       ],
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
-      dependencies: ["comparable-activity"],
+      dependencies: ["refresh-owner-session"],
     },
     // #37 temporarily changes only the disposable local schema to prove the
     // route's actual error boundary and retry. Run it alone and before other
@@ -72,12 +78,34 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
       dependencies: ["setup"],
     },
+    // These are the remaining authenticated specs that mutate the one
+    // disposable SQLite database. They deliberately run after the schema-error
+    // proof above and before the guest-boundary proof, one worker at a time.
+    // Read-only projects still run in parallel once this short mutation lane
+    // completes; this is not a suite-wide serialization or a retry policy.
+    {
+      name: "owner-mutations",
+      testMatch: [/byo-connection\.spec\.ts/, /gear\.spec\.ts/, /tenant-isolation\.spec\.ts/],
+      workers: 1,
+      use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
+      dependencies: ["comparable-activity"],
+    },
     // The login/logout flow itself must run UNAUTHENTICATED (no storageState).
     {
       name: "chromium-guest",
       testMatch: /auth\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
-      dependencies: ["comparable-activity"],
+      dependencies: ["guest-data-boundary"],
+    },
+    // Tenant isolation explicitly revokes the first saved fixture session.
+    // Refresh it after every writing project completes, then fan out read-only
+    // projects with a valid state instead of racing that intentional logout.
+    {
+      name: "refresh-owner-session",
+      testMatch: /auth\.refresh\.setup\.ts/,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["chromium-guest"],
     },
     // #58 needs a completely cookie-free browser and HTTP client. It creates
     // disposable owner data first, then proves both HTML and RSC guests cannot
@@ -87,7 +115,7 @@ export default defineConfig({
       testMatch: /guest-data-boundary\.spec\.ts/,
       workers: 1,
       use: { ...devices["Desktop Chrome"] },
-      dependencies: ["comparable-activity"],
+      dependencies: ["owner-mutations"],
     },
     // A narrow viewport, because every project above is Desktop Chrome and so the
     // gate could never catch a layout that only breaks on a phone. 375px is the
@@ -100,7 +128,7 @@ export default defineConfig({
         viewport: { width: 375, height: 667 },
         storageState: STORAGE_STATE,
       },
-      dependencies: ["comparable-activity"],
+      dependencies: ["refresh-owner-session"],
     },
   ],
   webServer: {

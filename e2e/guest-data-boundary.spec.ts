@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createClient } from "@libsql/client";
 import { expect, request, test, type Browser, type Page } from "@playwright/test";
 
 const BASE_URL = "http://localhost:3100";
@@ -15,17 +16,66 @@ async function captureEvidence(page: Page, name: string) {
   await page.screenshot({ path: path.join(evidenceDir, name), fullPage: false });
 }
 
+/**
+ * The test intentionally creates unique owner data through real Server Actions.
+ * Wait for the resulting owner-scoped rows, rather than assuming that a dismissed
+ * dialog means the next server render has observed the SQLite commit. This is a
+ * persistence invariant, not a blind retry of the guest-boundary assertion.
+ */
+async function waitForPersistedOwnerFixture(email: string, shoeName: string): Promise<void> {
+  const database = createClient({
+    url: `file:${path.join(process.cwd(), "data", "e2e.db")}`,
+    intMode: "number",
+  });
+  try {
+    await expect
+      .poll(
+        async () => {
+          const result = await database.execute({
+            sql: `SELECT
+                    (SELECT COUNT(*)
+                     FROM shoes
+                     JOIN users ON users.id = shoes.user_id
+                     JOIN "user" ON "user".id = users.auth_subject
+                     WHERE "user".email = ? AND shoes.name = ?) AS shoe_count,
+                    (SELECT COUNT(*)
+                     FROM activities
+                     JOIN users ON users.id = activities.user_id
+                     JOIN "user" ON "user".id = users.auth_subject
+                     WHERE "user".email = ?
+                       AND activities.sport_type = 'Manual'
+                       AND activities.started_at = '2026-08-15T12:00:00Z'
+                       AND activities.distance_km = 12.58) AS activity_count`,
+            args: [email, shoeName, email],
+          });
+          const row = result.rows[0];
+          return {
+            shoeCount: Number(row?.shoe_count),
+            activityCount: Number(row?.activity_count),
+          };
+        },
+        {
+          message: "owner-only shoe and manual activity should be committed before guest probes",
+        }
+      )
+      .toEqual({ shoeCount: 1, activityCount: 1 });
+  } finally {
+    database.close();
+  }
+}
+
 async function signUpAndCreateOwnerOnlyActivity(
   browser: Browser,
   shoeName: string,
   account: string
 ): Promise<string> {
+  const email = `${account}@example.test`;
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   try {
     await page.goto("/sign-up");
     await page.getByLabel("Name").fill(`Guest boundary ${account}`);
-    await page.getByLabel("Email").fill(`${account}@example.test`);
+    await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill("e2e-test-password");
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/$/);
@@ -44,6 +94,8 @@ async function signUpAndCreateOwnerOnlyActivity(
     await page.getByRole("option", { name: shoeName }).click();
     await page.getByRole("button", { name: "Add entry" }).click();
     await expect(page.locator("#manual-km")).toHaveValue("");
+
+    await waitForPersistedOwnerFixture(email, shoeName);
 
     // Prime an authenticated root/RSC render with this owner-specific value.
     // The subsequent cookie-free probes prove that neither the HTML nor RSC
