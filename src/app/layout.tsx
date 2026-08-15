@@ -81,13 +81,13 @@ export default async function RootLayout({
               autoSync={autoSync}
               auth={auth}
             />
-            <main id="main-content" className="flex-1">
+            <main id="main-content" tabIndex={-1} className="flex-1">
               {children}
             </main>
             <Toaster />
           </I18nProvider>
         </ThemeProvider>
-        <SpeedInsights />
+        {owner ? <SpeedInsights /> : null}
       </body>
     </html>
   );

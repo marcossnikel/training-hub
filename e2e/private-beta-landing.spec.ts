@@ -80,6 +80,8 @@ test("guest root presents the invitation-only evidence contract without a public
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Private beta" }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "What is Training Hub?" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Log in" })).toHaveCount(1);
+  await expect(page.locator('script[src*="speed-insights"]')).toHaveCount(0);
   await expect(page.locator('a[href^="/sign-up"]')).toHaveCount(0);
   await expect(page.getByRole("link", { name: /waitlist|contact|payment|checkout/i })).toHaveCount(
     0
@@ -104,6 +106,7 @@ test("guest landing has a complete keyboard path and preserves the invitation ex
   await expect(skipLink).toBeFocused();
   await expect(skipLink).toBeVisible();
   await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
 
   const accessLink = page.getByRole("link", { name: "How beta access works" });
   await accessLink.focus();
@@ -116,7 +119,7 @@ test("guest landing has a complete keyboard path and preserves the invitation ex
     page.getByText("This page does not collect access requests or create accounts.")
   ).toBeVisible();
 
-  const login = page.getByRole("link", { name: "Log in" }).first();
+  const login = page.getByRole("link", { name: "Log in" });
   await login.focus();
   await expect(login).toBeFocused();
   await expectStaticReducedMotion(login);

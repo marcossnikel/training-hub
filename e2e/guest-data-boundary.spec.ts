@@ -157,6 +157,7 @@ test("cookie-free HTTP and RSC requests stop before owner data can stream", asyn
           expectGuestRootCacheControl(response.headers()["cache-control"]);
           const body = await response.text();
           expect(body).toContain("Understand the patterns in your own training history.");
+          expect(body).not.toContain("speed-insights");
           assertNoDomainPayload(body, [shoeSentinel, accountSentinel]);
           continue;
         }

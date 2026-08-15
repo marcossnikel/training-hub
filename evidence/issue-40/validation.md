@@ -7,8 +7,9 @@ Scope under review: the #40 delivery branch.
 - `npm run verify` — passed: environment boundary and retired-global-Strava
   checks, type generation/typecheck, ESLint, Prettier, 698 unit tests, Knip
   advisory hints only, circular-dependency check, and 48 Playwright tests.
-- `CAPTURE_LANDING_EVIDENCE=1 npx playwright test e2e/private-beta-landing.spec.ts --project=private-beta-landing --no-deps`
-  — passed 4/4 using a disposable local SQLite fixture.
+- `CAPTURE_LANDING_EVIDENCE=1 npx playwright test e2e/private-beta-landing.spec.ts --project=private-beta-landing`
+  — passed all 48 dependent Playwright tests and refreshed the landing proof
+  using a disposable local SQLite fixture.
 - A production-mode local `next start` smoke used cookie-free HTML and RSC
   requests to `/`: both returned `200` with
   `Cache-Control: private, no-store, max-age=0`, rendered the guest landing
@@ -24,7 +25,9 @@ Scope under review: the #40 delivery branch.
   not a mocked network delay.
 
 Manual local inspection used Chromium at 1440×1000 and 390×844. It confirmed
-the header/main/footer landmarks, one H1, static FAQ headings, visible skip
-link focus, in-page CTA fragment behavior, no horizontal page overflow, and
-the reduced-motion static transitions. No account creation, waitlist,
-analytics, payment, external publish, or deployment was performed.
+the header/main/footer landmarks, one H1, static FAQ headings, one utility
+Log in link, visible skip-link focus that moves to the programmatically
+focusable main landmark, in-page CTA fragment behavior, no horizontal page
+overflow, and the reduced-motion static transitions. Guest HTML/RSC and the
+hydrated guest page contain no Speed Insights script. No account creation,
+waitlist, analytics, payment, external publish, or deployment was performed.

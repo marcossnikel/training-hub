@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 const faqs = [
   {
     question: "What is Training Hub?",
@@ -185,12 +183,6 @@ export function PrivateBetaLanding() {
             Invitation-only access keeps the first cohort deliberate while each athlete connects
             their own Strava app.
           </p>
-          <Link
-            href="/login"
-            className="focus-ring mt-5 inline-flex rounded-md text-sm font-medium text-foreground underline underline-offset-4 transition-colors duration-150 hover:text-primary motion-reduce:transition-none"
-          >
-            Log in
-          </Link>
         </aside>
       </div>
 
