@@ -11,6 +11,19 @@ import type { TotalsActivity } from "../totals";
 import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
 import type { OwnerContext } from "../owner-context";
 
+/**
+ * Deliberately small evidence projection for the weekly brief. It is not an
+ * activity list: callers only receive the fields the pure rule contract needs.
+ */
+export interface WeeklyBriefActivityRow {
+  id: number;
+  started_at: string | null;
+  started_at_local: string | null;
+  sport_type: string | null;
+  moving_time_s: number | null;
+  distance_km: number | null;
+}
+
 // The activities table stores `is_race` as 0/1; SELECT hands it back as a number.
 // `ActivityRow` is that raw shape, decoded to the `boolean`-carrying `Activity`
 // domain type by `decodeActivity` — the one seam where 0/1 becomes a real boolean.
@@ -228,6 +241,28 @@ export async function listTotalsActivities(
     // bucketing takes its day key from, so no row is fetched or missed by an
     // offset. Both stamps are Z-suffixed ISO, which sorts lexicographically.
     [owner.userId, `${fromDay}T00:00:00Z`]
+  );
+}
+
+/**
+ * Confirmed owner activity evidence in [fromDay, toDay), ordered for stable
+ * presentation. Bounds are applied to the same local-stamp-first value that
+ * the weekly evaluator uses for its day key, so an offset never moves a row
+ * into a neighbouring week.
+ */
+export async function listWeeklyBriefActivities(
+  owner: OwnerContext,
+  fromDay: string,
+  toDay: string
+): Promise<WeeklyBriefActivityRow[]> {
+  return many<WeeklyBriefActivityRow>(
+    `SELECT a.id, a.started_at, a.started_at_local, a.sport_type, a.moving_time_s, a.distance_km
+     FROM activities a
+     WHERE a.user_id = ? AND a.status = 'confirmed'
+       AND COALESCE(a.started_at_local, a.started_at) >= ?
+       AND COALESCE(a.started_at_local, a.started_at) < ?
+     ORDER BY COALESCE(a.started_at_local, a.started_at) ASC, a.id ASC`,
+    [owner.userId, `${fromDay}T00:00:00Z`, `${toDay}T00:00:00Z`]
   );
 }
 

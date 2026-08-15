@@ -24,11 +24,12 @@ test.describe("auth", () => {
   });
 
   test("a guest is redirected before a protected page renders domain data", async ({ page }) => {
-    await page.goto("/settings");
+    await page.goto("/weekly-brief");
 
-    await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fweekly-brief$/);
     await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toHaveCount(0);
     await expect(page.getByText("Morning Easy Run")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Weekly brief" })).toHaveCount(0);
   });
 
   test("sign-up creates a session and logout returns to sign-in", async ({ page }) => {

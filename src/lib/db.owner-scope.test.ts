@@ -161,4 +161,51 @@ describe("owner-scoped domain access", () => {
     const bike = await db.getBike(ownerA, bikeA);
     expect(bike).toMatchObject({ current_km: 0, ride_count: 0, indoor_km: 0, outdoor_km: 0 });
   });
+
+  it("bounds the weekly brief projection by local stamp and keeps another owner out", async () => {
+    await db.client.batch(
+      [
+        {
+          sql: `INSERT INTO activities (user_id, name, sport_type, started_at, started_at_local, moving_time_s, distance_km, status)
+                VALUES (?, ?, 'Run', ?, ?, ?, ?, 'confirmed')`,
+          args: [
+            ownerA.userId,
+            "local boundary",
+            "2026-02-02T02:00:00Z",
+            "2026-02-01T23:00:00Z",
+            3600,
+            10,
+          ],
+        },
+        {
+          sql: `INSERT INTO activities (user_id, name, sport_type, started_at, started_at_local, moving_time_s, distance_km, status)
+                VALUES (?, ?, 'Ride', ?, ?, ?, ?, 'confirmed')`,
+          args: [ownerA.userId, "inside", "2026-02-02T10:00:00Z", "2026-02-02T08:00:00Z", 7200, 30],
+        },
+        {
+          sql: `INSERT INTO activities (user_id, name, sport_type, started_at, moving_time_s, distance_km, status)
+                VALUES (?, ?, 'Run', ?, ?, ?, 'confirmed')`,
+          args: [ownerA.userId, "end boundary", "2026-03-09T00:00:00Z", 2400, 6],
+        },
+        {
+          sql: `INSERT INTO activities (user_id, name, sport_type, started_at, moving_time_s, distance_km, status)
+                VALUES (?, ?, 'Run', ?, ?, ?, 'confirmed')`,
+          args: [ownerB.userId, "other owner", "2026-02-15T08:00:00Z", 3600, 11],
+        },
+      ],
+      "write"
+    );
+
+    const rows = await db.listWeeklyBriefActivities(ownerA, "2026-02-02", "2026-03-09");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sport_type: "Ride", moving_time_s: 7200, distance_km: 30 });
+    expect(Object.keys(rows[0]).sort()).toEqual([
+      "distance_km",
+      "id",
+      "moving_time_s",
+      "sport_type",
+      "started_at",
+      "started_at_local",
+    ]);
+  });
 });

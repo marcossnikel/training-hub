@@ -43,6 +43,7 @@ function AuthButton({ state }: { state: AuthControl }) {
 
 const NAV = [
   { href: "/", key: "log" },
+  { href: "/weekly-brief", key: "weeklyBrief" },
   { href: "/performance", key: "performance" },
   { href: "/races", key: "races" },
   { href: "/review", key: "review" },

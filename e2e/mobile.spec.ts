@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
  * page never scrolls sideways, and the nav is the thing absorbing the overflow.
  */
 
-const ROUTES = ["/", "/performance", "/races", "/gear", "/settings"];
+const ROUTES = ["/", "/weekly-brief", "/performance", "/races", "/gear", "/settings"];
 
 for (const route of ROUTES) {
   test(`${route} does not overflow horizontally at 375px`, async ({ page }) => {

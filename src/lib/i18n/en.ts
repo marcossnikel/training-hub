@@ -6,6 +6,7 @@ import type { CurveBucketKey } from "../curves";
 export const en = {
   nav: {
     log: "Log",
+    weeklyBrief: "Weekly brief",
     performance: "Performance",
     races: "Races",
     review: "Review",

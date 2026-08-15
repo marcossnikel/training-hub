@@ -3,6 +3,7 @@ import type { Dict } from "./en";
 export const pt: Dict = {
   nav: {
     log: "Diário",
+    weeklyBrief: "Resumo semanal",
     performance: "Desempenho",
     races: "Provas",
     review: "Revisão",

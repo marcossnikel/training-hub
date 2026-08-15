@@ -372,6 +372,35 @@ async function main() {
     }
   }
 
+  // A compact, deterministic five-week run for the weekly-brief route. It is
+  // based on the host's app-calendar Monday so the route's fixed "last complete
+  // week" selector always has four baseline weeks and a visible evidence-linked
+  // observation. This is disposable local/E2E data only.
+  const currentMonday = new Date();
+  currentMonday.setHours(12, 0, 0, 0);
+  currentMonday.setDate(currentMonday.getDate() - ((currentMonday.getDay() + 6) % 7));
+  const completedMonday = new Date(currentMonday);
+  completedMonday.setDate(completedMonday.getDate() - 7);
+  for (let week = -4; week <= 0; week += 1) {
+    const day = new Date(completedMonday);
+    day.setDate(day.getDate() + week * 7 + 1);
+    const movingTimeS = week === 0 ? 7200 : 3600;
+    await client.execute({
+      sql: `INSERT INTO activities
+            (user_id, strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s, status, raw_json)
+            VALUES (?, NULL, ?, 'Run', ?, ?, ?, ?, 'confirmed', ?)`,
+      args: [
+        fixtureOwner,
+        week === 0 ? "Weekly brief current evidence" : "Weekly brief baseline evidence",
+        day.toISOString(),
+        localWallClock(day),
+        movingTimeS / 600,
+        movingTimeS,
+        SEED_MARKER,
+      ],
+    });
+  }
+
   const pending = ACTIVITIES.filter((a) => a.status === "pending_review").length;
   console.log(
     `Seeded ${ACTIVITIES.length} activities (${pending} pending review, ${
