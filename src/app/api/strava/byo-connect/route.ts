@@ -1,18 +1,17 @@
-import { headers } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { requireCurrentUser } from "@/lib/auth";
 import { createOAuthState, getPendingStravaAuthorization } from "@/lib/db";
-import { buildByoAuthorizeUrl, deriveCurrentRequestOrigin } from "@/lib/strava-byo";
+import { buildByoAuthorizeUrl, resolveAuthorizationByoOrigin } from "@/lib/strava-byo";
 
 /**
  * Starts only the external authorization navigation. #31 owns callback
  * consumption, token exchange, sync, reconnect, and lifecycle recovery.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const owner = await requireCurrentUser();
   if (!owner) return new NextResponse(null, { status: 401 });
 
-  const origin = deriveCurrentRequestOrigin(await headers());
+  const origin = resolveAuthorizationByoOrigin(request.nextUrl);
   if (!origin) return new NextResponse(null, { status: 400 });
   const pending = await getPendingStravaAuthorization(owner);
   if (!pending) return NextResponse.redirect(new URL("/settings", origin));

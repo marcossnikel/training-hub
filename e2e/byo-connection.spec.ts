@@ -15,6 +15,30 @@ async function captureEvidence(page: Page, name: string) {
 
 test.describe.configure({ mode: "serial" });
 
+test("an expired Settings session gives a safe sign-in recovery without preserving the secret", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/settings");
+  await page.getByLabel("Strava Client ID").fill("athlete-client-30");
+  await page.getByLabel("Strava Client Secret").fill(TEST_SECRET);
+
+  // The server action must treat an expired cookie as unauthenticated even
+  // though the Settings form was rendered from an earlier valid session.
+  await page.context().clearCookies();
+  await page.getByRole("button", { name: "Validate and continue" }).press("Enter");
+
+  const alert = page.getByRole("alert").filter({ hasText: "Your session ended" });
+  await expect(alert).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in again" })).toHaveAttribute(
+    "href",
+    "/login?next=%2Fsettings"
+  );
+  expect(await page.content()).not.toContain(TEST_SECRET);
+  await captureEvidence(page, "30-settings-session-ended-reduced-motion-390.png");
+});
+
 test("BYO credential form is owner-bound, keyboard accessible, and gives only a safe handoff", async ({
   page,
 }) => {
@@ -26,7 +50,11 @@ test("BYO credential form is owner-bound, keyboard accessible, and gives only a 
     page.getByText("http://localhost:3100/api/strava/callback", { exact: true })
   ).toBeVisible();
   await expect(page.getByLabel("Strava Client ID")).toBeVisible();
+  await expect(page.getByLabel("Strava Client ID")).toHaveAttribute("required", "");
+  await expect(page.getByLabel("Strava Client ID")).toHaveAttribute("aria-required", "true");
   await expect(page.getByLabel("Strava Client Secret")).toHaveAttribute("type", "password");
+  await expect(page.getByLabel("Strava Client Secret")).toHaveAttribute("required", "");
+  await expect(page.getByLabel("Strava Client Secret")).toHaveAttribute("aria-required", "true");
   await expect(page.getByText("Set STRAVA_CLIENT_ID", { exact: false })).toHaveCount(0);
   await captureEvidence(page, "30-settings-default-1440.png");
 

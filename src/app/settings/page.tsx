@@ -22,11 +22,7 @@ import { isStravaConnected, stravaConfigured, tryFetchAllGear } from "@/lib/stra
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { requireCurrentUser } from "@/lib/auth";
-import {
-  callbackUrlForOrigin,
-  deriveCurrentRequestOrigin,
-  STRAVA_BYO_SCOPE,
-} from "@/lib/strava-byo";
+import { callbackUrlForOrigin, resolveSettingsByoOrigin, STRAVA_BYO_SCOPE } from "@/lib/strava-byo";
 
 export const metadata = { title: "Settings" };
 
@@ -40,7 +36,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   // The new BYO credential form and handoff never read either global env value.
   const legacyConfigured = stravaConfigured();
   const connectionStatus = await getStravaConnectionStatus(owner);
-  const callbackOrigin = deriveCurrentRequestOrigin(await headers());
+  const callbackOrigin = resolveSettingsByoOrigin(await headers());
   const callbackUrl = callbackOrigin ? callbackUrlForOrigin(callbackOrigin) : null;
   const athleteName = await getMeta(owner, "athlete_name");
   const lastSync = await getMeta(owner, "last_sync_at");
@@ -162,7 +158,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
                         </code>
                       ) : (
                         <span>
-                          unavailable until this Settings page can determine its current origin.
+                          unavailable. This environment needs a canonical callback configuration
+                          before credentials can be entered.
                         </span>
                       )}
                     </li>

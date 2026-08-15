@@ -2,19 +2,24 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildByoAuthorizeUrl,
   callbackUrlForOrigin,
-  deriveCurrentRequestOrigin,
+  parseConfiguredPublicOrigin,
+  resolveAuthorizationByoOrigin,
+  resolveSettingsByoOrigin,
   STRAVA_BYO_SCOPE,
   validateByoCredentials,
 } from "./strava-byo";
 
 const ENV_ID = process.env.STRAVA_CLIENT_ID;
 const ENV_SECRET = process.env.STRAVA_CLIENT_SECRET;
+const ENV_PUBLIC_ORIGIN = process.env.TRAINING_HUB_PUBLIC_ORIGIN;
 
 afterEach(() => {
   if (ENV_ID === undefined) delete process.env.STRAVA_CLIENT_ID;
   else process.env.STRAVA_CLIENT_ID = ENV_ID;
   if (ENV_SECRET === undefined) delete process.env.STRAVA_CLIENT_SECRET;
   else process.env.STRAVA_CLIENT_SECRET = ENV_SECRET;
+  if (ENV_PUBLIC_ORIGIN === undefined) delete process.env.TRAINING_HUB_PUBLIC_ORIGIN;
+  else process.env.TRAINING_HUB_PUBLIC_ORIGIN = ENV_PUBLIC_ORIGIN;
 });
 
 describe("BYO Strava authorization contract", () => {
@@ -72,29 +77,60 @@ describe("BYO Strava authorization contract", () => {
     }
   });
 
-  it("accepts only a single server-observed http(s) host and never a request redirect field", () => {
+  it("accepts only a strict configured HTTPS deployed origin", () => {
+    expect(parseConfiguredPublicOrigin("https://preview.training-hub.example")).toBe(
+      "https://preview.training-hub.example"
+    );
+    expect(parseConfiguredPublicOrigin("https://preview.training-hub.example:8443")).toBe(
+      "https://preview.training-hub.example:8443"
+    );
+    for (const value of [
+      "http://preview.training-hub.example",
+      "https://preview.training-hub.example/path",
+      "https://preview.training-hub.example?redirect=attacker",
+      "https://user:pass@preview.training-hub.example",
+      "https://localhost:3100",
+      "https://127.0.0.1",
+      "https://preview.training-hub.localhost",
+      " https://preview.training-hub.example",
+    ]) {
+      expect(parseConfiguredPublicOrigin(value)).toBeNull();
+    }
+  });
+
+  it("ignores forwarding headers and allows unconfigured origins only for direct loopback development", () => {
     expect(
-      deriveCurrentRequestOrigin(
-        new Headers({ host: "localhost:3100", "x-forwarded-proto": "http" })
+      resolveSettingsByoOrigin(
+        new Headers({
+          host: "localhost:3100",
+          "x-forwarded-host": "attacker.example",
+          "x-forwarded-proto": "https",
+        }),
+        null
       )
     ).toBe("http://localhost:3100");
     expect(
-      deriveCurrentRequestOrigin(
+      resolveSettingsByoOrigin(
         new Headers({
-          host: "ignored.example",
+          host: "preview.training-hub.example",
           "x-forwarded-host": "preview.training-hub.example",
           "x-forwarded-proto": "https",
-          origin: "https://attacker.example",
-        })
+        }),
+        null
+      )
+    ).toBeNull();
+    expect(
+      resolveAuthorizationByoOrigin(new URL("https://preview.training-hub.example"), null)
+    ).toBeNull();
+    expect(resolveAuthorizationByoOrigin(new URL("http://127.0.0.1:3100"), null)).toBe(
+      "http://127.0.0.1:3100"
+    );
+    expect(
+      resolveAuthorizationByoOrigin(
+        new URL("https://ignored.example"),
+        "https://preview.training-hub.example"
       )
     ).toBe("https://preview.training-hub.example");
-    for (const headers of [
-      new Headers({ host: "preview.example/path", "x-forwarded-proto": "https" }),
-      new Headers({ host: "preview.example", "x-forwarded-proto": "javascript" }),
-      new Headers({ host: "preview.example, attacker.example", "x-forwarded-proto": "https" }),
-    ]) {
-      expect(deriveCurrentRequestOrigin(headers)).toBeNull();
-    }
     expect(callbackUrlForOrigin("https://preview.training-hub.example")).toBe(
       "https://preview.training-hub.example/api/strava/callback"
     );

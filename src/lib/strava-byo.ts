@@ -6,12 +6,13 @@
 export const STRAVA_BYO_SCOPE = "activity:read_all,profile:read_all";
 export const STRAVA_BYO_HANDOFF_PATH = "/api/strava/byo-connect";
 export const STRAVA_CALLBACK_PATH = "/api/strava/callback";
+export const TRAINING_HUB_PUBLIC_ORIGIN_ENV = "TRAINING_HUB_PUBLIC_ORIGIN";
 
 const STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
 const CLIENT_ID_MAX_LENGTH = 128;
 const CLIENT_SECRET_MAX_LENGTH = 512;
 const CONTROL_CHARACTER = /[\u0000-\u001F\u007F]/;
-const SAFE_HOST = /^(?:[a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+(?::[0-9]{1,5})?$/;
+const DNS_HOST = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/i;
 
 export interface ByoCredentialInput {
   clientId: string;
@@ -49,19 +50,76 @@ export function validateByoCredentials(input: ByoCredentialInput): ByoCredential
   return { clientId, clientSecret, errors };
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname.toLowerCase());
+}
+
 /**
- * Builds the callback only from the server-observed host/protocol. There is no
- * browser supplied redirect field, query parameter, or state payload to trust.
+ * The deployed callback origin is a non-secret server configuration value, not
+ * a proxy/browser header. Only a canonical HTTPS DNS origin is accepted.
  */
-export function deriveCurrentRequestOrigin(requestHeaders: Headers): string | null {
-  const forwardedHost = requestHeaders.get("x-forwarded-host");
-  const host = forwardedHost ?? requestHeaders.get("host");
-  const forwardedProto = requestHeaders.get("x-forwarded-proto");
-  const protocol = forwardedProto ?? "http";
-  if (!host || !SAFE_HOST.test(host) || (protocol !== "http" && protocol !== "https")) {
+export function parseConfiguredPublicOrigin(value: string | undefined): string | null {
+  if (!value || value !== value.trim()) return null;
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash ||
+      isLoopbackHost(url.hostname) ||
+      url.hostname.endsWith(".localhost") ||
+      !DNS_HOST.test(url.hostname)
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
     return null;
   }
-  return `${protocol}://${host}`;
+}
+
+function loopbackOrigin(url: URL): string | null {
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || !isLoopbackHost(url.hostname)) {
+    return null;
+  }
+  return url.origin;
+}
+
+/**
+ * Settings has headers rather than a Route Handler request. It may use only
+ * the direct Host header for local loopback development and deliberately
+ * ignores forwarded/origin headers. Any deployed host requires the canonical
+ * server-configured origin above.
+ */
+export function resolveSettingsByoOrigin(
+  requestHeaders: Headers,
+  configuredOrigin = parseConfiguredPublicOrigin(process.env[TRAINING_HUB_PUBLIC_ORIGIN_ENV])
+): string | null {
+  if (configuredOrigin) return configuredOrigin;
+  const host = requestHeaders.get("host");
+  if (!host || host.includes(",") || /[\u0000-\u001F\u007F/\\@?#]/.test(host)) return null;
+  try {
+    const url = new URL(`http://${host}`);
+    if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) return null;
+    return loopbackOrigin(url);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Route Handlers can inspect the direct request URL. Without a canonical
+ * deployed origin they may authorize only localhost/loopback requests, never
+ * a forwarded host/proto value supplied by a client or intermediary.
+ */
+export function resolveAuthorizationByoOrigin(
+  requestUrl: URL,
+  configuredOrigin = parseConfiguredPublicOrigin(process.env[TRAINING_HUB_PUBLIC_ORIGIN_ENV])
+): string | null {
+  return configuredOrigin ?? loopbackOrigin(requestUrl);
 }
 
 export function callbackUrlForOrigin(origin: string): string {

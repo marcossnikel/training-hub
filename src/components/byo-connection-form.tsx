@@ -14,7 +14,7 @@ import { STRAVA_BYO_HANDOFF_PATH } from "@/lib/strava-byo";
 
 type DisplayState = Extract<
   BeginByoConnectionResult,
-  { status: "invalid" | "ready" | "pending" | "unavailable" }
+  { status: "invalid" | "ready" | "pending" | "unavailable" | "unauthorized" }
 >;
 
 /**
@@ -55,7 +55,12 @@ export function ByoConnectionForm({
         setResult(next);
         return;
       }
-      if (next.status === "ready" || next.status === "pending" || next.status === "unavailable") {
+      if (
+        next.status === "ready" ||
+        next.status === "pending" ||
+        next.status === "unavailable" ||
+        next.status === "unauthorized"
+      ) {
         setResult(next);
       }
     });
@@ -85,6 +90,18 @@ export function ByoConnectionForm({
     );
   }
 
+  if (result?.status === "unauthorized") {
+    return (
+      <Alert variant="destructive" role="alert">
+        <AlertTitle>Your session ended</AlertTitle>
+        <AlertDescription>
+          Your Client Secret was not kept. <a href="/login?next=%2Fsettings">Sign in again</a> to
+          continue.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   const errors = result?.status === "invalid" ? result.errors : {};
   const unavailable = result?.status === "unavailable";
   const disabled = pending || !callbackUrl;
@@ -99,6 +116,8 @@ export function ByoConnectionForm({
           value={clientId}
           onChange={(event) => setClientId(event.target.value)}
           autoComplete="off"
+          required
+          aria-required="true"
           aria-describedby={errors.clientId ? "strava-client-id-error" : undefined}
           aria-invalid={Boolean(errors.clientId)}
           disabled={disabled}
@@ -119,6 +138,8 @@ export function ByoConnectionForm({
           value={clientSecret}
           onChange={(event) => setClientSecret(event.target.value)}
           autoComplete="new-password"
+          required
+          aria-required="true"
           aria-describedby={errors.clientSecret ? "strava-client-secret-error" : undefined}
           aria-invalid={Boolean(errors.clientSecret)}
           disabled={disabled}

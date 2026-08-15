@@ -10,6 +10,10 @@ function isPublicPath(pathname: string): boolean {
 /** Redirect UX only; every action still validates the database-backed session server-side. */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next();
+  // A Server Action has its own session-derived authorization boundary. Let it
+  // return its typed safe recovery state instead of converting an expired
+  // session into a redirect response that the React action protocol rejects.
+  if (request.headers.has("next-action")) return NextResponse.next();
   const session = await auth.api.getSession({
     headers: request.headers,
     query: { disableCookieCache: true },
