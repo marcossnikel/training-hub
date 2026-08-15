@@ -423,6 +423,13 @@ export async function saveShoeAction(formData: FormData): Promise<ActionResult> 
   }
 }
 
+export async function saveShoeFormAction(
+  _previousState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  return saveShoeAction(formData);
+}
+
 export async function setShoeRetiredAction(id: number, retired: boolean): Promise<ActionResult> {
   const t = await dict();
   const owner = await requireCurrentUser();
@@ -516,6 +523,13 @@ export async function saveBikeAction(formData: FormData): Promise<ActionResult> 
     if (error instanceof InvalidImageError) return { ok: false, error: t.errors.invalidImage };
     return fail(error, t.errors.generic);
   }
+}
+
+export async function saveBikeFormAction(
+  _previousState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  return saveBikeAction(formData);
 }
 
 export async function setBikeRetiredAction(id: number, retired: boolean): Promise<ActionResult> {

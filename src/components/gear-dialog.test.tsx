@@ -9,9 +9,23 @@
 // shoe-only retirement field goes RED. Gear options are passed empty on purpose
 // so the dialog renders its plain fields (no Radix Select popover to drive).
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { GearDialog } from "@/components/gear-dialog";
 import { en } from "@/lib/i18n/en";
+
+const mocks = vi.hoisted(() => ({
+  saveShoeFormAction: vi.fn(),
+  saveBikeFormAction: vi.fn(),
+}));
+
+vi.mock("@/lib/actions", () => ({
+  saveShoeFormAction: mocks.saveShoeFormAction,
+  saveBikeFormAction: mocks.saveBikeFormAction,
+  saveShoeAction: vi.fn(),
+  saveBikeAction: vi.fn(),
+  setShoeRetiredAction: vi.fn(),
+  setBikeRetiredAction: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
@@ -38,7 +52,10 @@ beforeAll(() => {
   })) as unknown as typeof window.matchMedia;
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function open(label: string) {
   fireEvent.click(screen.getByRole("button", { name: label }));
@@ -86,5 +103,37 @@ describe("GearDialog kind=bike (bike-specific: no retirement, 'Type' role)", () 
 
     // Bike-namespaced name placeholder.
     expect(screen.getByPlaceholderText("TSW TR10 One")).toBeTruthy();
+  });
+});
+
+describe("GearDialog direct Server Action form bindings", () => {
+  it("submits a shoe through the static form action and keeps the dialog open on a safe error", async () => {
+    mocks.saveShoeFormAction.mockResolvedValueOnce({ ok: false, error: "Could not save gear." });
+    render(
+      <GearDialog kind="shoe" gearOptions={[]} connected={true}>
+        <button>open</button>
+      </GearDialog>
+    );
+    open("open");
+    fireEvent.change(screen.getByLabelText(en.shoeDialog.name), { target: { value: "Test shoe" } });
+    fireEvent.submit(screen.getByRole("button", { name: en.shoeDialog.add }).closest("form")!);
+
+    await waitFor(() => expect(mocks.saveShoeFormAction).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("binds the bike form to its own Server Action", async () => {
+    mocks.saveBikeFormAction.mockResolvedValueOnce({ ok: false, error: "Could not save gear." });
+    render(
+      <GearDialog kind="bike" gearOptions={[]} connected={true}>
+        <button>open</button>
+      </GearDialog>
+    );
+    open("open");
+    fireEvent.change(screen.getByLabelText(en.bikeDialog.name), { target: { value: "Test bike" } });
+    fireEvent.submit(screen.getByRole("button", { name: en.bikeDialog.add }).closest("form")!);
+
+    await waitFor(() => expect(mocks.saveBikeFormAction).toHaveBeenCalledTimes(1));
+    expect(mocks.saveShoeFormAction).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,30 @@
 import { test, expect } from "@playwright/test";
 
+async function addGear(
+  page: import("@playwright/test").Page,
+  kind: "shoe" | "bike",
+  name: string,
+  submit: "click" | "enter"
+) {
+  const label = kind === "shoe" ? "Add shoe" : "Add bike";
+  await page.goto(kind === "shoe" ? "/gear" : "/gear?tab=bikes");
+  await page.getByRole("button", { name: label }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name").fill(name);
+  const actionRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && Boolean(request.headers()["next-action"])
+  );
+  if (submit === "enter") {
+    await dialog.getByLabel("Name").press("Enter");
+  } else {
+    await dialog.getByRole("button", { name: "Add" }).click();
+  }
+
+  await actionRequest;
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+}
+
 // Shoes and bikes are created by the baseline migration that the seed runs, so
 // they are present regardless of any Strava connection.
 test("shoes page shows a seeded baseline shoe", async ({ page }) => {
@@ -14,4 +39,20 @@ test("bikes page shows a seeded baseline bike", async ({ page }) => {
 
   await expect(page.getByRole("heading", { level: 1, name: "Bikes" })).toBeVisible();
   await expect(page.getByText("TSW TR10 Speed Bike")).toBeVisible();
+});
+
+test("authenticated athlete adds a shoe with click submission through a Server Action", async ({
+  page,
+}) => {
+  await addGear(page, "shoe", "Browser click shoe", "click");
+});
+
+test("authenticated athlete adds a shoe with Enter submission through a Server Action", async ({
+  page,
+}) => {
+  await addGear(page, "shoe", "Browser Enter shoe", "enter");
+});
+
+test("authenticated athlete adds a bike through its Server Action", async ({ page }) => {
+  await addGear(page, "bike", "Browser bike", "click");
 });
