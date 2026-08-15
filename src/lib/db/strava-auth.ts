@@ -180,6 +180,27 @@ export async function getStravaAuth(owner: OwnerContext): Promise<StravaAuthRow 
   };
 }
 
+/**
+ * Server-only lifecycle read for provider deauthorization. Unlike the normal
+ * authenticated API read, a reconnect has intentionally moved a connection to
+ * `pending_authorization` while retaining its prior encrypted token. That
+ * status must not suppress a best-effort revoke during a subsequent delete.
+ */
+export async function getStravaDeauthorizationAccessToken(
+  owner: OwnerContext
+): Promise<string | null> {
+  const row = await one<
+    Pick<EncryptedConnectionRow, "access_token_ciphertext" | "encryption_key_version">
+  >(
+    `SELECT access_token_ciphertext, encryption_key_version
+     FROM strava_connections WHERE user_id = ?`,
+    [owner.userId]
+  );
+  if (!row?.access_token_ciphertext) return null;
+  if (row.encryption_key_version !== 1) throw new StravaSecretStorageError();
+  return decryptStravaSecret(owner.userId, "access_token", row.access_token_ciphertext);
+}
+
 /** Server-only full connection read for a future callback/sync worker. */
 export async function getStravaConnection(
   owner: OwnerContext

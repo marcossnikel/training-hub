@@ -80,6 +80,8 @@ describe("owner-scoped Strava lifecycle deletion", () => {
     expect(await db.prepareStravaReconnect(ownerA)).toBe(true);
     expect(await db.getStravaConnectionStatus(ownerA)).toBe("pending_authorization");
     expect(await db.getPendingStravaAuthorization(ownerA)).toEqual({ client_id: "client-a" });
+    expect(await db.getStravaAuth(ownerA)).toBeNull();
+    expect(await db.getStravaDeauthorizationAccessToken(ownerA)).toBe("access-a");
     expect(await db.getStravaConnectionStatus(ownerB)).toBe("connected");
     expect(await db.prepareStravaReconnect(ownerA)).toBe(false);
   });
