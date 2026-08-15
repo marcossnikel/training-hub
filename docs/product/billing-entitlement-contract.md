@@ -1,7 +1,7 @@
 # Beta billing entitlement contract
 
-**Status:** accepted implementation contract for [#41](https://github.com/marcossnikel/training-hub/issues/41).  
-**Applies to:** the test-mode work in [#42](https://github.com/marcossnikel/training-hub/issues/42) and [#43](https://github.com/marcossnikel/training-hub/issues/43).  
+**Status:** accepted implementation contract for [#41](https://github.com/marcossnikel/training-hub/issues/41).
+**Applies to:** the test-mode work in [#42](https://github.com/marcossnikel/training-hub/issues/42) and [#43](https://github.com/marcossnikel/training-hub/issues/43).
 **Decision basis:** D-007, D-008, D-014, and D-018.
 
 This contract turns the one-plan beta billing direction into an implementation
@@ -68,7 +68,7 @@ design.
 | `none` | No known eligible subscription | Restricted | “You do not have an active beta subscription.” Offer Checkout only when the server can create one safely. |
 | `checkout_pending` | Server created a test-mode Checkout session; no verified entitlement yet | Restricted | “We’re confirming your subscription. Access updates after billing is verified.” A return from Checkout does not change the state by itself. |
 | `active` | Canonical subscription is `active` for the accepted plan | Full | “Your beta subscription is active.” |
-| `cancellation_scheduled` | Canonical subscription is active and `cancel_at_period_end` is true | Full through the verified paid-through time | “Your subscription will end on {verified date}. You can keep using beta features until then.” Do not show a date when it is unavailable. |
+| `cancellation_scheduled` | Canonical subscription is active, `cancel_at_period_end` is true, and verified paid-through time is later than trusted server `now` | Full through the verified paid-through time | “Your subscription will end on {verified date}. You can keep using beta features until then.” Do not show a date when it is unavailable. |
 | `past_due` | Canonical subscription is `past_due` | Restricted | “We could not verify your latest payment. Your training data has not changed.” Offer the Portal only when server creation succeeds. |
 | `unpaid` | Canonical subscription is `unpaid` | Restricted | “Payment is unresolved. Your training data has not changed.” |
 | `canceled_or_expired` | Canonical subscription is `canceled`, `incomplete_expired`, or its verified paid-through time has elapsed | Restricted | “Beta access ended. Your training data has not changed.” |
@@ -88,6 +88,14 @@ customer sees the associated safe boundary rather than internal event details.
 There is intentionally no `trialing` access state: the beta has no trial. Any
 unexpected plan, amount, currency, status, or subscription/customer mapping is
 `unknown` until canonical reconciliation makes it safe.
+
+Stripe `incomplete` is never active. Map it to `checkout_pending` only while a
+verified, server-created current Checkout attempt for that same owner is still
+within the implementation's bounded pending window; otherwise map it to
+`unknown`. `incomplete_expired` is `canceled_or_expired`. The state mapper uses
+trusted server time, never browser time: a cancellation-scheduled subscription
+whose verified paid-through time is at or before `now` transitions directly to
+`canceled_or_expired`, even if a delayed provider event still says active.
 
 ## Verified webhook and reconciliation protocol
 
@@ -211,7 +219,9 @@ owner’s billing mapping; invalid signature; duplicate event; delayed Checkout
 return; out-of-order subscription events; subscription-status mapping;
 unexpected plan/status fail-closed; webhook retry; provider outage/unknown;
 paid capability restriction with account/disconnect/delete and own read-only
-records retained; and Checkout session repeat-click behavior. Use isolated
+records retained; Checkout session repeat-click behavior; and an
+already-ended cancellation-scheduled record transitioning to
+`canceled_or_expired` from trusted server time. Use isolated
 local/E2E data and test fixtures only. Run `npm run verify` plus focused tests.
 Manual proof must show test-mode-only environment validation and desktop/narrow
 screenshots of the state matrix, without a real payment method or any secret.
@@ -234,7 +244,8 @@ projection updates the state.
 
 Required tests include: foreign/missing owner rejection; no customer mapping;
 Portal provider failure; cancellation scheduled retains full access through the
-verified period end; cancellation/expiry restrictions; failed payment;
+verified period end and becomes `canceled_or_expired` when trusted server time
+reaches that end; cancellation/expiry restrictions; failed payment;
 duplicate/out-of-order lifecycle events; retry/reconciliation; and data-control
 paths during every restricted state. Validate keyboard focus, accessible names,
 focus restoration after external return, reduced-motion pending feedback, and
@@ -251,9 +262,11 @@ production readiness, is a separate founder-approved go/no-go issue.
 This documentation change is reversible by reverting the document and D-018;
 that does not authorize changing the accepted implementation decision silently.
 For future test-mode code, rollback must disable the billing entry points and
-paid-capability gates through a reviewed deployment/configuration plan while
-keeping authenticated account, disconnect, deletion, and owner data-control
-paths available. It must not delete billing or athlete data to recover access.
+force paid capabilities into the restricted/fail-closed mode through a reviewed
+deployment/configuration plan while keeping authenticated account, disconnect,
+deletion, and owner data-control paths available. It must not restore paid
+capability merely because Checkout or Portal entry points are disabled, and it
+must not delete billing or athlete data to recover access.
 
 When a beta athlete reports access trouble, support should: verify the local
 owner identity through the normal authenticated support process; inspect the
