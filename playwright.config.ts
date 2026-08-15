@@ -48,7 +48,22 @@ export default defineConfig({
     // (src/proxy.ts) lets them through. Excludes the setup and the auth spec.
     {
       name: "chromium",
-      testIgnore: [/auth\.setup\.ts/, /auth\.spec\.ts/, /mobile\.spec\.ts/],
+      testIgnore: [
+        /auth\.setup\.ts/,
+        /auth\.spec\.ts/,
+        /comparable-activity\.spec\.ts/,
+        /mobile\.spec\.ts/,
+      ],
+      use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
+      dependencies: ["comparable-activity"],
+    },
+    // #37 temporarily changes only the disposable local schema to prove the
+    // route's actual error boundary and retry. Run it alone and before other
+    // read specs so that proof cannot leak into their shared seeded fixture.
+    {
+      name: "comparable-activity",
+      testMatch: /comparable-activity\.spec\.ts/,
+      workers: 1,
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
       dependencies: ["setup"],
     },
@@ -57,7 +72,7 @@ export default defineConfig({
       name: "chromium-guest",
       testMatch: /auth\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
-      dependencies: ["setup"],
+      dependencies: ["comparable-activity"],
     },
     // A narrow viewport, because every project above is Desktop Chrome and so the
     // gate could never catch a layout that only breaks on a phone. 375px is the
@@ -70,7 +85,7 @@ export default defineConfig({
         viewport: { width: 375, height: 667 },
         storageState: STORAGE_STATE,
       },
-      dependencies: ["setup"],
+      dependencies: ["comparable-activity"],
     },
   ],
   webServer: {

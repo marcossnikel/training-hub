@@ -10,6 +10,7 @@ import { parseZoneSecs } from "../stream-metrics";
 import type { TotalsActivity } from "../totals";
 import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
 import type { OwnerContext } from "../owner-context";
+import type { ComparableActivitySummary } from "../comparable-activity";
 
 /**
  * Deliberately small evidence projection for the weekly brief. It is not an
@@ -22,6 +23,36 @@ export interface WeeklyBriefActivityRow {
   sport_type: string | null;
   moving_time_s: number | null;
   distance_km: number | null;
+}
+
+/**
+ * The narrow owner-scoped adapter for D-015. It intentionally does not widen
+ * activity-list or block queries with journals, raw payloads, streams, or
+ * derived metrics that the comparable-activity matcher must never read.
+ */
+export async function getConfirmedComparableActivity(
+  owner: OwnerContext,
+  id: number
+): Promise<ComparableActivitySummary | null> {
+  return one<ComparableActivitySummary>(
+    `SELECT a.id AS id, a.sport_type AS sportType, a.started_at AS startedAt,
+            a.distance_km AS distanceKm, a.moving_time_s AS movingTimeS
+     FROM activities a
+     WHERE a.user_id = ? AND a.status = 'confirmed' AND a.id = ?`,
+    [owner.userId, id]
+  );
+}
+
+export async function listConfirmedComparableActivities(
+  owner: OwnerContext
+): Promise<ComparableActivitySummary[]> {
+  return many<ComparableActivitySummary>(
+    `SELECT a.id AS id, a.sport_type AS sportType, a.started_at AS startedAt,
+            a.distance_km AS distanceKm, a.moving_time_s AS movingTimeS
+     FROM activities a
+     WHERE a.user_id = ? AND a.status = 'confirmed'`,
+    [owner.userId]
+  );
 }
 
 // The activities table stores `is_race` as 0/1; SELECT hands it back as a number.

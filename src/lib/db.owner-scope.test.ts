@@ -210,4 +210,71 @@ describe("owner-scoped domain access", () => {
       "started_at_local",
     ]);
   });
+
+  it("keeps the comparable-activity summary adapter confirmed, narrow, and owner-scoped", async () => {
+    const inserted = await db.client.batch(
+      [
+        {
+          sql: `INSERT INTO activities
+                (user_id, name, sport_type, started_at, distance_km, moving_time_s, status, raw_json, workout_notes)
+                VALUES (?, ?, 'Run', ?, ?, ?, 'confirmed', ?, ?)`,
+          args: [
+            ownerA.userId,
+            "Comparable A source",
+            "2026-08-10T08:00:00Z",
+            10,
+            1_000,
+            '{"not":"a matcher input"}',
+            "must not be selected",
+          ],
+        },
+        {
+          sql: `INSERT INTO activities
+                (user_id, name, sport_type, started_at, distance_km, moving_time_s, status)
+                VALUES (?, ?, 'VirtualRun', ?, ?, ?, 'confirmed')`,
+          args: [ownerA.userId, "Comparable A candidate", "2026-08-09T08:00:00Z", 10.5, 1_050],
+        },
+        {
+          sql: `INSERT INTO activities
+                (user_id, name, sport_type, started_at, distance_km, moving_time_s, status)
+                VALUES (?, ?, 'Run', ?, ?, ?, 'pending_review')`,
+          args: [ownerA.userId, "Comparable A pending", "2026-08-08T08:00:00Z", 10, 1_000],
+        },
+        {
+          sql: `INSERT INTO activities
+                (user_id, name, sport_type, started_at, distance_km, moving_time_s, status)
+                VALUES (?, ?, 'Run', ?, ?, ?, 'confirmed')`,
+          args: [ownerB.userId, "Comparable B closer", "2026-08-09T09:00:00Z", 10, 1_000],
+        },
+      ],
+      "write"
+    );
+    const sourceId = Number(inserted[0]?.lastInsertRowid);
+    const candidateId = Number(inserted[1]?.lastInsertRowid);
+    const pendingId = Number(inserted[2]?.lastInsertRowid);
+    const otherOwnerId = Number(inserted[3]?.lastInsertRowid);
+
+    const source = await db.getConfirmedComparableActivity(ownerA, sourceId);
+    expect(source).toEqual({
+      id: sourceId,
+      sportType: "Run",
+      startedAt: "2026-08-10T08:00:00Z",
+      distanceKm: 10,
+      movingTimeS: 1_000,
+    });
+    expect(await db.getConfirmedComparableActivity(ownerB, sourceId)).toBeNull();
+    const ownerRows = await db.listConfirmedComparableActivities(ownerA);
+    expect(ownerRows).toContainEqual(expect.objectContaining({ id: sourceId }));
+    expect(ownerRows).toContainEqual(expect.objectContaining({ id: candidateId }));
+    expect(ownerRows.some((row) => row.id === pendingId)).toBe(false);
+    expect(
+      ownerRows.every(
+        (row) =>
+          Object.keys(row).sort().join(",") === "distanceKm,id,movingTimeS,sportType,startedAt"
+      )
+    ).toBe(true);
+    const otherRows = await db.listConfirmedComparableActivities(ownerB);
+    expect(otherRows.some((row) => row.id === sourceId)).toBe(false);
+    expect(otherRows.some((row) => row.id === otherOwnerId)).toBe(true);
+  });
 });

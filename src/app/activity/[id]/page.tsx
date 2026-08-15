@@ -68,6 +68,7 @@ import { runMetrics } from "@/lib/running";
 import { avgGapSPerKm } from "@/lib/stream-metrics";
 import { isRunSport } from "@/lib/validate";
 import { toGearOption } from "@/lib/gear";
+import { isComparablePriorActivitySource } from "@/lib/comparable-activity";
 
 export async function generateMetadata({ params }: PageProps<"/activity/[id]">) {
   const owner = await requireCurrentUser();
@@ -414,6 +415,16 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const run = isRunSport(activity.sport_type);
   const ride = isRideSport(activity.sport_type);
   const confirmed = activity.status === "confirmed";
+  const comparableSource = isComparablePriorActivitySource(
+    {
+      id: activity.id,
+      sportType: activity.sport_type,
+      startedAt: activity.started_at,
+      distanceKm: activity.distance_km,
+      movingTimeS: activity.moving_time_s,
+    },
+    new Date().toISOString()
+  );
 
   const shoes = ride ? [] : (await listShoes(owner)).map(toGearOption);
   const bikes = ride ? (await listBikes(owner)).map(toGearOption) : [];
@@ -652,6 +663,17 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
       {confirmed ? (
         <div className="mt-4">
           <RaceControl activity={activity} />
+        </div>
+      ) : null}
+
+      {confirmed && comparableSource ? (
+        <div className="mt-4">
+          <Link
+            href={`/activity/${activity.id}/compare`}
+            className="focus-ring inline-flex rounded-md border bg-card px-3 py-2 text-sm font-medium transition-colors duration-150 hover:bg-muted motion-reduce:transition-none"
+          >
+            {t.detail.comparePriorActivity}
+          </Link>
         </div>
       ) : null}
 
