@@ -53,7 +53,7 @@ This roadmap is ordered by dependency, not by what is easiest to make visually i
 - Build a polished, truthful landing page and a server-enforced manual invite
   path aligned with the product thesis. Do not turn current developer/test
   registration into public access or collect a waitlist before that gate exists.
-- Add one monthly plan via Stripe Checkout, Customer Portal, webhook-backed entitlement, cancellation, and failure-state handling.
+- Add one monthly plan via Stripe Checkout, Customer Portal, webhook-backed entitlement, cancellation, and failure-state handling, following the accepted [billing entitlement contract](billing-entitlement-contract.md). Test mode is the only implementation environment; a separate explicit approval is required before any live activation.
 - Add account settings, disconnect/delete flows, basic support paths, and launch analytics that respect the privacy posture.
 
 **Exit:** an invited user can understand, subscribe, use, manage, and leave the product without founder-side database intervention. Public promotion waits for the invite gate; live billing requires an explicit go/no-go decision.

@@ -41,6 +41,14 @@ that exposes landing or registration routes must preserve the invitation-only
 boundary in D-014 and never treat copy, a client-side check, or an obscure URL
 as access control.
 
+Billing builders must implement the accepted D-018 contract in
+[`billing-entitlement-contract.md`](billing-entitlement-contract.md). Checkout
+returns are advisory, verified webhooks and reconciliation are authoritative,
+and an athlete always retains private data-control paths when paid capability
+is restricted. Stripe work is test-mode-only until a separate explicit
+live-mode approval; builders must not create live objects or infer that
+approval from an issue assignment.
+
 For the tenant/auth epic, treat every query and route parameter as untrusted. Identity comes from the server-side session. Do not return or log secrets. Do not run migrations against a shared or production-like database without the named environment and reset/rollback plan.
 
 ## Product & Architecture agent
