@@ -70,6 +70,7 @@ beforeAll(async () => {
   process.env.DATABASE_URL = `file:${dbFile}`;
   process.env.STRAVA_CLIENT_ID = "test-client";
   process.env.STRAVA_CLIENT_SECRET = "test-secret";
+  process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 37).toString("base64url");
   db = await import("./db");
   const stravaModule = await import("./strava");
   strava = {
