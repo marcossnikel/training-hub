@@ -43,6 +43,16 @@ function aad(userId: string, purpose: StravaSecretPurpose): Buffer {
   );
 }
 
+/** Node's base64url decoder is deliberately permissive, so validate canonical form first. */
+function decodeCanonicalBase64url(value: string): Buffer {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new StravaSecretStorageError();
+  const decoded = Buffer.from(value, "base64url");
+  if (decoded.length === 0 || decoded.toString("base64url") !== value) {
+    throw new StravaSecretStorageError();
+  }
+  return decoded;
+}
+
 /**
  * Encrypts one server-only Strava value with AES-256-GCM. The purpose and
  * owner are authenticated, which rejects a copied field or another owner's
@@ -82,9 +92,9 @@ export function decryptStravaSecret(
     if (parts.length !== 4 || parts[0] !== ENVELOPE_VERSION) throw new StravaSecretStorageError();
     const [, ivText, ciphertextText, tagText] = parts;
     if (!ivText || !ciphertextText || !tagText) throw new StravaSecretStorageError();
-    const iv = Buffer.from(ivText, "base64url");
-    const ciphertext = Buffer.from(ciphertextText, "base64url");
-    const tag = Buffer.from(tagText, "base64url");
+    const iv = decodeCanonicalBase64url(ivText);
+    const ciphertext = decodeCanonicalBase64url(ciphertextText);
+    const tag = decodeCanonicalBase64url(tagText);
     if (iv.length !== IV_BYTES || tag.length !== 16 || ciphertext.length === 0) {
       throw new StravaSecretStorageError();
     }

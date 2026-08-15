@@ -21,6 +21,16 @@ describe("owner-bound Strava connection encryption", () => {
     expect(decryptStravaSecret("owner-a", "access_token", first)).toBe("test-access-token");
   });
 
+  it("accepts canonical segments and rejects an otherwise valid envelope with extra data", () => {
+    process.env[ENV] = testKey;
+    const envelope = encryptStravaSecret("owner-a", "access_token", "private-value");
+    const [version, iv, ciphertext, tag] = envelope.split(".");
+    expect(decryptStravaSecret("owner-a", "access_token", envelope)).toBe("private-value");
+    expect(() =>
+      decryptStravaSecret("owner-a", "access_token", `${version}.${iv}#.${ciphertext}.${tag}`)
+    ).toThrow(StravaSecretStorageError);
+  });
+
   it("rejects owner and field swaps, malformed envelopes, and wrong keys without disclosure", () => {
     process.env[ENV] = testKey;
     const envelope = encryptStravaSecret("owner-a", "access_token", "private-value");

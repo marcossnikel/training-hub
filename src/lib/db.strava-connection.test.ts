@@ -108,4 +108,31 @@ describe("owner-scoped encrypted Strava connections", () => {
       "Strava connection material is unavailable."
     );
   });
+
+  it("restores v1 metadata when a token refresh replaces stale ciphertext", async () => {
+    await db.saveStravaAuth(ownerA, {
+      access_token: "access-token-before-refresh",
+      refresh_token: "refresh-token-before-refresh",
+      expires_at: 4_000_000_010,
+    });
+    await db.client.execute({
+      sql: "UPDATE strava_connections SET encryption_key_version = NULL WHERE user_id = ?",
+      args: [ownerA.userId],
+    });
+    await db.saveStravaAuth(ownerA, {
+      access_token: "access-token-after-refresh",
+      refresh_token: "refresh-token-after-refresh",
+      expires_at: 4_000_000_011,
+    });
+    expect(await db.getStravaAuth(ownerA)).toEqual({
+      access_token: "access-token-after-refresh",
+      refresh_token: "refresh-token-after-refresh",
+      expires_at: 4_000_000_011,
+    });
+    const row = await db.client.execute({
+      sql: "SELECT encryption_key_version FROM strava_connections WHERE user_id = ?",
+      args: [ownerA.userId],
+    });
+    expect(Number(row.rows[0].encryption_key_version)).toBe(1);
+  });
 });

@@ -128,6 +128,7 @@ export async function saveStravaAuth(owner: OwnerContext, auth: StravaAuthRow): 
      ON CONFLICT(user_id) DO UPDATE SET
        access_token_ciphertext = excluded.access_token_ciphertext,
        refresh_token_ciphertext = excluded.refresh_token_ciphertext,
+       encryption_key_version = excluded.encryption_key_version,
        expires_at = excluded.expires_at, status = excluded.status,
        updated_at = datetime('now')`,
     [
