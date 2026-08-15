@@ -2,9 +2,15 @@
 
 ## Shared operating model
 
-Training Hub is moving from a personal single-user app to a small multi-user paid beta. The immediate product boundary is a trustworthy BYO-Strava-app onboarding path, owner-isolated data, and explainable training insights. Do not build features that imply a standard hosted Strava integration, coaching, medical advice, or live billing before the relevant product decision and issue are approved.
+Training Hub is moving from a personal single-user app to a small multi-user paid beta. The immediate product boundary is a trustworthy BYO-Strava-app onboarding path, owner-isolated data, explainable training insights, and a manual invitation gate before public promotion. Do not build features that imply a standard hosted Strava integration, coaching, medical advice, public self-serve access, or live billing before the relevant product decision and issue are approved.
 
-Use the current codebase as technical truth. In particular: `src/lib/identity.ts` currently hard-codes one owner; `src/lib/auth.ts` is a password gate; Strava credentials are singleton state in `src/lib/db/client.ts`; pages and server actions make direct database assumptions. The analysis modules are worth preserving, but must operate through owner-scoped data.
+Use the current codebase as technical truth. The shared-password/singleton
+foundation has been replaced: Better Auth server sessions resolve the local
+owner, product data and BYO Strava connection material are owner-scoped, and
+disconnect has the D-013/D-017 local-deletion contract. Read the current
+decision log and code rather than reintroducing historical identity or global
+credential assumptions. The analysis modules remain valuable only while their
+queries and actions stay owner-scoped.
 
 Before coding, read `AGENTS.md` and the applicable Next.js documentation in `node_modules/next/dist/docs/`, as required by this repository. Work in small PRs. Do not edit another active agent's files without coordinating first.
 
@@ -29,6 +35,11 @@ Before coding, read `AGENTS.md` and the applicable Next.js documentation in `nod
 **Mission:** implement exactly one assigned GitHub issue/PR at a time.
 
 Every builder prompt must include the issue ID, this product pack, target files/area, acceptance criteria, non-goals, data/auth/billing impact, tests to add or update, manual validation steps, and stop conditions. The builder owns failures caused by their change: identify, fix, rerun, and report evidence before handoff.
+
+Current developer/test sign-up is not a public-beta access mechanism. Any work
+that exposes landing or registration routes must preserve the invitation-only
+boundary in D-014 and never treat copy, a client-side check, or an obscure URL
+as access control.
 
 For the tenant/auth epic, treat every query and route parameter as untrusted. Identity comes from the server-side session. Do not return or log secrets. Do not run migrations against a shared or production-like database without the named environment and reset/rollback plan.
 

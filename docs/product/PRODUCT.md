@@ -14,14 +14,26 @@ The initial audience is self-coached runners and cyclists who already record act
 
 ## What exists today
 
-The current codebase is a useful analysis foundation, not a multi-user product:
+The codebase now has a private-beta foundation, not a broadly released product:
 
-- A Next.js App Router application with server-rendered pages, server actions, libSQL/Turso access, and shadcn-based UI components.
-- Strava OAuth sync, activity review and confirmation, gear mileage, journals, activity stream analysis, performance/threshold views, race blocks, and race-block comparison.
-- A single global database and singleton identity: `src/lib/identity.ts` always returns athlete `id: 1`; Strava credentials are global; core activity and gear records have no tenant owner.
-- A password gate in `src/lib/auth.ts`, not account registration or user authentication.
+- A Next.js App Router application with server-rendered pages, server actions,
+  libSQL/Turso access, and shadcn-based UI components.
+- Better Auth `1.4.18` email/password accounts with database-backed server
+  sessions; application ownership derives from the validated session rather
+  than browser input.
+- Owner-scoped product records and encrypted, owner-scoped BYO Strava
+  connection material. The connection flow validates state, exact scopes, and
+  callback ownership; disconnect deletes the local Strava-origin graph as
+  specified in D-013/D-017.
+- Activity review and confirmation, gear mileage, journals, activity stream
+  analysis, performance/threshold views, race blocks, weekly briefs, and
+  comparable prior-activity evidence.
 
-The last point defines the first implementation priority. Existing user-facing analysis should be preserved where it remains valuable, but every read, write, and secret must become owner-scoped before real users are invited.
+The remaining launch work is deliberately operational and product-facing:
+server-enforced beta invitations, truthful landing/access surfaces, the clean
+external BYO preview proof, billing design and test-mode implementation, and
+an explicit public name/domain decision. Existing developer/test sign-up does
+not make the product publicly available.
 
 `docs/product/` is the source of truth for the productization plan. Older route maps and roadmap documents describe earlier versions of the personal app and should be treated as historical unless reconciled with the current code.
 
@@ -29,7 +41,8 @@ The last point defines the first implementation priority. Existing user-facing a
 
 v0 is a small paid beta that is complete end to end for a real individual athlete. A user can:
 
-1. Understand the product from a public landing page and create an account.
+1. Understand the product from a truthful landing page and, when deliberately
+   invited, create an account through a private registration link.
 2. Complete a clear onboarding flow, including an explanation of the connection model and privacy boundaries.
 3. Connect Strava through **their own Strava developer application** (BYO Strava app), then sync activity history into only their account.
 4. Review training context: current/recent week, selected blocks, performance trends, activity detail, and gear mileage.
@@ -37,6 +50,15 @@ v0 is a small paid beta that is complete end to end for a real individual athlet
 6. Manage a beta subscription in Stripe test-to-live rollout, cancel it, disconnect Strava, and request/delete their account data.
 
 The v0 objective is not broad market validation or maximum automation. It is a trustworthy, usable product loop that can be placed in the hands of a small set of invited athletes and iterated in public.
+
+### Initial beta access
+
+The first cohort is manual and invitation-only. A landing page may explain the
+product and the access boundary, but it does not operate an open waitlist,
+public self-serve sign-up, payment collection, or an availability promise.
+Existing developer/test registration is not public-beta access. Before any
+public promotion, new registration must be enforced by a valid private invite;
+an invitation is an access-control feature, not merely copy.
 
 ## Initial connection path: BYO Strava app
 
@@ -71,6 +93,8 @@ This is a beta connection strategy, not a permanent substitute for commercial/AP
 - Multi-provider integrations, mobile native apps, or broad device-data ingestion.
 - Autonomous AI decisions about training. AI may help express an already-grounded observation later; deterministic and inspectable analysis is the launch core.
 - Complex pricing, annual plans, trials, coupons, tax automation, or live billing before the account/data model and beta workflow are solid.
+- An open waitlist or public self-serve registration before invite enforcement
+  is independently reviewed and delivered.
 
 ## v0 success signals
 

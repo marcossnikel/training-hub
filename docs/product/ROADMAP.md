@@ -50,11 +50,13 @@ This roadmap is ordered by dependency, not by what is easiest to make visually i
 
 **Goal:** support a small paid beta without building a billing company.
 
-- Build a polished landing page and beta/invite path aligned with the product thesis.
+- Build a polished, truthful landing page and a server-enforced manual invite
+  path aligned with the product thesis. Do not turn current developer/test
+  registration into public access or collect a waitlist before that gate exists.
 - Add one monthly plan via Stripe Checkout, Customer Portal, webhook-backed entitlement, cancellation, and failure-state handling.
 - Add account settings, disconnect/delete flows, basic support paths, and launch analytics that respect the privacy posture.
 
-**Exit:** an invited user can understand, subscribe, use, manage, and leave the product without founder-side database intervention. Live billing requires an explicit go/no-go decision.
+**Exit:** an invited user can understand, subscribe, use, manage, and leave the product without founder-side database intervention. Public promotion waits for the invite gate; live billing requires an explicit go/no-go decision.
 
 ## Phase 5 — invited beta and public learning
 
