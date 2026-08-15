@@ -12,21 +12,20 @@ import { getDict } from "@/lib/lang";
 
 export const metadata = { title: "Comparable prior activity" };
 
-type ComparableActivityRouteParams = Pick<PageProps<"/activity/[id]/compare">, "params">;
-
 export default function ComparableActivityPage({ params }: PageProps<"/activity/[id]/compare">) {
   return (
     <Suspense fallback={<ComparableActivitySkeleton />}>
-      <ComparableActivityContent params={params} />
+      {params.then(({ id }) => (
+        <ComparableActivityContent id={id} />
+      ))}
     </Suspense>
   );
 }
 
 /** Request-time auth and data work stays inside the route's real Suspense boundary. */
-export async function ComparableActivityContent({ params }: ComparableActivityRouteParams) {
+export async function ComparableActivityContent({ id }: { id: string }) {
   const owner = await requireCurrentUser();
   if (!owner) notFound();
-  const { id } = await params;
   const numericId = Number(id);
   if (!Number.isSafeInteger(numericId) || numericId <= 0) notFound();
 

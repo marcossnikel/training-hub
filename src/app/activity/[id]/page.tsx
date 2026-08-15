@@ -69,6 +69,7 @@ import { avgGapSPerKm } from "@/lib/stream-metrics";
 import { isRunSport } from "@/lib/validate";
 import { toGearOption } from "@/lib/gear";
 import { isComparablePriorActivitySource } from "@/lib/comparable-activity";
+import { ComparePriorActivityEntry } from "./compare-prior-activity-entry";
 
 export async function generateMetadata({ params }: PageProps<"/activity/[id]">) {
   const owner = await requireCurrentUser();
@@ -668,12 +669,9 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
 
       {confirmed && comparableSource ? (
         <div className="mt-4">
-          <Link
-            href={`/activity/${activity.id}/compare`}
-            className="focus-ring inline-flex rounded-md border bg-card px-3 py-2 text-sm font-medium transition-colors duration-150 hover:bg-muted motion-reduce:transition-none"
-          >
+          <ComparePriorActivityEntry activityId={activity.id}>
             {t.detail.comparePriorActivity}
-          </Link>
+          </ComparePriorActivityEntry>
         </div>
       ) : null}
 

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3100;
+const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://localhost:${PORT}`;
 
 // Saved owner session from the auth.setup project. The read specs reuse it so
@@ -16,6 +16,11 @@ const E2E_DATABASE_URL = `file:${path.join(process.cwd(), "data", "e2e.db")}`;
 // This deterministic throwaway key exists only in the test process and the local
 // Playwright web server. It is never read from an env file or deployment config.
 const E2E_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 58).toString("base64url");
+const E2E_APP_COMMAND =
+  process.env.E2E_PRODUCTION === "1"
+    ? `npm run e2e:seed && npm run build && npm run start -- --port ${PORT}`
+    : `npm run e2e:seed && npm run dev -- --port ${PORT}`;
+const E2E_SERVER_COMMAND = `sh -c 'node scripts/e2e-strava-provider.mjs & training_hub_mock_pid=$!; trap "kill $training_hub_mock_pid 2>/dev/null || true" EXIT INT TERM; ${E2E_APP_COMMAND}'`;
 process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = E2E_CONNECTION_ENCRYPTION_KEY;
 
 /**
@@ -89,10 +94,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // Reset + seed the isolated DB, then boot `next dev` (fast boot; a build+start
-    // is unnecessary for these read flows). Seeding runs before the server opens
-    // the file, so the server never sees an empty database.
-    command: `sh -c 'node scripts/e2e-strava-provider.mjs & training_hub_mock_pid=$!; trap "kill $training_hub_mock_pid 2>/dev/null || true" EXIT INT TERM; npm run e2e:seed && npm run dev -- --port ${PORT}'`,
+    // Reset + seed before the server opens the file, so it never sees an empty
+    // database. The loopback provider serves only this E2E process;
+    // E2E_PRODUCTION=1 switches the application process to build + start for
+    // final visual proof while the ordinary verification suite stays fast.
+    command: E2E_SERVER_COMMAND,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     // Generous timeout for seeding plus the first on-demand route compile.

@@ -34,12 +34,70 @@ export interface MatchComparablePriorActivityInput {
 
 const RELIABLE_DISTANCE_DIFFERENCE = 0.1;
 const RELIABLE_MOVING_TIME_DIFFERENCE = 0.2;
-const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_INSTANT =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
 
 function instantMs(value: string | null): number | null {
-  if (!value || !ISO_INSTANT.test(value)) return null;
-  const ms = Date.parse(value);
-  return Number.isFinite(ms) ? ms : null;
+  if (!value) return null;
+  const match = ISO_INSTANT.exec(value);
+  if (!match) return null;
+
+  const [
+    ,
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+    fraction,
+    zone,
+    sign,
+    offsetHourText,
+    offsetMinuteText,
+  ] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const offsetHour = offsetHourText == null ? 0 : Number(offsetHourText);
+  const offsetMinute = offsetMinuteText == null ? 0 : Number(offsetMinuteText);
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth(year, month) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return null;
+  }
+
+  const fractionalMs = fraction == null ? 0 : Number(fraction.slice(0, 3).padEnd(3, "0"));
+  const local = new Date(0);
+  local.setUTCFullYear(year, month - 1, day);
+  local.setUTCHours(hour, minute, second, fractionalMs);
+  const localMs = local.getTime();
+  const offsetMinutes = offsetHour * 60 + offsetMinute;
+  const signedOffsetMinutes = zone === "Z" ? 0 : sign === "+" ? offsetMinutes : -offsetMinutes;
+  const timestamp = localMs - signedOffsetMinutes * 60_000;
+
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function validActivityId(id: number): boolean {

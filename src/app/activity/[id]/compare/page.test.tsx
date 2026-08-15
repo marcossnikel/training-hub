@@ -11,6 +11,10 @@ describe("ComparableActivityPage", () => {
     });
     expect(page.type).toBe(Suspense);
     expect(page.props.fallback.type).toBe(ComparableActivitySkeleton);
-    expect(page.props.children.type).toBe(ComparableActivityContent);
+    expect(page.props.children).toBeInstanceOf(Promise);
+    return expect(page.props.children).resolves.toMatchObject({
+      type: ComparableActivityContent,
+      props: { id: "42" },
+    });
   });
 });

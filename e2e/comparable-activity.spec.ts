@@ -8,6 +8,7 @@ const ownerId = "legacy-local-owner";
 
 type ComparableFixture = { sourceId: number; priorId: number; pendingId: number };
 const fixtureActivityIds = new Set<number>();
+const fixtureActivityNames = new Set<string>();
 
 // This one spec writes disposable route fixtures into the same SQLite file as
 // its browser reads. Keep those writes serial so a proof failure cannot be
@@ -77,22 +78,52 @@ async function addFixture(): Promise<ComparableFixture> {
   }
 }
 
+async function addLoadingVolume(): Promise<void> {
+  const name = `Comparable loading volume ${crypto.randomUUID()}`;
+  const db = createClient({ url: dbUrl, intMode: "number" });
+  try {
+    for (let start = 0; start < 100_000; start += 1_000) {
+      await retryLocked(() =>
+        db.batch(
+          Array.from({ length: 1_000 }, () => ({
+            sql: `INSERT INTO activities
+              (user_id, name, sport_type, started_at, distance_km, moving_time_s, status)
+              VALUES (?, ?, 'Run', ?, ?, ?, 'confirmed')`,
+            args: [ownerId, name, isoBefore(3), 10, 3_000],
+          })),
+          "write"
+        )
+      );
+    }
+    fixtureActivityNames.add(name);
+  } finally {
+    db.close();
+  }
+}
+
 test.afterEach(async () => {
-  if (fixtureActivityIds.size === 0) return;
+  if (fixtureActivityIds.size === 0 && fixtureActivityNames.size === 0) return;
   const db = createClient({ url: dbUrl, intMode: "number" });
   try {
     await retryLocked(() =>
       db.batch(
-        [...fixtureActivityIds].map((id) => ({
-          sql: "DELETE FROM activities WHERE id = ?",
-          args: [id],
-        })),
+        [
+          ...[...fixtureActivityIds].map((id) => ({
+            sql: "DELETE FROM activities WHERE id = ?",
+            args: [id],
+          })),
+          ...[...fixtureActivityNames].map((name) => ({
+            sql: "DELETE FROM activities WHERE name = ?",
+            args: [name],
+          })),
+        ],
         "write"
       )
     );
   } finally {
     db.close();
     fixtureActivityIds.clear();
+    fixtureActivityNames.clear();
   }
 });
 
@@ -104,6 +135,30 @@ async function capture(page: Page, name: string) {
   });
 }
 
+async function tabUntilFocused(page: Page, target: ReturnType<Page["getByRole"]>) {
+  for (let tabIndex = 0; tabIndex < 30; tabIndex += 1) {
+    await page.keyboard.press("Tab");
+    if (await target.evaluate((element) => document.activeElement === element)) return;
+  }
+  throw new Error(`Tab did not reach ${await target.getAttribute("aria-label")}`);
+}
+
+async function clearHeaderTooltip(page: Page): Promise<void> {
+  // Tab traversal necessarily passes the disabled Sync control. Its contextual
+  // tooltip closes after focus leaves the control; wait for that real UI state
+  // so evidence isolates the focused comparison control rather than header chrome.
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Connect Strava in Settings first")).toBeHidden();
+}
+
+async function openComparison(page: Page, sourceId: number, width: number, height: number) {
+  await page.setViewportSize({ width, height });
+  await page.goto(`/activity/${sourceId}/compare`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
+  ).toBeVisible();
+}
+
 test("a confirmed source enters one evidence-linked comparable prior activity", async ({
   page,
 }) => {
@@ -112,9 +167,10 @@ test("a confirmed source enters one evidence-linked comparable prior activity", 
   await page.goto(`/activity/${fixture.sourceId}`);
   const entry = page.getByRole("link", { name: "Compare with a prior activity" });
   await expect(entry).toBeVisible();
-  await entry.focus();
+  await tabUntilFocused(page, entry);
   await expect(entry).toBeFocused();
-  await entry.press("Enter");
+  await capture(page, "37-comparable-prior-activity-entry-keyboard-1440.png");
+  await page.keyboard.press("Enter");
 
   await expect(page).toHaveURL(`/activity/${fixture.sourceId}/compare`);
   await expect(
@@ -127,20 +183,88 @@ test("a confirmed source enters one evidence-linked comparable prior activity", 
   await expect(page.getByText(/^This match uses confirmed activity summaries:/)).toBeVisible();
   await capture(page, "37-comparable-prior-activity-reliable-1440.png");
 
-  source.focus();
-  await expect(source).toBeFocused();
-  prior.focus();
-  await expect(prior).toBeFocused();
-  const method = page.getByText("How matching works");
-  await method.focus();
-  await expect(method).toBeFocused();
-  await method.press("Space");
-  await expect(page.getByText("Candidates are confirmed prior activities")).toBeVisible();
-  await capture(page, "37-comparable-prior-activity-focus-press-1440.png");
+  for (const [width, height] of [
+    [1440, 1000],
+    [390, 844],
+  ] as const) {
+    await openComparison(page, fixture.sourceId, width, height);
+    const current = page.getByRole("link", {
+      name: `Open current activity #${fixture.sourceId}`,
+    });
+    await tabUntilFocused(page, current);
+    await expect(current).toBeFocused();
+    await clearHeaderTooltip(page);
+    await expect(current).toBeFocused();
+    await capture(page, `37-comparable-prior-activity-keyboard-source-${width}.png`);
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(`/activity/${fixture.sourceId}`);
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator("html")).toHaveJSProperty("scrollWidth", 390);
-  await capture(page, "37-comparable-prior-activity-reliable-390.png");
+    await openComparison(page, fixture.sourceId, width, height);
+    const sourceAfterReturn = page.getByRole("link", {
+      name: `Open current activity #${fixture.sourceId}`,
+    });
+    const priorAfterReturn = page.getByRole("link", {
+      name: `Open prior activity #${fixture.priorId}`,
+    });
+    await tabUntilFocused(page, sourceAfterReturn);
+    await page.keyboard.press("Tab");
+    await expect(priorAfterReturn).toBeFocused();
+    await clearHeaderTooltip(page);
+    await expect(priorAfterReturn).toBeFocused();
+    await capture(page, `37-comparable-prior-activity-keyboard-prior-${width}.png`);
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(`/activity/${fixture.priorId}`);
+
+    await openComparison(page, fixture.sourceId, width, height);
+    const sourceBeforeMethod = page.getByRole("link", {
+      name: `Open current activity #${fixture.sourceId}`,
+    });
+    const priorBeforeMethod = page.getByRole("link", {
+      name: `Open prior activity #${fixture.priorId}`,
+    });
+    const method = page.getByText("How matching works");
+    await tabUntilFocused(page, sourceBeforeMethod);
+    await page.keyboard.press("Tab");
+    await expect(priorBeforeMethod).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(method).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(page.getByText("Candidates are confirmed prior activities")).toBeVisible();
+    await clearHeaderTooltip(page);
+    await expect(method).toBeFocused();
+    await capture(page, `37-comparable-prior-activity-keyboard-method-${width}.png`);
+
+    if (width === 390) {
+      await expect(page.locator("html")).toHaveJSProperty("scrollWidth", 390);
+      await capture(page, "37-comparable-prior-activity-reliable-390.png");
+    }
+  }
+});
+
+test("the final route streams its real loading skeleton during a slow client navigation", async ({
+  page,
+}) => {
+  await addLoadingVolume();
+
+  for (const [width, height] of [
+    [1440, 1000],
+    [390, 844],
+  ] as const) {
+    const fixture = await addFixture();
+    await page.setViewportSize({ width, height });
+    await page.goto(`/activity/${fixture.sourceId}`);
+    const entry = page.getByRole("link", { name: "Compare with a prior activity" });
+    await expect(entry).toBeVisible();
+    const navigation = entry.click({ noWaitAfter: true });
+    const loading = page.getByLabel("Loading comparable prior activity");
+    await expect(loading).toHaveAttribute("aria-busy", "true");
+    await expect(loading.locator('[data-slot="skeleton"]')).toHaveCount(7);
+    await capture(page, `37-comparable-prior-activity-loading-${width}.png`);
+    await navigation;
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
+    ).toBeVisible();
+  }
 });
 
 test("the no-match result is exact and an unavailable source never renders a comparison card", async ({
@@ -185,7 +309,7 @@ test("the no-match result is exact and an unavailable source never renders a com
   await expect(
     page.getByRole("heading", { name: /Comparable prior activity|No reliable prior match/ })
   ).toHaveCount(0);
-  await expect(page.locator("main")).toBeEmpty();
+  await expect(page.getByRole("link", { name: /Open current activity/ })).toHaveCount(0);
   await capture(page, "37-comparable-prior-activity-unavailable-1440.png");
   await page.setViewportSize({ width: 390, height: 844 });
   await capture(page, "37-comparable-prior-activity-unavailable-390.png");
@@ -221,11 +345,13 @@ test("a real owner-scoped read failure announces safely and retry restores the f
       });
       await expect(error).toBeVisible();
       const retry = page.getByRole("button", { name: "Try again" });
-      await retry.focus();
+      await tabUntilFocused(page, retry);
+      await expect(retry).toBeFocused();
+      await clearHeaderTooltip(page);
       await expect(retry).toBeFocused();
       await capture(page, `37-comparable-prior-activity-error-focus-${width}.png`);
       await restoreColumn();
-      await retry.press("Enter");
+      await page.keyboard.press("Enter");
       await expect(
         page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
       ).toBeVisible();
@@ -254,7 +380,9 @@ test("reduced motion keeps the same comparable activity meaning and focus afford
     const source = page.getByRole("link", {
       name: `Open current activity #${fixture.sourceId}`,
     });
-    await source.focus();
+    await tabUntilFocused(page, source);
+    await expect(source).toBeFocused();
+    await clearHeaderTooltip(page);
     await expect(source).toBeFocused();
     expect(await source.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe(
       "0.001s"

@@ -116,6 +116,47 @@ describe("matchComparablePriorActivity", () => {
     expect(isComparablePriorActivitySource(source, "invalid")).toBe(false);
   });
 
+  it("rejects calendar and clock overflows instead of letting Date normalize them", () => {
+    const source = activity(1, { startedAt: "2026-08-10T08:00:00Z" });
+    const invalidInstants = [
+      "2026-02-29T08:00:00Z",
+      "2026-02-30T08:00:00Z",
+      "2026-04-31T08:00:00Z",
+      "2026-08-10T24:00:00Z",
+      "2026-08-10T08:60:00Z",
+      "2026-08-10T08:00:60Z",
+      "2026-08-10T08:00:00+24:00",
+      "2026-08-10T08:00:00+12:60",
+      "2026-08-10T08:00:00+1200",
+    ];
+
+    for (const startedAt of invalidInstants) {
+      expect(isComparablePriorActivitySource({ ...source, startedAt }, AS_OF)).toBe(false);
+      expect(match(source, [activity(2, { startedAt })])).toEqual({ state: "no_match" });
+    }
+    expect(
+      matchComparablePriorActivity({
+        source,
+        candidates: [activity(2, { startedAt: "2026-08-09T08:00:00Z" })],
+        asOf: "2026-02-30T00:00:00Z",
+      })
+    ).toEqual({ state: "no_match" });
+  });
+
+  it("accepts valid leap-day and explicit ISO offsets without changing chronological matching", () => {
+    const leapDaySource = activity(1, { startedAt: "2024-02-29T08:00:00+03:00" });
+    expect(isComparablePriorActivitySource(leapDaySource, "2024-03-01T00:00:00Z")).toBe(true);
+
+    const source = activity(1, { startedAt: "2026-08-10T11:00:00-03:00" });
+    expect(
+      matchComparablePriorActivity({
+        source,
+        candidates: [activity(2, { startedAt: "2026-08-10T10:00:00-03:00" })],
+        asOf: AS_OF,
+      })
+    ).toMatchObject({ state: "match", match: { candidate: { id: 2 } } });
+  });
+
   it("selects distance, then time, then newest prior instant, then highest id independently of input order", () => {
     const source = activity(1, { startedAt: "2026-08-10T08:00:00Z" });
     const distanceWinner = activity(2, {
