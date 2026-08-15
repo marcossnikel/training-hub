@@ -140,7 +140,7 @@ export async function ensureBetaInviteSchema(): Promise<void> {
                    AND intended_email = lower(NEW.email)
                    AND redeemed_at IS NULL
                    AND revoked_at IS NULL
-                   AND expires_at > datetime('now')
+                   AND julianday(expires_at) > julianday('now')
                ) THEN RAISE(ABORT, 'registration unavailable') END;
 
                UPDATE beta_invites
@@ -149,7 +149,7 @@ export async function ensureBetaInviteSchema(): Promise<void> {
                  AND intended_email = lower(NEW.email)
                  AND redeemed_at IS NULL
                  AND revoked_at IS NULL
-                 AND expires_at > datetime('now');
+                 AND julianday(expires_at) > julianday('now');
 
                UPDATE "user" SET "betaInviteClaim" = NULL WHERE id = NEW.id;
              END`,
@@ -180,7 +180,7 @@ export async function validateBetaInviteForRegistration(input: {
             AND intended_email = ?
             AND redeemed_at IS NULL
             AND revoked_at IS NULL
-            AND expires_at > datetime('now')`,
+            AND julianday(expires_at) > julianday('now')`,
     args: [tokenHash, email],
   });
   return result.rows.length === 1 ? tokenHash : null;
@@ -226,7 +226,37 @@ export async function revokeBetaInvite(token: unknown): Promise<void> {
   });
 }
 
-export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.env): void {
+function parseCanonicalInviteOrigin(value: string | undefined, name: string): URL {
+  if (!value) throw new Error(`${name} must name the approved isolated target.`);
+  let origin: URL;
+  try {
+    origin = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid absolute origin.`);
+  }
+  if (
+    origin.origin === "null" ||
+    origin.username ||
+    origin.password ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash
+  ) {
+    throw new Error(`${name} must be a bare origin without credentials, path, query, or fragment.`);
+  }
+  return origin;
+}
+
+function isDirectLoopbackOrigin(origin: URL): boolean {
+  return ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname.toLowerCase());
+}
+
+/**
+ * Refuses both unsafe data targets and unapproved invite-link destinations.
+ * Returning the canonical origin means the CLI cannot accidentally build a
+ * link from an arbitrary environment value after the target check passes.
+ */
+export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.env): string {
   const target = env.TRAINING_HUB_INVITE_TARGET;
   const mode = env.TRAINING_HUB_ENV || "local";
   const remoteUrl = env.TURSO_DATABASE_URL || "";
@@ -244,13 +274,22 @@ export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.
   if (mode !== target || env.VERCEL_ENV === "production") {
     throw new Error("Invitation issuance target must match a non-production TRAINING_HUB_ENV.");
   }
+  const publicOrigin = parseCanonicalInviteOrigin(
+    env.TRAINING_HUB_PUBLIC_ORIGIN,
+    "TRAINING_HUB_PUBLIC_ORIGIN"
+  );
   if (target === "local") {
     if (remoteUrl || env.TURSO_AUTH_TOKEN || !resolvedDatabaseUrl.startsWith("file:")) {
       throw new Error(
         "Local invitation issuance requires an isolated file: database with no Turso credentials."
       );
     }
-    return;
+    if (!isDirectLoopbackOrigin(publicOrigin)) {
+      throw new Error(
+        "Local invitation issuance requires a direct loopback TRAINING_HUB_PUBLIC_ORIGIN."
+      );
+    }
+    return publicOrigin.origin;
   }
   if (
     env.VERCEL_ENV !== "preview" ||
@@ -262,6 +301,23 @@ export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.
       "Preview invitation issuance requires an explicitly labelled disposable preview database."
     );
   }
+
+  const approvedPreviewOrigin = parseCanonicalInviteOrigin(
+    env.TRAINING_HUB_INVITE_PREVIEW_ORIGIN,
+    "TRAINING_HUB_INVITE_PREVIEW_ORIGIN"
+  );
+  if (approvedPreviewOrigin.protocol !== "https:") {
+    throw new Error("Preview invitation issuance requires an HTTPS approved preview origin.");
+  }
+  if (approvedPreviewOrigin.hostname === "training-hub-psi-one.vercel.app") {
+    throw new Error("Preview invitation issuance must not use the production canonical origin.");
+  }
+  if (publicOrigin.origin !== approvedPreviewOrigin.origin) {
+    throw new Error(
+      "TRAINING_HUB_PUBLIC_ORIGIN must exactly match TRAINING_HUB_INVITE_PREVIEW_ORIGIN for preview issuance."
+    );
+  }
+  return publicOrigin.origin;
 }
 
 export function buildPrivateInviteUrl(origin: string, token: string): string {

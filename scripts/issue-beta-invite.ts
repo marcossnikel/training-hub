@@ -20,15 +20,12 @@ async function main() {
     throw new Error(
       "Usage: npm run beta:invite -- --email <email> --operator <operator> | --revoke-token <token> --operator <operator>"
     );
-  assertBetaInviteIssuanceTarget();
+  const origin = assertBetaInviteIssuanceTarget();
   if (revokeToken) {
     await revokeBetaInvite(revokeToken);
     console.log("Invitation revocation processed.");
     return;
   }
-  const origin = process.env.TRAINING_HUB_PUBLIC_ORIGIN;
-  if (!origin)
-    throw new Error("TRAINING_HUB_PUBLIC_ORIGIN must name the approved isolated target.");
   const invite = await issueBetaInvite({ email, issuedBy: operator });
   // This is the sole plaintext-token output. Do not copy it to a file, issue,
   // log service, or product surface; share it privately once with the athlete.

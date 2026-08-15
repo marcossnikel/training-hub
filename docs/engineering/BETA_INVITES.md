@@ -30,10 +30,14 @@ It intentionally reports no existence or redemption detail.
 The command fails closed unless its named target is `local` or `preview`, that
 target matches `TRAINING_HUB_ENV`, `TRAINING_HUB_DISPOSABLE_DATA=1` is explicit,
 and the database boundary is isolated. Local issuance refuses any Turso
-credential or non-`file:` database. Preview issuance requires a disposable
-preview-labelled remote database and `VERCEL_ENV=preview`; it is not an
-authorization to deploy, create a remote database, or issue a production
-invite.
+credential or non-`file:` database and only emits a direct loopback
+`TRAINING_HUB_PUBLIC_ORIGIN` (`localhost`, `127.0.0.1`, or `[::1]`). Preview
+issuance requires a disposable preview-labelled remote database,
+`VERCEL_ENV=preview`, and an exact HTTPS match between
+`TRAINING_HUB_PUBLIC_ORIGIN` and the separately approved
+`TRAINING_HUB_INVITE_PREVIEW_ORIGIN`; the known production canonical origin is
+explicitly refused. This is not an authorization to deploy, create a remote
+database, or issue a production invite.
 
 ## Security and lifecycle
 

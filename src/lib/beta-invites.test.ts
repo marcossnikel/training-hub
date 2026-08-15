@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -40,6 +39,7 @@ async function countInvites() {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   globalThis.__trainingHubClient = undefined;
   for (const suffix of ["", "-shm", "-wal", "-journal"]) {
@@ -95,6 +95,50 @@ describe("beta invitation server boundary", () => {
     globalThis.__trainingHubClient = undefined;
     vi.resetModules();
     expect(await countInvites()).toBe(1);
+  });
+
+  it("permits only direct loopback local links and an exactly approved HTTPS preview origin", async () => {
+    const { assertBetaInviteIssuanceTarget } = await import("./beta-invites");
+    const local = {
+      BETA_INVITE_REGISTRATION_ENABLED: "1",
+      TRAINING_HUB_DISPOSABLE_DATA: "1",
+      TRAINING_HUB_INVITE_TARGET: "local",
+      TRAINING_HUB_ENV: "local",
+      DATABASE_URL: "file:data/beta-invites-test.db",
+      TRAINING_HUB_PUBLIC_ORIGIN: "http://localhost:3100",
+    };
+    expect(assertBetaInviteIssuanceTarget(local)).toBe("http://localhost:3100");
+    expect(() =>
+      assertBetaInviteIssuanceTarget({
+        ...local,
+        TRAINING_HUB_PUBLIC_ORIGIN: "https://example.test",
+      })
+    ).toThrow("direct loopback");
+
+    const preview = {
+      BETA_INVITE_REGISTRATION_ENABLED: "1",
+      TRAINING_HUB_DISPOSABLE_DATA: "1",
+      TRAINING_HUB_INVITE_TARGET: "preview",
+      TRAINING_HUB_ENV: "preview",
+      VERCEL_ENV: "preview",
+      TURSO_DATABASE_URL: "libsql://training-hub-preview.turso.io",
+      TRAINING_HUB_PUBLIC_ORIGIN: "https://preview-60.training-hub.example",
+      TRAINING_HUB_INVITE_PREVIEW_ORIGIN: "https://preview-60.training-hub.example",
+    };
+    expect(assertBetaInviteIssuanceTarget(preview)).toBe("https://preview-60.training-hub.example");
+    expect(() =>
+      assertBetaInviteIssuanceTarget({
+        ...preview,
+        TRAINING_HUB_PUBLIC_ORIGIN: "https://other-preview.training-hub.example",
+      })
+    ).toThrow("exactly match");
+    expect(() =>
+      assertBetaInviteIssuanceTarget({
+        ...preview,
+        TRAINING_HUB_PUBLIC_ORIGIN: "https://training-hub-psi-one.vercel.app",
+        TRAINING_HUB_INVITE_PREVIEW_ORIGIN: "https://training-hub-psi-one.vercel.app",
+      })
+    ).toThrow("production canonical origin");
   });
 
   it("requires a matching opaque invitation at the Better Auth endpoint without leaking failure state", async () => {
@@ -198,18 +242,15 @@ describe("beta invitation server boundary", () => {
     const revokedResponse = await signUp({ email: revoked.email, token: revoked.token });
     expect(revokedResponse.status).toBe(401);
 
-    const expiredToken = crypto.randomBytes(32).toString("base64url");
-    await client.execute({
-      sql: `INSERT INTO beta_invites (id, token_hash, intended_email, issued_by, created_at, expires_at)
-            VALUES (?, ?, ?, ?, datetime('now'), datetime('now', '-1 minute'))`,
-      args: [
-        crypto.randomUUID(),
-        digestInviteToken(expiredToken),
-        "expired@example.test",
-        "test-operator",
-      ],
+    const actualNow = Date.now();
+    vi.setSystemTime(new Date(actualNow - 60_000));
+    const expired = await issueBetaInvite({
+      email: "expired@example.test",
+      issuedBy: "test-operator",
+      expiresAt: new Date(actualNow - 1_000),
     });
-    const expiredResponse = await signUp({ email: "expired@example.test", token: expiredToken });
+    vi.useRealTimers();
+    const expiredResponse = await signUp({ email: expired.email, token: expired.token });
     expect(expiredResponse.status).toBe(401);
 
     const second = await issueBetaInvite({
