@@ -29,6 +29,8 @@ The baseline median for time and sessions uses only baseline weeks containing at
 
 Candidates are ranked by absolute normalized threshold distance: percentage/20 for training time, the larger of absolute session-count change and percentage/25 for sessions, percentage-point change/20 for sport mix, and share/40% for longest-session concentration. Ties use the fixed kind order above, then the earliest source local date and ID.
 
+Eligibility and ranking always use the unrounded values. Values are rounded only in the returned observation and its copy, so an underlying 19.999% change cannot qualify merely because it displays as 20%.
+
 To avoid overlapping claims, selection keeps at most one training-time/session-frequency change and at most one sport-mix/longest-session context. The public return remains capped at three observations. This initial set therefore returns at most two, intentionally.
 
 Copy is derived only from returned values. It says what changed and which window produced it; it does not claim causality, confidence, freshness, completeness, readiness, health, threshold zones, quality, or make a recommendation. A later adapter/UI must separately disclose sync freshness and partial-import state under an accepted connection contract.

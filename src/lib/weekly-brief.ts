@@ -181,8 +181,8 @@ function rounded(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
-function percent(value: number, baseline: number): number {
-  return rounded(((value - baseline) / baseline) * 100);
+function rawPercent(value: number, baseline: number): number {
+  return ((value - baseline) / baseline) * 100;
 }
 
 function hoursMinutes(seconds: number): string {
@@ -291,10 +291,11 @@ export function buildWeeklyBrief(input: WeeklyBriefInput): WeeklyBriefResult {
   const candidates: Candidate[] = [];
 
   if (currentSeconds >= 60 * 60 && baselineMedianSeconds > 0) {
-    const changePercent = percent(currentSeconds, baselineMedianSeconds);
-    if (Math.abs(changePercent) >= 20) {
+    const rawChangePercent = rawPercent(currentSeconds, baselineMedianSeconds);
+    if (Math.abs(rawChangePercent) >= 20) {
+      const changePercent = rounded(rawChangePercent);
       candidates.push({
-        strength: Math.abs(changePercent) / 20,
+        strength: Math.abs(rawChangePercent) / 20,
         observation: {
           kind: "training_time_change",
           ...common,
@@ -311,10 +312,11 @@ export function buildWeeklyBrief(input: WeeklyBriefInput): WeeklyBriefResult {
 
   if (currentSessions >= 2 && baselineMedianSessions > 0) {
     const changeCount = currentSessions - baselineMedianSessions;
-    const changePercent = percent(currentSessions, baselineMedianSessions);
-    if (Math.abs(changeCount) >= 1 && Math.abs(changePercent) >= 25) {
+    const rawChangePercent = rawPercent(currentSessions, baselineMedianSessions);
+    if (Math.abs(changeCount) >= 1 && Math.abs(rawChangePercent) >= 25) {
+      const changePercent = rounded(rawChangePercent);
       candidates.push({
-        strength: Math.max(Math.abs(changeCount), Math.abs(changePercent) / 25),
+        strength: Math.max(Math.abs(changeCount), Math.abs(rawChangePercent) / 25),
         observation: {
           kind: "session_frequency_change",
           ...common,
@@ -341,12 +343,15 @@ export function buildWeeklyBrief(input: WeeklyBriefInput): WeeklyBriefResult {
       const baselineSportSeconds = baseline
         .filter((activity) => activity.sportType === sportType)
         .reduce((sum, activity) => sum + activity.movingTimeS, 0);
-      const currentShare = rounded(currentSportSeconds / currentSeconds);
-      const baselineShare = rounded(baselineSportSeconds / baselineTotalSeconds);
-      const changePercentagePoints = rounded((currentShare - baselineShare) * 100);
-      if (Math.abs(changePercentagePoints) < 20) continue;
+      const rawCurrentShare = currentSportSeconds / currentSeconds;
+      const rawBaselineShare = baselineSportSeconds / baselineTotalSeconds;
+      const rawChangePercentagePoints = (rawCurrentShare - rawBaselineShare) * 100;
+      if (Math.abs(rawChangePercentagePoints) < 20) continue;
+      const currentShare = rounded(rawCurrentShare);
+      const baselineShare = rounded(rawBaselineShare);
+      const changePercentagePoints = rounded(rawChangePercentagePoints);
       candidates.push({
-        strength: Math.abs(changePercentagePoints) / 20,
+        strength: Math.abs(rawChangePercentagePoints) / 20,
         observation: {
           kind: "sport_mix_change",
           ...common,
@@ -372,10 +377,11 @@ export function buildWeeklyBrief(input: WeeklyBriefInput): WeeklyBriefResult {
       String(a.id).localeCompare(String(b.id))
   )[0];
   if (longest && currentSeconds >= 120 * 60 && longest.movingTimeS >= 45 * 60) {
-    const longestSessionShare = rounded(longest.movingTimeS / currentSeconds);
-    if (longestSessionShare >= 0.4) {
+    const rawLongestSessionShare = longest.movingTimeS / currentSeconds;
+    if (rawLongestSessionShare >= 0.4) {
+      const longestSessionShare = rounded(rawLongestSessionShare);
       candidates.push({
-        strength: longestSessionShare / 0.4,
+        strength: rawLongestSessionShare / 0.4,
         observation: {
           kind: "longest_session_concentration",
           ...common,

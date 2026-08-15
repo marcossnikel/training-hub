@@ -72,6 +72,14 @@ describe("buildWeeklyBrief", () => {
     expect(stable.state).toBe("no_material_change");
   });
 
+  it("does not let a rounded just-under-20% time change qualify", () => {
+    const result = buildWeeklyBrief({
+      asOfWeekStart: AS_OF,
+      activities: [...baseline(), activity("current", "2026-08-11", 80.0004)],
+    });
+    expect(result.observations.some((item) => item.kind === "training_time_change")).toBe(false);
+  });
+
   it("reports frequency only when its count and percentage gates both qualify", () => {
     const result = buildWeeklyBrief({
       asOfWeekStart: AS_OF,
@@ -109,6 +117,23 @@ describe("buildWeeklyBrief", () => {
     expect(countOnly.observations.some((item) => item.kind === "session_frequency_change")).toBe(
       false
     );
+
+    // Session counts are discrete, so a count change can pass while its
+    // percentage does not: 4 versus a 5-session median is -20%, not -25%.
+    const percentOnly = buildWeeklyBrief({
+      asOfWeekStart: AS_OF,
+      activities: [
+        ...["2026-07-14", "2026-07-21", "2026-07-28", "2026-08-04"].flatMap((day, i) =>
+          Array.from({ length: 5 }, (_, session) => activity(`p${i}-${session}`, day, 12))
+        ),
+        ...["2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13"].map((day, i) =>
+          activity(`q${i}`, day, 15)
+        ),
+      ],
+    });
+    expect(percentOnly.observations.some((item) => item.kind === "session_frequency_change")).toBe(
+      false
+    );
   });
 
   it("reports sport mix at the 20 percentage-point boundary and ignores a smaller change", () => {
@@ -144,6 +169,16 @@ describe("buildWeeklyBrief", () => {
       ],
     });
     expect(below.state).toBe("no_material_change");
+
+    const roundedBelow = buildWeeklyBrief({
+      asOfWeekStart: AS_OF,
+      activities: [
+        ...mixedBaseline,
+        activity("current-run", "2026-08-11", 49.99933333333333),
+        activity("current-ride", "2026-08-12", 50.00066666666667, { sportType: "Ride" }),
+      ],
+    });
+    expect(roundedBelow.observations.some((item) => item.kind === "sport_mix_change")).toBe(false);
   });
 
   it("reports longest-session concentration at all boundaries without judging its distribution", () => {
@@ -180,6 +215,19 @@ describe("buildWeeklyBrief", () => {
     expect(short.observations.some((item) => item.kind === "longest_session_concentration")).toBe(
       false
     );
+
+    const roundedBelow = buildWeeklyBrief({
+      asOfWeekStart: AS_OF,
+      activities: [
+        ...baseline(120),
+        activity("longest", "2026-08-11", 47.99952),
+        activity("other-a", "2026-08-12", 36.00024),
+        activity("other-b", "2026-08-13", 36.00024),
+      ],
+    });
+    expect(
+      roundedBelow.observations.some((item) => item.kind === "longest_session_concentration")
+    ).toBe(false);
   });
 
   it("requires 3 of 4 nonempty baseline weeks and marks the three-week limitation", () => {
