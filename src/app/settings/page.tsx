@@ -1,18 +1,32 @@
-import { CableIcon, CheckCircle2Icon, CircleAlertIcon, KeyRoundIcon } from "lucide-react";
+import { headers } from "next/headers";
+import { CableIcon, CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SyncButton } from "@/components/sync-button";
 import { DisconnectButton, GearMatcher, ManualActivityForm } from "@/components/settings-forms";
+import { ByoConnectionForm } from "@/components/byo-connection-form";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { GoalsManager } from "@/components/goals-manager";
-import { getAthleteThresholds, getMeta, listBikes, listGoals, listShoes } from "@/lib/db";
+import {
+  getAthleteThresholds,
+  getMeta,
+  getStravaConnectionStatus,
+  listBikes,
+  listGoals,
+  listShoes,
+} from "@/lib/db";
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected, stravaConfigured, tryFetchAllGear } from "@/lib/strava";
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { requireCurrentUser } from "@/lib/auth";
+import {
+  callbackUrlForOrigin,
+  deriveCurrentRequestOrigin,
+  STRAVA_BYO_SCOPE,
+} from "@/lib/strava-byo";
 
 export const metadata = { title: "Settings" };
 
@@ -21,8 +35,13 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   if (!owner) return null;
   const params = await searchParams;
   const { lang, t } = await getDict();
-  const configured = stravaConfigured();
   const connected = await isStravaConnected(owner);
+  // This stays deliberately limited to the unmodified legacy connection UI.
+  // The new BYO credential form and handoff never read either global env value.
+  const legacyConfigured = stravaConfigured();
+  const connectionStatus = await getStravaConnectionStatus(owner);
+  const callbackOrigin = deriveCurrentRequestOrigin(await headers());
+  const callbackUrl = callbackOrigin ? callbackUrlForOrigin(callbackOrigin) : null;
   const athleteName = await getMeta(owner, "athlete_name");
   const lastSync = await getMeta(owner, "last_sync_at");
   const baselineDate = await getMeta(owner, "baseline_date");
@@ -65,43 +84,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             <CardDescription>{t.settingsPage.stravaBody}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!configured ? (
-              <div className="space-y-3 text-sm">
-                <p className="flex items-center gap-2 font-medium">
-                  <KeyRoundIcon className="size-4 text-wear-worn" aria-hidden />
-                  {t.settingsPage.keysMissing}
-                </p>
-                <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
-                  <li>
-                    {t.settingsPage.step1a}{" "}
-                    <a
-                      href="https://www.strava.com/settings/api"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline underline-offset-2 hover:text-foreground"
-                    >
-                      strava.com/settings/api
-                    </a>{" "}
-                    {t.settingsPage.step1b}{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                      localhost
-                    </code>
-                  </li>
-                  <li>
-                    {t.settingsPage.step2a}{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                      .env.example
-                    </code>{" "}
-                    {t.settingsPage.step2b}{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                      .env.local
-                    </code>{" "}
-                    {t.settingsPage.step2c}
-                  </li>
-                  <li>{t.settingsPage.step3}</li>
-                </ol>
-              </div>
-            ) : connected ? (
+            {connected && legacyConfigured ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm">
                   <p className="flex items-center gap-2 font-medium">
@@ -127,22 +110,69 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
                   <DisconnectButton />
                 </div>
               </div>
+            ) : connectionStatus === "connected" ? (
+              <Alert>
+                <CircleAlertIcon aria-hidden />
+                <AlertTitle>Connection completion is not available yet</AlertTitle>
+                <AlertDescription>
+                  This existing connection cannot be changed from Settings until its authorization
+                  completion path is available. No credentials are shown here.
+                </AlertDescription>
+              </Alert>
             ) : (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm">
+              <div className="space-y-5">
+                <div className="space-y-2 text-sm">
                   <p className="flex items-center gap-2 font-medium">
-                    <span aria-hidden className="size-2 rounded-full bg-muted-foreground/40" />
-                    {t.settingsPage.notConnected}
+                    <CableIcon className="size-4 text-muted-foreground" aria-hidden />
+                    Connect your Strava app
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t.settingsPage.notConnectedBody}
+                  <p className="text-muted-foreground">
+                    This beta connects through a Strava app you create and control. We’ll ask only
+                    for the approved access needed to import your training history.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Requested access:{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                      {STRAVA_BYO_SCOPE}
+                    </code>
+                    . Training Hub reads your data and does not write anything to Strava. Using your
+                    own app does not resolve Strava’s platform or commercial requirements.
                   </p>
                 </div>
-                <Button asChild>
-                  <a href="/api/strava/connect">
-                    <CableIcon data-icon="inline-start" /> {t.settingsPage.connect}
-                  </a>
-                </Button>
+                <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                  <p className="font-medium">Create and configure your app</p>
+                  <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-muted-foreground">
+                    <li>
+                      Create an app in{" "}
+                      <a
+                        href="https://www.strava.com/settings/api"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline underline-offset-2 hover:text-foreground"
+                      >
+                        Strava’s API settings
+                      </a>{" "}
+                      that you control.
+                    </li>
+                    <li id="callback-help">
+                      Register this exact callback URL for this environment:{" "}
+                      {callbackUrl ? (
+                        <code className="break-all rounded bg-background px-1 py-0.5 font-mono text-xs">
+                          {callbackUrl}
+                        </code>
+                      ) : (
+                        <span>
+                          unavailable until this Settings page can determine its current origin.
+                        </span>
+                      )}
+                    </li>
+                    <li>Enter the Client ID and Client Secret from that app below.</li>
+                  </ol>
+                </div>
+                <ByoConnectionForm
+                  callbackUrl={callbackUrl}
+                  pendingAuthorization={connectionStatus === "pending_authorization"}
+                />
               </div>
             )}
 

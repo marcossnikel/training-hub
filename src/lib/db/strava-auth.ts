@@ -27,12 +27,102 @@ interface EncryptedConnectionRow {
   expires_at: number | null;
   strava_athlete_id: number | null;
   granted_scope: string | null;
+  status: string;
+}
+
+export type StravaConnectionStatus = "disconnected" | "pending_authorization" | "connected";
+
+export interface PendingStravaConnectionInput {
+  client_id: string;
+  client_secret: string;
+}
+
+interface PendingAuthorizationRow {
+  client_id: string | null;
+  client_secret_ciphertext: string | null;
+  encryption_key_version: number | null;
+  status: string;
+}
+
+/** A safe, browser-renderable state. It deliberately contains no credential material. */
+export async function getStravaConnectionStatus(
+  owner: OwnerContext
+): Promise<StravaConnectionStatus> {
+  const row = await one<{ status: string }>(
+    "SELECT status FROM strava_connections WHERE user_id = ?",
+    [owner.userId]
+  );
+  if (row?.status === "pending_authorization" || row?.status === "connected") return row.status;
+  return "disconnected";
+}
+
+/**
+ * Server-only authorization handoff read. The encrypted secret stays unread
+ * because the authorize endpoint has no legitimate use for it; #31 may read it
+ * only when exchanging a code server-side.
+ */
+export async function getPendingStravaAuthorization(
+  owner: OwnerContext
+): Promise<{ client_id: string } | null> {
+  const row = await one<PendingAuthorizationRow>(
+    `SELECT client_id, client_secret_ciphertext, encryption_key_version, status
+     FROM strava_connections WHERE user_id = ?`,
+    [owner.userId]
+  );
+  if (
+    row?.status !== "pending_authorization" ||
+    !row.client_id ||
+    !row.client_secret_ciphertext ||
+    row.encryption_key_version !== 1
+  ) {
+    return null;
+  }
+  return { client_id: row.client_id };
+}
+
+/**
+ * Writes one owner-bound pending credential pair. Once a handoff is held, a
+ * repeat form post cannot replace it; the UI exposes only the continuation and
+ * avoids a duplicate authorization attempt. A connected record is never
+ * modified by the #30 setup path.
+ */
+export async function savePendingStravaConnection(
+  owner: OwnerContext,
+  input: PendingStravaConnectionInput
+): Promise<boolean> {
+  const result = await exec(
+    `INSERT INTO strava_connections
+       (id, user_id, client_id, client_secret_ciphertext, encryption_key_version,
+        access_token_ciphertext, refresh_token_ciphertext, expires_at, strava_athlete_id,
+        granted_scope, status)
+     VALUES (?, ?, ?, ?, 1, NULL, NULL, NULL, NULL, NULL, 'pending_authorization')
+     ON CONFLICT(user_id) DO UPDATE SET
+       client_id = excluded.client_id,
+       client_secret_ciphertext = excluded.client_secret_ciphertext,
+       access_token_ciphertext = NULL,
+       refresh_token_ciphertext = NULL,
+       encryption_key_version = excluded.encryption_key_version,
+       expires_at = NULL,
+       strava_athlete_id = NULL,
+       granted_scope = NULL,
+       status = excluded.status,
+       updated_at = datetime('now')
+     WHERE strava_connections.status = 'disconnected'
+     RETURNING id`,
+    [
+      crypto.randomUUID(),
+      owner.userId,
+      input.client_id,
+      encryptStravaSecret(owner.userId, "client_secret", input.client_secret),
+    ]
+  );
+  return result.rows.length === 1;
 }
 
 export async function getStravaAuth(owner: OwnerContext): Promise<StravaAuthRow | null> {
   const row = await one<EncryptedConnectionRow>(
     `SELECT access_token_ciphertext, refresh_token_ciphertext, encryption_key_version, expires_at,
-            client_id, client_secret_ciphertext, strava_athlete_id, granted_scope
+            client_id, client_secret_ciphertext, strava_athlete_id, granted_scope, status
      FROM strava_connections WHERE user_id = ?`,
     [owner.userId]
   );
@@ -58,7 +148,7 @@ export async function getStravaConnection(
 ): Promise<StravaConnectionInput | null> {
   const row = await one<EncryptedConnectionRow>(
     `SELECT client_id, client_secret_ciphertext, access_token_ciphertext, encryption_key_version,
-            refresh_token_ciphertext, expires_at, strava_athlete_id, granted_scope
+            refresh_token_ciphertext, expires_at, strava_athlete_id, granted_scope, status
      FROM strava_connections WHERE user_id = ?`,
     [owner.userId]
   );
