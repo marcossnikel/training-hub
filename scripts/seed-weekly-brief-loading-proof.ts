@@ -12,7 +12,10 @@ import path from "node:path";
 
 const OWNER = "legacy-local-owner";
 const MARKER = '{"seed":true,"weeklyBriefLoadingProof":true}';
-const ROWS_PER_WEEK = 1_000;
+// Five thousand rows occasionally resolve from a warmed local SQLite database
+// before React emits its fallback. Ten thousand keeps this proof workload
+// reproducible without a route-only delay or fault hook.
+const ROWS_PER_WEEK = 2_000;
 
 function databaseUrl(): string {
   const url = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || "file:data/app.db";

@@ -4,7 +4,7 @@
  * It deliberately uses the final route, final error boundary, and normal client
  * navigation — no request interception, preview route, or runtime delay.
  */
-import { chromium, type Page } from "@playwright/test";
+import { chromium } from "@playwright/test";
 import { createClient } from "@libsql/client";
 import path from "node:path";
 
@@ -51,21 +51,20 @@ async function authenticateDisposableFixture(): Promise<void> {
   }
 }
 
-async function gotoWeeklyBrief(page: Page) {
-  await page.goto(baseUrl);
-  await page.getByRole("link", { name: "Weekly brief", exact: true }).click();
-}
-
 async function captureLoading(reducedMotion: boolean, output: string): Promise<number> {
   const browser = await chromium.launch();
   const context = await browser.newContext({
     storageState,
     viewport: { width: 390, height: 844 },
     reducedMotion: reducedMotion ? "reduce" : "no-preference",
+    extraHTTPHeaders: { "Cache-Control": "no-cache" },
   });
   const page = await context.newPage();
   const started = performance.now();
-  await gotoWeeklyBrief(page);
+  // A direct final-route request exercises the HTML streaming boundary. Client
+  // transitions only receive an RSC payload, so they cannot prove the route's
+  // server-rendered fallback paints before this route's data work resolves.
+  await page.goto(`${baseUrl}/weekly-brief`, { waitUntil: "commit" });
   const loading = page.getByLabel("Loading weekly brief");
   const loaderVisible = await loading
     .waitFor({ state: "visible", timeout: 30_000 })
@@ -115,7 +114,7 @@ async function captureDefaultAndMobile(): Promise<void> {
     path: path.join(evidence, "35-weekly-brief-default-390.png"),
     fullPage: false,
   });
-  await baseline.scrollIntoViewIfNeeded();
+  await baseline.evaluate((element) => element.scrollIntoView({ block: "start" }));
   await mobilePage.screenshot({
     path: path.join(evidence, "35-weekly-brief-default-baseline-390.png"),
     fullPage: false,
@@ -134,8 +133,12 @@ async function captureError(): Promise<void> {
   });
   const page = await context.newPage();
   try {
-    await database.execute("DROP TABLE activities");
-    await page.goto(`${baseUrl}/weekly-brief`);
+    // Keep root chrome operable and break only the weekly projection. This is a
+    // disposable local schema mutation; the next e2e seed recreates the file.
+    await database.execute(
+      "ALTER TABLE activities RENAME COLUMN started_at_local TO started_at_local_proof_error"
+    );
+    await page.goto(`${baseUrl}/weekly-brief`, { waitUntil: "commit" });
     await page
       .getByRole("heading", { level: 1, name: "We couldn’t load this weekly brief." })
       .waitFor({
@@ -170,12 +173,28 @@ async function main() {
     );
     return;
   }
+  if (process.argv.includes("--loading-reduced-motion")) {
+    const denseReducedMotionFinalMs = await captureLoading(
+      true,
+      "35-weekly-brief-loading-reduced-motion-390.png"
+    );
+    console.log(`Dense reduced-motion final-route duration: ${denseReducedMotionFinalMs}ms.`);
+    return;
+  }
   if (process.argv.includes("--normal")) {
     await captureDefaultAndMobile();
     await captureError();
     return;
   }
-  throw new Error("Pass --loading or --normal.");
+  if (process.argv.includes("--mobile")) {
+    await captureDefaultAndMobile();
+    return;
+  }
+  if (process.argv.includes("--error")) {
+    await captureError();
+    return;
+  }
+  throw new Error("Pass --loading, --loading-reduced-motion, --normal, --mobile, or --error.");
 }
 
 main().catch((error) => {
