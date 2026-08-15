@@ -141,12 +141,14 @@ describe("owner-scoped domain access", () => {
       health_notes: null,
     });
     await db.setShoeRetired(ownerB, shoeA, true);
+    await db.setShoeRetired(ownerA, shoeB, true);
     await db.setActivityBike(ownerB, activityA, bikeA);
     await db.deleteGoal(ownerB, goalA);
 
     const activity = await db.getActivity(ownerA, activityA);
     expect(activity?.workout_notes).toBeNull();
     expect((await db.getShoe(ownerA, shoeA))?.retired_at).toBeNull();
+    expect((await db.getShoe(ownerB, shoeB))?.retired_at).toBeNull();
     expect(activity?.bike_id).toBeNull();
     expect((await db.listGoals(ownerA)).map((goal) => goal.id)).toEqual([goalA]);
   });
