@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
-import { LogInIcon, UserPlusIcon } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/components/i18n-provider";
 import { authClient } from "@/lib/auth-client";
-
-const GENERIC_SIGN_IN_ERROR = "We couldn't sign you in with those details.";
-const GENERIC_SIGN_UP_ERROR = "We couldn't create that account. Try another email or sign in.";
 
 export function AuthForm({
   mode,
@@ -20,8 +17,14 @@ export function AuthForm({
   inviteToken?: string;
 }) {
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [pending, startTransition] = useTransition();
+  const submittingRef = useRef(false);
+  const statusRef = useRef<HTMLParagraphElement>(null);
   const signUp = mode === "sign-up";
 
   // Keep the one-time token only in component memory while the athlete fills
@@ -32,80 +35,168 @@ export function AuthForm({
     window.history.replaceState(null, "", window.location.pathname);
   }, [inviteToken, signUp]);
 
+  useEffect(() => {
+    if (error) statusRef.current?.focus();
+  }, [error]);
+
   function submit(formData: FormData) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const email = String(formData.get("email") ?? "");
-      const password = String(formData.get("password") ?? "");
-      const result = signUp
-        ? await authClient.signUp.email({
-            name: String(formData.get("name") ?? ""),
-            email,
-            password,
-            inviteToken: inviteToken ?? "",
-          })
-        : await authClient.signIn.email({ email, password });
+      try {
+        const email = String(formData.get("email") ?? "");
+        const password = String(formData.get("password") ?? "");
+        const result = signUp
+          ? await authClient.signUp.email({
+              name: String(formData.get("name") ?? ""),
+              email,
+              password,
+              inviteToken: inviteToken ?? "",
+            })
+          : await authClient.signIn.email({ email, password });
 
-      if (result.error) {
-        setError(signUp ? GENERIC_SIGN_UP_ERROR : GENERIC_SIGN_IN_ERROR);
-        return;
+        if (result.error) {
+          setError(signUp ? t.authEntry.signUpError : t.authEntry.signInError);
+          return;
+        }
+        const next = searchParams.get("next");
+        window.location.assign(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
+      } catch {
+        setError(signUp ? t.authEntry.signUpError : t.authEntry.signInError);
+      } finally {
+        submittingRef.current = false;
       }
-      const next = searchParams.get("next");
-      window.location.assign(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
     });
   }
 
+  const pendingText = signUp ? t.authEntry.creatingAccount : t.authEntry.signingIn;
+  const submitText = signUp ? t.authEntry.createAccount : t.authEntry.signIn;
+
   return (
-    <form
-      action={submit}
-      className="space-y-4"
-      aria-describedby={error ? "auth-status" : undefined}
-    >
+    <form action={submit} className="max-w-[27.5rem] space-y-5" aria-describedby="auth-status">
       {signUp ? (
         <div className="space-y-1.5">
-          <Label htmlFor="name">Name</Label>
-          <Input id="name" name="name" autoComplete="name" required minLength={2} />
+          <Label id="invitation-label" className="text-xs tracking-wide text-muted-foreground">
+            {t.authEntry.invitation}
+          </Label>
+          <div
+            aria-labelledby="invitation-label"
+            aria-describedby="invitation-hint"
+            className="flex min-h-12 items-center rounded-lg border border-input bg-background px-3 text-base"
+          >
+            {t.authEntry.invitationReady}
+          </div>
+          <p
+            id="invitation-hint"
+            className="font-mono text-xs leading-[1.125rem] text-muted-foreground"
+          >
+            {t.authEntry.invitationHint}
+          </p>
+        </div>
+      ) : null}
+      {signUp ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="name" className="text-xs tracking-wide text-muted-foreground">
+            {t.authEntry.name}
+          </Label>
+          <Input
+            id="name"
+            name="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            autoComplete="name"
+            required
+            minLength={2}
+            autoFocus
+            className="h-12 px-3 text-base md:text-base"
+          />
         </div>
       ) : null}
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" autoFocus required />
+        <Label htmlFor="email" className="text-xs tracking-wide text-muted-foreground">
+          {t.authEntry.email}
+        </Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="email"
+          autoFocus={!signUp}
+          required
+          placeholder={t.authEntry.emailPlaceholder}
+          aria-describedby={signUp ? "invite-email-hint" : undefined}
+          className="h-12 px-3 text-base md:text-base"
+        />
+        {signUp ? (
+          <p
+            id="invite-email-hint"
+            className="font-mono text-xs leading-[1.125rem] text-muted-foreground"
+          >
+            {t.authEntry.inviteEmailHint}
+          </p>
+        ) : null}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password" className="text-xs tracking-wide text-muted-foreground">
+          {t.authEntry.password}
+        </Label>
         <Input
           id="password"
           name="password"
           type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
           autoComplete={signUp ? "new-password" : "current-password"}
           required
           minLength={8}
+          aria-describedby="password-hint"
+          className="h-12 px-3 text-base md:text-base"
         />
+        <p
+          id="password-hint"
+          className="font-mono text-xs leading-[1.125rem] text-muted-foreground"
+        >
+          {signUp ? t.authEntry.passwordReuse : t.authEntry.passwordMinimum}
+        </p>
       </div>
       <p
         id="auth-status"
+        ref={statusRef}
+        tabIndex={error ? -1 : undefined}
         aria-live="polite"
         role={error ? "alert" : undefined}
-        className={error ? "text-sm text-destructive" : "sr-only"}
+        className={
+          error
+            ? "rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive outline-none"
+            : "sr-only"
+        }
       >
-        {error ?? (pending ? "Working…" : "")}
+        {error ?? (pending ? pendingText : "")}
       </p>
-      <Button type="submit" disabled={pending} className="w-full">
-        {signUp ? (
-          <UserPlusIcon data-icon="inline-start" />
-        ) : (
-          <LogInIcon data-icon="inline-start" />
-        )}
-        {pending ? "Working…" : signUp ? "Create account" : "Log in"}
+      <Button
+        type="submit"
+        disabled={pending}
+        className="h-12 rounded-full px-5 text-base disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+      >
+        {pending ? pendingText : submitText}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">
-        {signUp ? "Already have an account? " : "New to Training Hub? "}
-        <Link
-          className="focus-ring rounded-sm text-foreground underline underline-offset-4"
-          href={signUp ? "/login" : "/sign-up"}
-        >
-          {signUp ? "Log in" : "Create an account"}
-        </Link>
+      <p className="text-sm leading-6 text-muted-foreground">
+        {signUp ? (
+          <>
+            {t.authEntry.alreadyHaveAccount}{" "}
+            <Link
+              className="focus-ring rounded-sm font-medium text-foreground underline underline-offset-4"
+              href="/login"
+            >
+              {t.authEntry.signInInstead}
+            </Link>
+          </>
+        ) : (
+          t.authEntry.signInInviteBoundary
+        )}
       </p>
     </form>
   );

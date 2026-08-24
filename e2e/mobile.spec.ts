@@ -3,13 +3,12 @@ import { test, expect } from "@playwright/test";
 /**
  * Narrow-viewport layout guard. Runs only in the "mobile" project (375px wide).
  *
- * The header packs a logo, six nav links and a four-control right cluster into a
- * single 56px row. That does not fit a phone, so the nav is a horizontal
- * scroller below md. These specs assert the two halves of that contract: the
- * page never scrolls sideways, and the nav is the thing absorbing the overflow.
+ * The compact shell keeps account/connection context and utilities above a
+ * horizontal destination rail. These specs assert that the document never
+ * scrolls sideways and that the rail—not the page—absorbs navigation overflow.
  */
 
-const ROUTES = ["/", "/weekly-brief", "/performance", "/races", "/gear", "/settings"];
+const ROUTES = ["/", "/review", "/weekly-brief", "/performance", "/races", "/gear", "/settings"];
 
 for (const route of ROUTES) {
   test(`${route} does not overflow horizontally at 375px`, async ({ page }) => {
@@ -71,11 +70,38 @@ test("the icon-only sync button keeps its accessible name at 375px", async ({ pa
   expect(labelWidth).toBeLessThan(2);
 });
 
-test("the header stays a single 56px row at 375px", async ({ page }) => {
+test("the compact shell preserves destination order, current location and account context", async ({
+  page,
+}) => {
   await page.goto("/");
-  const header = page.locator("header > div");
-  await expect(header).toBeVisible();
-  // h-14 = 56px. A wrapped nav would push this taller, which is the symptom the
-  // desktop-only projects could never see.
-  await expect(header).toHaveCSS("height", "56px");
+  const shell = page.locator('[data-app-shell="compact"]');
+  await expect(shell).toBeVisible();
+  await expect(page.locator('[data-app-shell="wide"]')).toBeHidden();
+
+  const links = shell.getByRole("navigation", { name: "Main" }).getByRole("link");
+  await expect(links).toHaveCount(7);
+  await expect(links).toHaveText([
+    "Training log",
+    /Review/,
+    "Weekly brief",
+    "Performance",
+    "Races",
+    "Gear",
+    "Settings",
+  ]);
+  await expect(links.nth(0)).toHaveAttribute("href", "/");
+  await expect(links.nth(0)).toHaveAttribute("aria-current", "page");
+  await expect(shell.getByText("e2e@example.test")).toBeVisible();
+  await expect(shell.getByText("Strava not connected")).toBeVisible();
+  await expect(shell.getByRole("button", { name: "Dark theme" })).toHaveAttribute(
+    "aria-pressed",
+    /true|false/
+  );
+  await expect(shell.getByRole("group", { name: "Language" })).toBeVisible();
+
+  for (const name of ["Sync", "Dark theme", "Log out"]) {
+    const box = await shell.getByRole("button", { name, exact: true }).boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(40);
+    expect(box?.height).toBeGreaterThanOrEqual(40);
+  }
 });

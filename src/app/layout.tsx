@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, Geist_Mono } from "next/font/google";
+import {
+  Barlow,
+  Barlow_Condensed,
+  Geist_Mono,
+  Instrument_Sans,
+  Instrument_Serif,
+} from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/components/i18n-provider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -33,6 +39,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument-sans",
+  subsets: ["latin"],
+  weight: "variable",
+});
+
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+});
+
 export const metadata: Metadata = {
   title: {
     default: "Training Hub",
@@ -59,7 +77,7 @@ export default async function RootLayout({
     <html
       lang={lang === "pt" ? "pt-BR" : "en"}
       suppressHydrationWarning
-      className={`${barlow.variable} ${barlowCondensed.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${barlow.variable} ${barlowCondensed.variable} ${geistMono.variable} ${instrumentSans.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider
@@ -80,8 +98,15 @@ export default async function RootLayout({
               connected={connected}
               autoSync={autoSync}
               auth={auth}
+              accountEmail={owner?.email}
             />
-            <main id="main-content" tabIndex={-1} className="flex-1">
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className={
+                owner ? "th-foundation min-w-0 flex-1 bg-background lg:pl-64" : "min-w-0 flex-1"
+              }
+            >
               {children}
             </main>
             <Toaster />

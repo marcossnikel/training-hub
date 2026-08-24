@@ -1,48 +1,43 @@
-import { UserPlusIcon } from "lucide-react";
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { redirect } from "next/navigation";
+import { AuthShell } from "@/components/auth-shell";
 import { SignupForm } from "@/components/signup-form";
 import { isOpaqueInviteToken } from "@/lib/beta-invites";
+import { getDict } from "@/lib/lang";
 
 export const metadata = { title: "Create account" };
 
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invite?: string }>;
+  searchParams: Promise<{ invite?: string | string[] }>;
 }) {
-  const { invite } = await searchParams;
+  const params = await searchParams;
+  const invite = typeof params.invite === "string" ? params.invite : undefined;
+  if (params.invite !== undefined && !isOpaqueInviteToken(invite)) redirect("/sign-up");
   const hasInvite = isOpaqueInviteToken(invite);
+  const { t } = await getDict();
+
   return (
-    <div className="mx-auto flex min-h-[70vh] max-w-sm items-center px-4">
-      <Card className="w-full">
-        <CardHeader>
-          <div className="mb-1 flex size-9 items-center justify-center rounded-lg bg-muted">
-            <UserPlusIcon className="size-4.5 text-muted-foreground" />
-          </div>
-          <CardTitle as="h1">{hasInvite ? "Create your account" : "Private beta"}</CardTitle>
-          <CardDescription>
-            {hasInvite
-              ? "Create your private training journal."
-              : "This beta is invitation-only. Use the private registration link from your invitation."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {hasInvite ? (
-            <SignupForm inviteToken={invite} />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link
-                className="focus-ring rounded-sm text-foreground underline underline-offset-4"
-                href="/login"
-              >
-                Log in
-              </Link>
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <AuthShell
+      mode="sign-up"
+      invited={hasInvite}
+      title={hasInvite ? t.authEntry.signUpTitle : t.authEntry.unavailableTitle}
+      description={hasInvite ? t.authEntry.signUpDescription : t.authEntry.unavailableDescription}
+    >
+      {hasInvite ? (
+        <SignupForm inviteToken={invite} />
+      ) : (
+        <div className="rounded-xl border bg-card p-5 text-sm leading-6 text-muted-foreground">
+          <p>{t.authEntry.alreadyHaveAccount}</p>
+          <Link
+            className="focus-ring mt-3 inline-flex min-h-11 items-center rounded-full border px-4 font-medium text-foreground underline-offset-4 hover:bg-muted hover:underline"
+            href="/login"
+          >
+            {t.authEntry.signInInstead}
+          </Link>
+        </div>
+      )}
+    </AuthShell>
   );
 }

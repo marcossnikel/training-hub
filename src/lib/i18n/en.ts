@@ -5,7 +5,7 @@ import type { CurveBucketKey } from "../curves";
 
 export const en = {
   nav: {
-    log: "Log",
+    log: "Training log",
     weeklyBrief: "Weekly brief",
     performance: "Performance",
     races: "Races",
@@ -20,6 +20,52 @@ export const en = {
     syncing: "Syncing",
     connectFirst: "Connect Strava in Settings first",
     toggleTheme: "Toggle theme",
+    darkTheme: "Dark theme",
+    language: "Language",
+    account: "Account",
+    stravaConnected: "Strava connected",
+    stravaNotConnected: "Strava not connected",
+  },
+  authEntry: {
+    brand: "TRAINING HUB",
+    privateBeta: "PRIVATE BETA ACCESS",
+    invitedStep: "INVITED BETA · STEP 1 OF 4",
+    signInNarrativeTitle: "The quiet place to notice patterns.",
+    signInNarrativeBody:
+      "You know your sessions. Training Hub helps put the relevant ones next to each other—without pretending to coach you.",
+    signUpNarrativeTitle: "Start with your own record.",
+    signUpNarrativeBody:
+      "A private account gives you control of your training data, Strava connection, and access decisions.",
+    boundaryTitle: "A small private beta",
+    boundaryBody:
+      "Your training data stays private to your account. Connection uses your own Strava developer app.",
+    signInTitle: "Welcome back.",
+    signInDescription: "Use the email and password for your Training Hub account.",
+    signInInviteBoundary: "New here? You’ll need an invitation to create a private beta account.",
+    signUpTitle: "Create your private beta account.",
+    signUpDescription:
+      "Your invitation is tied to this email. Keep your password and invitation private.",
+    unavailableTitle: "Private beta",
+    unavailableDescription:
+      "This beta is invitation-only. Use the private registration link from your invitation.",
+    invitation: "Invitation",
+    invitationReady: "Private invitation ready",
+    invitationHint: "This invitation is private and single-use.",
+    name: "Name",
+    email: "Email",
+    emailPlaceholder: "you@example.com",
+    inviteEmailHint: "The invitation and account email must match.",
+    password: "Password",
+    passwordMinimum: "8+ characters",
+    passwordReuse: "Use a password you do not reuse.",
+    signIn: "Sign in",
+    createAccount: "Create account",
+    signingIn: "Signing in…",
+    creatingAccount: "Creating account…",
+    signInError: "We couldn't sign you in with those details.",
+    signUpError: "We couldn't create that account. Try another email or sign in.",
+    alreadyHaveAccount: "Already have an account?",
+    signInInstead: "Sign in instead",
   },
   sports: {
     run: "Run",

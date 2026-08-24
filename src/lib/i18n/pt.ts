@@ -2,7 +2,7 @@ import type { Dict } from "./en";
 
 export const pt: Dict = {
   nav: {
-    log: "Diário",
+    log: "Diário de treinos",
     weeklyBrief: "Resumo semanal",
     performance: "Desempenho",
     races: "Provas",
@@ -17,6 +17,53 @@ export const pt: Dict = {
     syncing: "Sincronizando",
     connectFirst: "Conecte o Strava nos Ajustes primeiro",
     toggleTheme: "Alternar tema",
+    darkTheme: "Tema escuro",
+    language: "Idioma",
+    account: "Conta",
+    stravaConnected: "Strava conectado",
+    stravaNotConnected: "Strava não conectado",
+  },
+  authEntry: {
+    brand: "TRAINING HUB",
+    privateBeta: "ACESSO AO BETA PRIVADO",
+    invitedStep: "BETA POR CONVITE · ETAPA 1 DE 4",
+    signInNarrativeTitle: "Um lugar tranquilo para perceber padrões.",
+    signInNarrativeBody:
+      "Você conhece seus treinos. O Training Hub aproxima os registros relevantes sem fingir que orienta seu treino.",
+    signUpNarrativeTitle: "Comece pelo seu próprio histórico.",
+    signUpNarrativeBody:
+      "Uma conta privada dá a você o controle dos seus dados de treino, da conexão com o Strava e das decisões de acesso.",
+    boundaryTitle: "Um beta privado e pequeno",
+    boundaryBody:
+      "Seus dados de treino ficam privados na sua conta. A conexão usa seu próprio aplicativo de desenvolvedor do Strava.",
+    signInTitle: "Boas-vindas de volta.",
+    signInDescription: "Use o e-mail e a senha da sua conta do Training Hub.",
+    signInInviteBoundary:
+      "Chegando agora? Você precisa de um convite para criar uma conta do beta privado.",
+    signUpTitle: "Crie sua conta do beta privado.",
+    signUpDescription:
+      "Seu convite está vinculado a este e-mail. Mantenha sua senha e seu convite privados.",
+    unavailableTitle: "Beta privado",
+    unavailableDescription:
+      "Este beta funciona somente por convite. Use o link privado de cadastro recebido no convite.",
+    invitation: "Convite",
+    invitationReady: "Convite privado pronto",
+    invitationHint: "Este convite é privado e de uso único.",
+    name: "Nome",
+    email: "E-mail",
+    emailPlaceholder: "voce@exemplo.com",
+    inviteEmailHint: "O e-mail do convite e o da conta precisam ser iguais.",
+    password: "Senha",
+    passwordMinimum: "8 ou mais caracteres",
+    passwordReuse: "Use uma senha que você não reutiliza.",
+    signIn: "Entrar",
+    createAccount: "Criar conta",
+    signingIn: "Entrando…",
+    creatingAccount: "Criando conta…",
+    signInError: "Não foi possível entrar com esses dados.",
+    signUpError: "Não foi possível criar essa conta. Tente outro e-mail ou entre.",
+    alreadyHaveAccount: "Já tem uma conta?",
+    signInInstead: "Entre por aqui",
   },
   sports: {
     run: "Corrida",
