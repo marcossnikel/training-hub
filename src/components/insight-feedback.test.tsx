@@ -41,6 +41,36 @@ describe("InsightFeedback", () => {
     expect(screen.getByRole("button", { name: "Add a note" })).toBeTruthy();
   });
 
+  it("announces a pending update, prevents duplicate choices, and recovers after saving", async () => {
+    let resolveAction!: (result: { ok: true; usefulness: "useful"; note: null }) => void;
+    actions.saveInsightUsefulnessAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAction = resolve;
+        })
+    );
+    render(<InsightFeedback target={target} initial={null} />);
+    const useful = screen.getByRole("button", { name: "Useful" });
+    fireEvent.click(useful);
+
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Updating feedback…"));
+    expect(screen.getByRole("region", { name: "Was this useful?" }).getAttribute("aria-busy")).toBe(
+      "true"
+    );
+    expect(useful.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Not useful" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Not useful" }));
+    expect(actions.saveInsightUsefulnessAction).toHaveBeenCalledTimes(1);
+
+    resolveAction({ ok: true, usefulness: "useful", note: null });
+    await waitFor(() => expect(screen.getByText("Feedback saved.")).toBeTruthy());
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("region", { name: "Was this useful?" }).getAttribute("aria-busy")).toBe(
+      "false"
+    );
+    expect(useful.hasAttribute("disabled")).toBe(false);
+  });
+
   it("cancels a note editor with Escape and returns focus to its trigger", async () => {
     render(<InsightFeedback target={target} initial={{ usefulness: "not_useful", note: null }} />);
     const trigger = screen.getByRole("button", { name: "Add a note" });

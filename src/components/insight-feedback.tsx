@@ -120,7 +120,11 @@ export function InsightFeedback({
   const hasResponse = feedback.usefulness !== null;
 
   return (
-    <section aria-labelledby="insight-feedback-heading" className="mt-6 border-t pt-5">
+    <section
+      aria-busy={pending}
+      aria-labelledby="insight-feedback-heading"
+      className="mt-6 border-t pt-5"
+    >
       <h2 id="insight-feedback-heading" className="text-sm font-semibold">
         Was this useful?
       </h2>
@@ -200,6 +204,11 @@ export function InsightFeedback({
       {error ? (
         <p role="alert" className="mt-3 text-sm text-destructive">
           {error}
+        </p>
+      ) : null}
+      {pending ? (
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
+          Updating feedback…
         </p>
       ) : null}
       {message ? <p className="mt-3 text-sm text-muted-foreground">{message}</p> : null}

@@ -9,10 +9,11 @@ external transmission.
 ## Automated verification
 
 - `npm run verify` — passed: environment and retired-global-Strava checks,
-  generated route types/typecheck, ESLint, Prettier, 707 unit tests, Knip
+  generated route types/typecheck, ESLint, Prettier, 708 unit tests, Knip
   advisory hints only, circular-dependency check, and 50 Playwright tests.
-- `npm run test:unit -- src/components/insight-feedback.test.tsx` — passed 4
-  component tests, including the post-commit Remove response focus return.
+- `npm run test:unit -- src/components/insight-feedback.test.tsx` — passed 5
+  component tests, including the post-commit Remove response focus return and
+  delayed-action pending announcement/recovery.
 - `CAPTURE_INSIGHT_FEEDBACK_EVIDENCE=1 npx playwright test
   e2e/insight-feedback.spec.ts --project=insight-feedback` — passed all 10
   dependency and feedback tests against the disposable local SQLite fixture.
@@ -39,6 +40,12 @@ native response button is enabled, avoiding a timeout, a browser-supplied
 identifier, or a focus call on the removed control. No nonessential motion is
 required for meaning; the existing 150 ms color transition uses the shared
 reduced-motion fallback.
+
+Every mutation marks the labelled feedback region `aria-busy="true"`, disables
+all duplicate-action controls, and shows the visible polite `Updating
+feedback…` status immediately. The delayed-action component test proves that
+the status and disabled controls clear after completion without weakening the
+post-remove focus contract.
 
 ## Data and security boundaries
 
