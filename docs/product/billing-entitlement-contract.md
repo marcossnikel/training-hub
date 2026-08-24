@@ -67,12 +67,12 @@ design.
 | --- | --- | --- | --- |
 | `none` | No known eligible subscription | Restricted | “You do not have an active beta subscription.” Offer Checkout only when the server can create one safely. |
 | `checkout_pending` | Server created a test-mode Checkout session; no verified entitlement yet | Restricted | “We’re confirming your subscription. Access updates after billing is verified.” A return from Checkout does not change the state by itself. |
-| `active` | Canonical subscription is `active` for the accepted plan | Full | “Your beta subscription is active.” |
-| `cancellation_scheduled` | Canonical subscription is active, `cancel_at_period_end` is true, and verified paid-through time is later than trusted server `now` | Full through the verified paid-through time | “Your subscription will end on {verified date}. You can keep using beta features until then.” Do not show a date when it is unavailable. |
+| `active` | Canonical subscription is `active` for the accepted plan and its authority is current under the implementation freshness policy | Full | “Your beta subscription is active.” |
+| `cancellation_scheduled` | A previously verified canonical subscription was active, `cancel_at_period_end` is true, and its verified paid-through time is later than trusted server `now` | Full through the verified paid-through time | “Your subscription will end on {verified date}. You can keep using beta features until then.” Do not show a date when it is unavailable. |
 | `past_due` | Canonical subscription is `past_due` | Restricted | “We could not verify your latest payment. Your training data has not changed.” Offer the Portal only when server creation succeeds. |
 | `unpaid` | Canonical subscription is `unpaid` | Restricted | “Payment is unresolved. Your training data has not changed.” |
-| `canceled_or_expired` | Canonical subscription is `canceled`, `incomplete_expired`, or its verified paid-through time has elapsed | Restricted | “Beta access ended. Your training data has not changed.” |
-| `unknown` | Provider object/status/plan mapping is missing, invalid, unsupported, stale beyond the implementation freshness policy, or a provider verification attempt fails | Restricted, fail closed | “Billing verification is unavailable. Your training data has not changed.” Do not speculate about payment success or failure. |
+| `canceled_or_expired` | Canonical subscription is `canceled` or `incomplete_expired`, or a previously verified `cancellation_scheduled` subscription has reached its verified paid-through time | Restricted | “Beta access ended. Your training data has not changed.” |
+| `unknown` | Provider object/status/plan mapping is missing, invalid, unsupported, stale beyond the implementation freshness policy, or a provider verification attempt fails. This includes an auto-renewing `active` subscription that is stale or unavailable at or after its prior verified paid-through time. | Restricted, fail closed | “Billing verification is unavailable. Your training data has not changed.” Do not speculate about payment success or failure. |
 
 The webhook transport conditions below are processing states that resolve to one
 of the access states above. They are visible in support/audit tooling; the
@@ -83,7 +83,7 @@ customer sees the associated safe boundary rather than internal event details.
 | Webhook delayed after Checkout | Remain `checkout_pending` (or `unknown` if canonical verification fails); never grant from the return URL. |
 | Duplicate event | Record/recognize the same Stripe event ID and perform no second transition, Customer creation, or notification. |
 | Out-of-order event | Record each verified event. Reconcile against the canonical current subscription before changing entitlement; never let an older delivery overwrite newer canonical state. |
-| Provider outage or invalid response | Mark/recompute `unknown`, restrict paid capability, retain data controls, and queue bounded reconciliation. |
+| Provider outage or invalid response | For a previously verified `cancellation_scheduled` subscription at or after its verified paid-through time, recompute `canceled_or_expired`. Otherwise mark/recompute `unknown`, restrict paid capability, retain data controls, and queue bounded reconciliation. |
 
 There is intentionally no `trialing` access state: the beta has no trial. Any
 unexpected plan, amount, currency, status, or subscription/customer mapping is
@@ -93,9 +93,15 @@ Stripe `incomplete` is never active. Map it to `checkout_pending` only while a
 verified, server-created current Checkout attempt for that same owner is still
 within the implementation's bounded pending window; otherwise map it to
 `unknown`. `incomplete_expired` is `canceled_or_expired`. The state mapper uses
-trusted server time, never browser time: a cancellation-scheduled subscription
-whose verified paid-through time is at or before `now` transitions directly to
-`canceled_or_expired`, even if a delayed provider event still says active.
+trusted server time, never browser time. A previously verified
+`cancellation_scheduled` subscription whose verified paid-through time is at
+or before `now` transitions directly to `canceled_or_expired`, even if an
+older provider payload still says active or Stripe is unavailable. In contrast,
+an auto-renewing `active` subscription whose authority is stale or unavailable
+at or after its prior verified paid-through time maps to `unknown` and remains
+restricted until a webhook or reconciliation verifies renewal. The mapper must
+not infer `canceled_or_expired` from elapsed paid-through time for that active
+auto-renewing record.
 
 ## Verified webhook and reconciliation protocol
 
@@ -136,11 +142,15 @@ provider object, projects it with the same state mapper, and records a redacted
 run result. It must be idempotent, rate-bounded, retry with bounded exponential
 backoff, and surface failures to operator tooling after its retry budget.
 
-There is no silent “best guess” restore. A previously active athlete moves to
-`unknown` when current verification cannot be established according to the
-implemented freshness policy, with data controls retained. A webhook event is
-not dead-lettered away: after bounded automatic retries it remains in a
-redacted failed/pending queue for authenticated operator reconciliation.
+There is no silent “best guess” restore. An auto-renewing active athlete moves
+to `unknown` when current verification is stale or unavailable at or after the
+prior verified paid-through time, with data controls retained; only
+reconciliation or a webhook can verify renewal. A previously verified
+`cancellation_scheduled` athlete instead remains entitled through that known
+end and becomes `canceled_or_expired` when trusted server time reaches it. A
+webhook event is not dead-lettered away: after bounded automatic retries it
+remains in a redacted failed/pending queue for authenticated operator
+reconciliation.
 
 Support records may include the local owner ID, opaque Stripe object/event IDs,
 timestamps, state/reason code, and redacted error class. They must not include
@@ -221,8 +231,13 @@ unexpected plan/status fail-closed; webhook retry; provider outage/unknown;
 paid capability restriction with account/disconnect/delete and own read-only
 records retained; Checkout session repeat-click behavior; and an
 already-ended cancellation-scheduled record transitioning to
-`canceled_or_expired` from trusted server time. Use isolated
-local/E2E data and test fixtures only. Run `npm run verify` plus focused tests.
+`canceled_or_expired` from trusted server time. The state-mapper tests must
+also prove that a canonical auto-renewing `active` record with stale or
+unavailable verification at or after its prior verified paid-through time maps
+to restricted `unknown`, not `canceled_or_expired` or `active`, until a webhook
+or reconciliation verifies renewal; canonical `canceled` and
+`incomplete_expired` remain `canceled_or_expired`. Use isolated local/E2E data
+and test fixtures only. Run `npm run verify` plus focused tests.
 Manual proof must show test-mode-only environment validation and desktop/narrow
 screenshots of the state matrix, without a real payment method or any secret.
 
