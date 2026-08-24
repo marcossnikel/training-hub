@@ -3,12 +3,19 @@ import { notFound, redirect } from "next/navigation";
 import { ComparableActivitySkeleton } from "./comparable-activity-skeleton";
 import { ComparableActivityView } from "./comparable-activity-view";
 import { requireCurrentUser } from "@/lib/auth";
-import { getConfirmedComparableActivity, listConfirmedComparableActivities } from "@/lib/db";
+import {
+  getConfirmedComparableActivity,
+  getInsightFeedback,
+  insightFeedbackEnabled,
+  listConfirmedComparableActivities,
+} from "@/lib/db";
 import {
   isComparablePriorActivitySource,
   matchComparablePriorActivity,
 } from "@/lib/comparable-activity";
 import { getDict } from "@/lib/lang";
+import { comparableActivityInsightReference } from "@/lib/insight-feedback";
+import { InsightFeedback } from "@/components/insight-feedback";
 
 export const metadata = { title: "Comparable prior activity" };
 
@@ -37,6 +44,9 @@ export async function ComparableActivityContent({ id }: { id: string }) {
   if (!source || !isComparablePriorActivitySource(source, asOf)) notFound();
   const candidates = await listConfirmedComparableActivities(owner);
   const result = matchComparablePriorActivity({ source, candidates, asOf });
+  const reference = comparableActivityInsightReference(result, asOf);
+  const feedback =
+    reference && insightFeedbackEnabled() ? await getInsightFeedback(owner, reference) : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -46,6 +56,12 @@ export async function ComparableActivityContent({ id }: { id: string }) {
         lang={lang}
         t={t.comparableActivity}
       />
+      {reference && insightFeedbackEnabled() ? (
+        <InsightFeedback
+          target={{ kind: "comparable_prior_activity", sourceActivityId: numericId }}
+          initial={feedback}
+        />
+      ) : null}
     </div>
   );
 }

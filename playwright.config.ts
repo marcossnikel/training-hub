@@ -62,6 +62,7 @@ export default defineConfig({
         /comparable-activity\.spec\.ts/,
         /gear\.spec\.ts/,
         /guest-data-boundary\.spec\.ts/,
+        /insight-feedback\.spec\.ts/,
         /beta-invite\.spec\.ts/,
         /mobile\.spec\.ts/,
         /private-beta-landing\.spec\.ts/,
@@ -87,6 +88,15 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
       dependencies: ["beta-invites"],
     },
+    // #38 mutates only its owner-scoped, disposable feedback records. Keep it
+    // serial and before the remaining database-writing lane.
+    {
+      name: "insight-feedback",
+      testMatch: /insight-feedback\.spec\.ts/,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
+      dependencies: ["comparable-activity"],
+    },
     // These are the remaining authenticated specs that mutate the one
     // disposable SQLite database. They deliberately run after the schema-error
     // proof above and before the guest-boundary proof, one worker at a time.
@@ -97,7 +107,7 @@ export default defineConfig({
       testMatch: [/byo-connection\.spec\.ts/, /gear\.spec\.ts/, /tenant-isolation\.spec\.ts/],
       workers: 1,
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
-      dependencies: ["comparable-activity"],
+      dependencies: ["insight-feedback"],
     },
     // The login/logout flow itself must run UNAUTHENTICATED (no storageState).
     {
@@ -174,6 +184,7 @@ export default defineConfig({
       TRAINING_HUB_ENV: "e2e",
       TRAINING_HUB_DISPOSABLE_DATA: "1",
       BETA_INVITE_REGISTRATION_ENABLED: "1",
+      TRAINING_HUB_INSIGHT_FEEDBACK_ENABLED: "1",
       TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN: "http://127.0.0.1:3210",
     },
   },

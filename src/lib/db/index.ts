@@ -13,3 +13,4 @@ export * from "./curves";
 export * from "./benchmarks";
 export * from "./goals";
 export * from "./zones";
+export * from "./insight-feedback";

@@ -3,9 +3,9 @@ import { WeeklyBriefSkeleton } from "./weekly-brief-skeleton";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/lib/auth";
-import { listWeeklyBriefActivities } from "@/lib/db";
-import { buildWeeklyBrief } from "@/lib/weekly-brief";
-import { mostRecentCompletedWeeklyBriefPeriod } from "@/lib/weekly-brief-window";
+import { getInsightFeedback, insightFeedbackEnabled } from "@/lib/db";
+import { resolveWeeklyBriefFeedbackTarget } from "@/lib/insight-feedback-targets";
+import { InsightFeedback } from "@/components/insight-feedback";
 
 export const metadata = { title: "Weekly brief" };
 
@@ -24,20 +24,9 @@ export default function WeeklyBriefPage() {
 export async function WeeklyBriefContent() {
   const owner = await requireCurrentUser();
   if (!owner) redirect("/login");
-  const period = mostRecentCompletedWeeklyBriefPeriod();
-  const activities = await listWeeklyBriefActivities(owner, period.fromDay, period.toDay);
-  const result = buildWeeklyBrief({
-    asOfWeekStart: period.asOfWeekStart,
-    activities: activities.map((activity) => ({
-      id: activity.id,
-      startedAt: activity.started_at,
-      startedAtLocal: activity.started_at_local,
-      sportType: activity.sport_type,
-      movingTimeS: activity.moving_time_s,
-      distanceKm: activity.distance_km,
-      confirmed: true,
-    })),
-  });
+  const { result, reference } = await resolveWeeklyBriefFeedbackTarget(owner);
+  const feedback =
+    reference && insightFeedbackEnabled() ? await getInsightFeedback(owner, reference) : null;
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
       <header className="mb-6">
@@ -47,6 +36,9 @@ export async function WeeklyBriefContent() {
         </p>
       </header>
       <WeeklyBriefView result={result} />
+      {reference && insightFeedbackEnabled() ? (
+        <InsightFeedback target={{ kind: "weekly_brief" }} initial={feedback} />
+      ) : null}
     </div>
   );
 }
