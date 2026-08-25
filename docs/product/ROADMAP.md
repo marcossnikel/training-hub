@@ -62,7 +62,10 @@ or blank product.
   activities classified, summary aggregation, gear materialization, completion,
   partial failure, and retry state.
 - Expose actual counters by activity family and imported/confirmed/pending
-  result. Do not invent percentages when the provider has not supplied a total.
+  result. Job counters count each provider activity outcome once across retries;
+  Activation Summary values are read back from committed owner data rather than
+  accumulated from HTTP attempts. Do not invent percentages when the provider
+  has not supplied a total.
 - Materialize Strava shoes/bikes with explicit origin. Provider-reported
   lifetime distance and locally confirmed mileage remain separate measures so
   history and Review assignments cannot double-count; unknown/stale provider

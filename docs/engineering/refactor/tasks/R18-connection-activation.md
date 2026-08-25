@@ -46,6 +46,8 @@ Activation Summary that links into populated product surfaces.
 6. Progress copy maps only to R14 stages and committed counters. Show an
    indeterminate bar/skeleton while total is unknown. Do not show percentage,
    ETA, synthetic per-activity names, or a rotating claim for work not running.
+   Displayed job counters use R14's unique outcome semantics, so retry cannot
+   make an activity appear imported twice.
 7. Framer Motion may animate stage transition, counter change, and summary
    reveal with established tokens. Reduced motion renders immediate/static state
    with identical text and live-region meaning.
@@ -56,6 +58,8 @@ Activation Summary that links into populated product surfaces.
    confirmed count, and new pending count. Calendar-YTD wording is used only
    when R19 supplies a validated effective timezone; otherwise exact dates are
    part of the label.
+   These facts come from committed owner-scoped product read models and coverage
+   state, not by adding progress attempts or treating a counter as the database.
 9. Unknown/partial/enrichment-not-ready values are omitted or labeled, never
    zero-filled. Each calculation names its date window/unit and links to the
    populated Training Log, Performance, Gear, or Review evidence surface.
