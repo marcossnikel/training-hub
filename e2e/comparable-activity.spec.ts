@@ -82,7 +82,9 @@ async function addLoadingVolume(): Promise<void> {
   const name = `Comparable loading volume ${crypto.randomUUID()}`;
   const db = createClient({ url: dbUrl, intMode: "number" });
   try {
-    for (let start = 0; start < 100_000; start += 1_000) {
+    // 250k rows still completed before React exposed the route boundary on a
+    // warm production run. 300k is the smallest measured reliable workload.
+    for (let start = 0; start < 300_000; start += 1_000) {
       await retryLocked(() =>
         db.batch(
           Array.from({ length: 1_000 }, () => ({
@@ -149,6 +151,61 @@ async function clearHeaderTooltip(page: Page): Promise<void> {
   // so evidence isolates the focused comparison control rather than header chrome.
   await page.keyboard.press("Escape");
   await expect(page.getByText("Connect Strava in Settings first")).toBeHidden();
+}
+
+type ComparableLoadingObservation = {
+  ariaBusy: string | null;
+  skeletonCount: number;
+};
+
+async function observeComparableLoading(page: Page, scope: "body" | "main"): Promise<void> {
+  await page.evaluate((rootSelector) => {
+    type ObservationWindow = Window & {
+      __comparableRouteLoading?: {
+        ariaBusy: string | null;
+        skeletonCount: number;
+      };
+      __comparableRouteLoadingObserver?: MutationObserver;
+    };
+
+    const observationWindow = window as ObservationWindow;
+    observationWindow.__comparableRouteLoadingObserver?.disconnect();
+    delete observationWindow.__comparableRouteLoading;
+
+    const root = document.querySelector(rootSelector);
+    if (!root) throw new Error(`Comparable loading proof requires ${rootSelector}`);
+
+    const recordLoading = (node: Node) => {
+      if (!(node instanceof Element)) return;
+      const loading = node.matches('[aria-label="Loading comparable prior activity"]')
+        ? node
+        : node.querySelector('[aria-label="Loading comparable prior activity"]');
+      if (!loading) return;
+      observationWindow.__comparableRouteLoading = {
+        ariaBusy: loading.getAttribute("aria-busy"),
+        skeletonCount: loading.querySelectorAll('[data-slot="skeleton"]').length,
+      };
+    };
+
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) recordLoading(node);
+      }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    observationWindow.__comparableRouteLoadingObserver = observer;
+  }, scope);
+}
+
+async function readComparableRouteLoading(
+  page: Page
+): Promise<ComparableLoadingObservation | null> {
+  return page.evaluate(() => {
+    type ObservationWindow = Window & {
+      __comparableRouteLoading?: ComparableLoadingObservation;
+    };
+    return (window as ObservationWindow).__comparableRouteLoading ?? null;
+  });
 }
 
 async function openComparison(page: Page, sourceId: number, width: number, height: number) {
@@ -241,10 +298,16 @@ test("a confirmed source enters one evidence-linked comparable prior activity", 
   }
 });
 
-test("the final route streams its real loading skeleton during a slow client navigation", async ({
+test("client navigation exposes loading feedback and production streams the route skeleton", async ({
   page,
 }) => {
+  test.slow();
   await addLoadingVolume();
+
+  // Next prefetches only in production. The ordinary dev-server project proves
+  // the Link-specific pending feedback; the production command scopes the live
+  // assertion to <main>, excluding that portal and proving the real route boundary.
+  const loadingScope = process.env.E2E_PRODUCTION === "1" ? "main" : "body";
 
   for (const [width, height] of [
     [1440, 1000],
@@ -252,13 +315,30 @@ test("the final route streams its real loading skeleton during a slow client nav
   ] as const) {
     const fixture = await addFixture();
     await page.setViewportSize({ width, height });
+    const prefetchedRouteShell =
+      process.env.E2E_PRODUCTION === "1"
+        ? page.waitForResponse((response) => {
+            const request = response.request();
+            return (
+              new URL(response.url()).pathname === `/activity/${fixture.sourceId}/compare` &&
+              request.headers()["next-router-prefetch"] === "1"
+            );
+          })
+        : null;
     await page.goto(`/activity/${fixture.sourceId}`);
     const entry = page.getByRole("link", { name: "Compare with a prior activity" });
     await expect(entry).toBeVisible();
-    const navigation = entry.click({ noWaitAfter: true });
-    const loading = page.getByLabel("Loading comparable prior activity");
-    await expect(loading).toHaveAttribute("aria-busy", "true");
-    await expect(loading.locator('[data-slot="skeleton"]')).toHaveCount(7);
+    if (prefetchedRouteShell) {
+      await prefetchedRouteShell;
+    }
+    await observeComparableLoading(page, loadingScope);
+    const navigation = entry.click();
+    await expect
+      .poll(() => readComparableRouteLoading(page))
+      .toEqual({
+        ariaBusy: "true",
+        skeletonCount: 7,
+      });
     await capture(page, `37-comparable-prior-activity-loading-${width}.png`);
     await navigation;
     await expect(
