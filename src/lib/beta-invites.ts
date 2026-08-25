@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { client, IS_LOCAL_FILE } from "./db/client";
+import { client } from "./db/client";
 import { ensureMigrated } from "./db/migrations";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -67,14 +67,24 @@ export function digestInviteToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function assertIsolatedInviteMigrationTarget(env: InviteEnvironment = process.env): void {
+function remoteDatabaseHost(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "libsql:" || url.protocol === "https:" ? url.hostname : null;
+  } catch {
+    return null;
+  }
+}
+
+export function assertBetaInviteSchemaTarget(env: InviteEnvironment = process.env): void {
   const mode = env.TRAINING_HUB_ENV || "local";
   const vercelEnvironment = env.VERCEL_ENV || "";
   const remoteUrl = env.TURSO_DATABASE_URL || "";
   const resolvedDatabaseUrl = remoteUrl || env.DATABASE_URL || "file:data/app.db";
+  const remoteHost = remoteDatabaseHost(remoteUrl);
 
   if (mode === "local" || mode === "e2e") {
-    if (!IS_LOCAL_FILE || remoteUrl || env.TURSO_AUTH_TOKEN) {
+    if (!resolvedDatabaseUrl.startsWith("file:") || remoteUrl || env.TURSO_AUTH_TOKEN) {
       throw new Error("Beta invitation schema requires an isolated local/E2E file database.");
     }
     return;
@@ -84,15 +94,30 @@ function assertIsolatedInviteMigrationTarget(env: InviteEnvironment = process.en
     mode === "preview" &&
     vercelEnvironment === "preview" &&
     env.TRAINING_HUB_DISPOSABLE_DATA === "1" &&
-    remoteUrl &&
-    /preview|staging/i.test(new URL(remoteUrl).hostname) &&
+    remoteHost &&
+    /preview|staging/i.test(remoteHost) &&
+    !resolvedDatabaseUrl.startsWith("file:")
+  ) {
+    return;
+  }
+
+  if (
+    mode === "production" &&
+    vercelEnvironment === "production" &&
+    env.TRAINING_HUB_PRODUCTION_APPROVED === "1" &&
+    env.TRAINING_HUB_PRODUCTION_INVITES_ENABLED === "1" &&
+    env.TRAINING_HUB_DISPOSABLE_DATA !== "1" &&
+    remoteHost &&
+    /^libsql:\/\//i.test(remoteUrl) &&
+    !/preview|staging/i.test(remoteHost) &&
+    env.TURSO_AUTH_TOKEN &&
     !resolvedDatabaseUrl.startsWith("file:")
   ) {
     return;
   }
 
   throw new Error(
-    "Beta invitation schema is allowed only for explicitly labelled isolated local/E2E data or disposable preview data."
+    "Beta invitation schema requires an explicitly approved local, preview, or production data target."
   );
 }
 
@@ -109,7 +134,7 @@ export async function ensureBetaInviteSchema(): Promise<void> {
   }
   if (!schemaReady) {
     schemaReady = (async () => {
-      assertIsolatedInviteMigrationTarget();
+      assertBetaInviteSchemaTarget();
       await ensureMigrated();
       const columns = await client.execute('PRAGMA table_info("user")');
       if (!columns.rows.some((column) => column.name === "betaInviteClaim")) {
@@ -214,7 +239,7 @@ export async function issueBetaInvite(input: {
   return { email, token, expiresAt: expiresAt.toISOString() };
 }
 
-/** Local operator lifecycle action; it never reveals whether a token existed. */
+/** Operator lifecycle action; it never reveals whether a token existed. */
 export async function revokeBetaInvite(token: unknown): Promise<void> {
   if (!isOpaqueInviteToken(token)) throw new Error("A valid opaque invitation token is required.");
   await ensureBetaInviteSchema();
@@ -265,14 +290,14 @@ export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.
   if (!betaInviteRegistrationEnabled(env)) {
     throw new Error("BETA_INVITE_REGISTRATION_ENABLED=1 is required before issuing an invitation.");
   }
-  if (env.TRAINING_HUB_DISPOSABLE_DATA !== "1") {
-    throw new Error("TRAINING_HUB_DISPOSABLE_DATA=1 is required for invitation issuance.");
+  if (target !== "local" && target !== "preview" && target !== "production") {
+    throw new Error("TRAINING_HUB_INVITE_TARGET must explicitly be local, preview, or production.");
   }
-  if (target !== "local" && target !== "preview") {
-    throw new Error("TRAINING_HUB_INVITE_TARGET must explicitly be local or preview.");
+  if (mode !== target) {
+    throw new Error("Invitation issuance target must match TRAINING_HUB_ENV.");
   }
-  if (mode !== target || env.VERCEL_ENV === "production") {
-    throw new Error("Invitation issuance target must match a non-production TRAINING_HUB_ENV.");
+  if (target !== "production" && env.TRAINING_HUB_DISPOSABLE_DATA !== "1") {
+    throw new Error("TRAINING_HUB_DISPOSABLE_DATA=1 is required for local/preview issuance.");
   }
   const publicOrigin = parseCanonicalInviteOrigin(
     env.TRAINING_HUB_PUBLIC_ORIGIN,
@@ -291,30 +316,70 @@ export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.
     }
     return publicOrigin.origin;
   }
+  if (target === "preview") {
+    if (
+      env.VERCEL_ENV !== "preview" ||
+      !remoteUrl ||
+      !/preview|staging/i.test(remoteDatabaseHost(remoteUrl) || "") ||
+      resolvedDatabaseUrl.startsWith("file:")
+    ) {
+      throw new Error(
+        "Preview invitation issuance requires an explicitly labelled disposable preview database."
+      );
+    }
+
+    const approvedPreviewOrigin = parseCanonicalInviteOrigin(
+      env.TRAINING_HUB_INVITE_PREVIEW_ORIGIN,
+      "TRAINING_HUB_INVITE_PREVIEW_ORIGIN"
+    );
+    if (approvedPreviewOrigin.protocol !== "https:") {
+      throw new Error("Preview invitation issuance requires an HTTPS approved preview origin.");
+    }
+    if (approvedPreviewOrigin.hostname === "training-hub-psi-one.vercel.app") {
+      throw new Error("Preview invitation issuance must not use the production canonical origin.");
+    }
+    if (publicOrigin.origin !== approvedPreviewOrigin.origin) {
+      throw new Error(
+        "TRAINING_HUB_PUBLIC_ORIGIN must exactly match TRAINING_HUB_INVITE_PREVIEW_ORIGIN for preview issuance."
+      );
+    }
+    return publicOrigin.origin;
+  }
+
+  if (env.TRAINING_HUB_DISPOSABLE_DATA === "1") {
+    throw new Error("Production invitation issuance must not mark production data as disposable.");
+  }
   if (
-    env.VERCEL_ENV !== "preview" ||
-    !remoteUrl ||
-    !/preview|staging/i.test(new URL(remoteUrl).hostname) ||
+    env.VERCEL_ENV !== "production" ||
+    env.TRAINING_HUB_PRODUCTION_APPROVED !== "1" ||
+    env.TRAINING_HUB_PRODUCTION_INVITES_ENABLED !== "1"
+  ) {
+    throw new Error(
+      "Production invitation issuance requires Vercel production, production approval, and production invites enabled."
+    );
+  }
+  const productionHost = remoteDatabaseHost(remoteUrl);
+  if (
+    !productionHost ||
+    !/^libsql:\/\//i.test(remoteUrl) ||
+    /preview|staging/i.test(productionHost) ||
+    !env.TURSO_AUTH_TOKEN ||
     resolvedDatabaseUrl.startsWith("file:")
   ) {
     throw new Error(
-      "Preview invitation issuance requires an explicitly labelled disposable preview database."
+      "Production invitation issuance requires a dedicated production Turso database and auth token."
     );
   }
-
-  const approvedPreviewOrigin = parseCanonicalInviteOrigin(
-    env.TRAINING_HUB_INVITE_PREVIEW_ORIGIN,
-    "TRAINING_HUB_INVITE_PREVIEW_ORIGIN"
+  const approvedProductionOrigin = parseCanonicalInviteOrigin(
+    env.TRAINING_HUB_INVITE_PRODUCTION_ORIGIN,
+    "TRAINING_HUB_INVITE_PRODUCTION_ORIGIN"
   );
-  if (approvedPreviewOrigin.protocol !== "https:") {
-    throw new Error("Preview invitation issuance requires an HTTPS approved preview origin.");
+  if (approvedProductionOrigin.protocol !== "https:") {
+    throw new Error("Production invitation issuance requires an HTTPS approved production origin.");
   }
-  if (approvedPreviewOrigin.hostname === "training-hub-psi-one.vercel.app") {
-    throw new Error("Preview invitation issuance must not use the production canonical origin.");
-  }
-  if (publicOrigin.origin !== approvedPreviewOrigin.origin) {
+  if (publicOrigin.origin !== approvedProductionOrigin.origin) {
     throw new Error(
-      "TRAINING_HUB_PUBLIC_ORIGIN must exactly match TRAINING_HUB_INVITE_PREVIEW_ORIGIN for preview issuance."
+      "TRAINING_HUB_PUBLIC_ORIGIN must exactly match TRAINING_HUB_INVITE_PRODUCTION_ORIGIN for production issuance."
     );
   }
   return publicOrigin.origin;

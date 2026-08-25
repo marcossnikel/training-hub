@@ -6,14 +6,15 @@ a preview is disposable staging, never a read-only view of production.
 
 ## Current status
 
-- **Validated now:** local and E2E use disposable file databases and the
-  executable guard runs inside `npm run verify`.
+- **Validated now:** local and E2E use disposable file databases, the
+  executable guard runs inside `npm run verify`, and production invitation
+  issuance has a separate explicit Vercel/Turso approval boundary.
 - **Blocked:** [#20](https://github.com/marcossnikel/training-hub/issues/20)
   records the Vercel CLI issuer-certificate failure and missing Stripe CLI
   test authentication. Do not bypass TLS, create credentials, or substitute a
   production environment to make either tool work.
-- **Not implemented:** product billing, Stripe webhooks, a preview deployment,
-  and a production multi-user environment.
+- **Not implemented:** product billing, Stripe webhooks, and a dedicated
+  preview deployment.
 
 ## Boundary matrix
 
@@ -66,8 +67,9 @@ npm run check:env
 ## Rules for builders and the Orchestrator
 
 - Do not run a migration, seed override, backfill, or reset against a remote,
-  shared, preview, or production database unless the assigned issue explicitly
-  defines the target and rollback.
+  shared, preview, or production database unless the operation is explicitly
+  approved. The guarded `beta:invite` command is the sole exception for issuing
+  or revoking one production invitation after its production target checks pass.
 - Local and E2E data are disposable. Keep `.env.local`, `data/`, `.vercel/`,
   and Playwright auth state uncommitted.
 - Do not run `vercel env pull` for production or deploy/promote production from

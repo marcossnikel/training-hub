@@ -68,7 +68,9 @@ describe("beta invitation server boundary", () => {
     configureIsolatedBetaEnv();
     vi.stubEnv("TRAINING_HUB_INVITE_TARGET", "");
     const { assertBetaInviteIssuanceTarget } = await import("./beta-invites");
-    expect(() => assertBetaInviteIssuanceTarget()).toThrow("must explicitly be local or preview");
+    expect(() => assertBetaInviteIssuanceTarget()).toThrow(
+      "must explicitly be local, preview, or production"
+    );
 
     const environment = {
       ...process.env,
@@ -97,8 +99,9 @@ describe("beta invitation server boundary", () => {
     expect(await countInvites()).toBe(1);
   });
 
-  it("permits only direct loopback local links and an exactly approved HTTPS preview origin", async () => {
-    const { assertBetaInviteIssuanceTarget } = await import("./beta-invites");
+  it("permits only approved local, preview, and production invite targets", async () => {
+    const { assertBetaInviteIssuanceTarget, assertBetaInviteSchemaTarget } =
+      await import("./beta-invites");
     const local = {
       BETA_INVITE_REGISTRATION_ENABLED: "1",
       TRAINING_HUB_DISPOSABLE_DATA: "1",
@@ -139,6 +142,51 @@ describe("beta invitation server boundary", () => {
         TRAINING_HUB_INVITE_PREVIEW_ORIGIN: "https://training-hub-psi-one.vercel.app",
       })
     ).toThrow("production canonical origin");
+
+    const production = {
+      BETA_INVITE_REGISTRATION_ENABLED: "1",
+      TRAINING_HUB_INVITE_TARGET: "production",
+      TRAINING_HUB_ENV: "production",
+      VERCEL_ENV: "production",
+      TRAINING_HUB_PRODUCTION_APPROVED: "1",
+      TRAINING_HUB_PRODUCTION_INVITES_ENABLED: "1",
+      TURSO_DATABASE_URL: "libsql://training-hub-production.turso.io",
+      TURSO_AUTH_TOKEN: "production-test-token",
+      TRAINING_HUB_PUBLIC_ORIGIN: "https://training-hub.example",
+      TRAINING_HUB_INVITE_PRODUCTION_ORIGIN: "https://training-hub.example",
+    };
+    expect(assertBetaInviteIssuanceTarget(production)).toBe("https://training-hub.example");
+    expect(() => assertBetaInviteSchemaTarget(production)).not.toThrow();
+    expect(() =>
+      assertBetaInviteIssuanceTarget({
+        ...production,
+        TRAINING_HUB_PRODUCTION_INVITES_ENABLED: "",
+      })
+    ).toThrow("production invites enabled");
+    expect(() =>
+      assertBetaInviteIssuanceTarget({
+        ...production,
+        TURSO_DATABASE_URL: "libsql://training-hub-preview.turso.io",
+      })
+    ).toThrow("dedicated production Turso database");
+    expect(() =>
+      assertBetaInviteIssuanceTarget({
+        ...production,
+        TRAINING_HUB_PUBLIC_ORIGIN: "https://wrong.training-hub.example",
+      })
+    ).toThrow("exactly match");
+    expect(() =>
+      assertBetaInviteIssuanceTarget({
+        ...production,
+        TRAINING_HUB_DISPOSABLE_DATA: "1",
+      })
+    ).toThrow("must not mark production data as disposable");
+    expect(() =>
+      assertBetaInviteSchemaTarget({
+        ...production,
+        TURSO_AUTH_TOKEN: "",
+      })
+    ).toThrow("explicitly approved local, preview, or production data target");
   });
 
   it("requires a matching opaque invitation at the Better Auth endpoint without leaking failure state", async () => {
