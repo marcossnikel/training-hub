@@ -63,8 +63,10 @@ or blank product.
   partial failure, and retry state.
 - Expose actual counters by activity family and imported/confirmed/pending
   result. Do not invent percentages when the provider has not supplied a total.
-- Materialize Strava shoes/bikes locally only after source, odometer baseline,
-  rename/retirement, reconnect, and disconnect deletion semantics are locked.
+- Materialize Strava shoes/bikes with explicit origin. Provider-reported
+  lifetime distance and locally confirmed mileage remain separate measures so
+  history and Review assignments cannot double-count; unknown/stale provider
+  distance is visible.
 - Fill Training Log, Totals, and Consistency immediately from confirmed summary
   fields. Relative calendar claims use a validated effective athlete timezone;
   without one, summary copy names exact date bounds. Treat stream/detail-
