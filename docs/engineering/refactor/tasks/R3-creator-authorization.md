@@ -1,8 +1,8 @@
 # R3 — Add creator operational authorization
 
 **Status:** draft
-**Risk:** high
-**Recommended builder:** Terra high
+**Delivery class:** API/backend
+**Risk/model:** high — Terra high
 **Depends on:** R2M
 **Unlocks:** R4 and R6
 
@@ -76,7 +76,8 @@ environment display and invite management.
 3. Implement named capability/creator guard. Completion: guest/member/creator
    results are exhaustively tested.
 4. Seed distinct creator and member E2E identities without weakening disposable
-   DB isolation. Completion: both roles can be exercised.
+   DB isolation. Completion: both roles can be exercised by this task's
+   integration suite and reused by later browser tasks.
 5. Add guarded bootstrap command with dry-run/readback. Completion: local works;
    synthetic unsafe targets fail before write.
 6. Capture glossary/decision. Completion: future agents cannot interpret creator
@@ -84,22 +85,36 @@ environment display and invite management.
 
 ## Required automated proof
 
-- migration from current schema preserves users and defaults member;
+- new `src/features/access/access.integration.test.ts` covers migration from the
+  current schema, preserving users and defaulting them to member;
 - creator capability allowed; member/guest denied;
 - forged role inputs ignored;
 - revoked creator session denied;
-- existing two-owner isolation suite remains green;
+- existing owner-context and two-owner DB isolation suites remain green;
 - bootstrap local success and unsafe-target refusal.
 
 ```sh
-npm run verify:fast
-npx playwright test e2e/tenant-isolation.spec.ts
+npx vitest run src/features/access/access.integration.test.ts src/lib/auth.owner-context.test.ts src/lib/db.owner-scope.test.ts
 ```
 
-## Required manual or visual proof
+This API/backend task does not run Playwright, browser validation, or the full
+repository gate. R5 and R7 own creator-only browser surfaces. Integration tests
+must use disposable SQLite plus real session/current-user resolution at the
+feature boundary rather than mocking the authorization result.
 
-No UI. Inspect redacted local bootstrap output and DB role values for disposable
-creator/member fixtures.
+## Required integration scenarios
+
+1. Migrate a disposable current-schema database containing two members;
+   confirm both remain members and invalid role storage is rejected.
+2. Promote exactly one disposable account through the bootstrap command's
+   programmatic boundary; dry-run changes nothing and apply/readback identifies
+   only the resolved local user with redacted output.
+3. Resolve fresh creator, member, revoked-session, and guest requests through
+   the real auth/current-user boundary and assert the two named capabilities.
+4. Attempt forged role/owner inputs and cross-owner activity/gear/connection
+   reads; creator receives no broader owner access than member.
+5. Run unsafe database-target and ambiguous-account fixtures; both refuse before
+   mutation. Do not run the operator command against a remote/shared database.
 
 ## Migration, rollout, and rollback
 
@@ -111,8 +126,12 @@ column/data unused; do not destructively drop it.
 
 - role location or creator capabilities are changed from locked decisions;
 - existing production account mapping is ambiguous;
-- bootstrap would authorize by env email on every request; or
-- migration/tenant tests are not green.
+- a safe bootstrap target cannot be identified without Marcos or an external
+  account/credential; or
+- proof would require a remote/shared database.
+
+All local migration, authorization, bootstrap, fixture, and test failures remain
+owned by the builder and are fixed within this task's permitted boundary.
 
 ## Completion criteria
 
@@ -121,3 +140,4 @@ column/data unused; do not destructively drop it.
 - Owner isolation is unchanged and independently tested.
 - Bootstrap is guarded but not run remotely.
 - domain/decision documentation states creator's non-superuser boundary.
+- The named focused Vitest command passes without browser or remote resources.
