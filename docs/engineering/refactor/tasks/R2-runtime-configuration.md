@@ -1,8 +1,8 @@
 # R2 — Make runtime configuration explicit and testable
 
 **Status:** draft
-**Risk:** high
-**Recommended builder:** Terra high
+**Delivery class:** API/backend
+**Risk/model:** high — Terra high
 **Depends on:** R1
 **Unlocks:** R2M
 
@@ -86,23 +86,41 @@ dynamic import because the database singleton resolves at import time.
 
 ## Required automated proof
 
-- focused config matrix tests for every runtime mode;
-- canary-secret redaction tests;
-- DB client factory tests using two distinct disposable files;
-- existing owner/auth/invite environment tests;
+- preserve `src/lib/db.config.test.ts` precedence behavior;
+- add `src/server/config/config.integration.test.ts` covering the resolver,
+  application DB composition, doctor process boundary, and variable-catalog
+  parity with real disposable files and spawned local commands;
+- config matrix covers every runtime identity, missing/invalid values, and E2E
+  production-build identity without mutating shared process state;
+- canary-secret redaction covers returned errors plus captured stdout/stderr;
+- DB client factory uses two distinct disposable files concurrently;
+- current owner/auth/invite environment cases are represented through the same
+  canonical resolver inputs rather than a second precedence implementation.
 
 ```sh
-npm run check:env
-npm run doctor
-npm run verify:fast
-npm run test:e2e:production
+npx vitest run src/lib/db.config.test.ts src/server/config/config.integration.test.ts
 ```
 
-## Required manual or visual proof
+This API/backend task does not run Playwright, browser validation, manual doctor
+inspection, `verify:fast`, or the full repository gate. The focused integration
+suite invokes doctor and boundary checks with synthetic non-secret environments,
+captures their results, and proves no network/remote database is opened.
 
-Run `doctor` in local and synthetic non-secret preview configurations. Confirm
-the output is useful without revealing any URL token, auth secret, encryption
-key, or credential. No browser proof.
+## Required integration scenarios
+
+1. Resolve a table of valid/invalid `local`, `e2e`, `preview`, and `production`
+   environments and assert exact typed result/error categories.
+2. Build clients for two disposable local files in one process and prove writes
+   remain isolated; sequential cases cannot inherit a previous test's singleton.
+3. Spawn doctor for valid local and synthetic preview inputs; assert exact
+   non-secret fields, controlled exit codes, and canary absence from stdout/
+   stderr/errors.
+4. Spawn current boundary checks for unsafe local-remote, preview-production-
+   host, and missing production-approval cases; all refuse before a connection.
+5. Compare canonical variable catalog, `.env.example`, docs, and named consumers;
+   an undocumented or stale fixture variable fails deterministically.
+6. Attempt to import the server-only entry from the client graph fixture and
+   assert the supported boundary check rejects it without a browser build.
 
 ## Migration, rollout, and rollback
 
@@ -113,9 +131,13 @@ composition without changing stored data.
 ## Stop conditions
 
 - current preview/production semantics are ambiguous;
-- a resolver would require secret output to be diagnosable;
-- a Next server/client import boundary cannot be proven; or
-- a standalone script would lose its current remote-write refusal.
+- an accepted environment rule must change rather than be centralized;
+- proof requires a real preview/production/shared resource or credential; or
+- installed framework behavior leaves a genuine server/client security
+  ambiguity that cannot be resolved from its local documentation and fixtures.
+
+All resolver, redaction, singleton, script, fixture, documentation-parity, and
+test failures are owned and repaired by the builder inside this task.
 
 ## Completion criteria
 
@@ -124,3 +146,4 @@ composition without changing stored data.
 - `doctor` is redacted and mode-aware.
 - env example/docs parity is executable.
 - existing environment and production-local checks pass.
+- The named focused Vitest command passes without browser or remote resources.
