@@ -1,6 +1,6 @@
 # R8 — Make login and invited signup coherent
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium
 **Depends on:** R7

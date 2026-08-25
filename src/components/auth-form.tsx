@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +11,13 @@ import { authClient } from "@/lib/auth-client";
 export function AuthForm({
   mode,
   inviteToken,
+  continuationHref,
 }: {
   mode: "sign-in" | "sign-up";
   inviteToken?: string;
+  /** Resolved by the server page; signup never accepts browser-selected destinations. */
+  continuationHref: string;
 }) {
-  const searchParams = useSearchParams();
   const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -60,8 +61,7 @@ export function AuthForm({
           setError(signUp ? t.authEntry.signUpError : t.authEntry.signInError);
           return;
         }
-        const next = searchParams.get("next");
-        window.location.assign(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
+        window.location.assign(continuationHref);
       } catch {
         setError(signUp ? t.authEntry.signUpError : t.authEntry.signInError);
       } finally {

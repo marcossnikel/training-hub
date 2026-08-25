@@ -31,7 +31,7 @@ export const en = {
   authEntry: {
     brand: "TRAINING HUB",
     privateBeta: "PRIVATE BETA ACCESS",
-    invitedStep: "INVITED BETA · STEP 1 OF 4",
+    invitedStep: "INVITED PRIVATE BETA",
     signInNarrativeTitle: "The quiet place to notice patterns.",
     signInNarrativeBody:
       "You know your sessions. Training Hub helps put the relevant ones next to each other—without pretending to coach you.",

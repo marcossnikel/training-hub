@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
 import { SignupForm } from "@/components/signup-form";
+import { firstAuthContinuation } from "@/features/access/auth-journey";
+import { requireCurrentUser } from "@/lib/auth";
 import { isOpaqueInviteToken } from "@/lib/beta-invites";
 import { getDict } from "@/lib/lang";
 
@@ -12,6 +14,7 @@ export default async function SignUpPage({
 }: {
   searchParams: Promise<{ invite?: string | string[] }>;
 }) {
+  if (await requireCurrentUser()) redirect("/");
   const params = await searchParams;
   const invite = typeof params.invite === "string" ? params.invite : undefined;
   if (params.invite !== undefined && !isOpaqueInviteToken(invite)) redirect("/sign-up");
@@ -26,7 +29,7 @@ export default async function SignUpPage({
       description={hasInvite ? t.authEntry.signUpDescription : t.authEntry.unavailableDescription}
     >
       {hasInvite ? (
-        <SignupForm inviteToken={invite} />
+        <SignupForm inviteToken={invite} continuationHref={firstAuthContinuation()} />
       ) : (
         <div className="rounded-xl border bg-card p-5 text-sm leading-6 text-muted-foreground">
           <p>{t.authEntry.alreadyHaveAccount}</p>

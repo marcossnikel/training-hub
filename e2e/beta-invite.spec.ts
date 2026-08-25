@@ -47,7 +47,7 @@ test.describe("private beta registration", () => {
     const email = `invite-ui-${Date.now()}@example.test`;
     const invitePath = await betaSignUpPath(email);
     const inviteToken = new URL(`http://localhost${invitePath}`).searchParams.get("invite");
-    await page.goto(invitePath);
+    await page.goto(`${invitePath}&next=/settings`);
     await expect(
       page.getByRole("heading", { name: "Create your private beta account." })
     ).toBeVisible();

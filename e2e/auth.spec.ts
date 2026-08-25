@@ -75,7 +75,9 @@ test.describe("auth", () => {
     await expect(page.getByRole("heading", { name: "This week, in context." })).toHaveCount(0);
   });
 
-  test("sign-up creates a session and logout returns to sign-in", async ({ page }) => {
+  test("sign-up uses the fixed first-auth continuation and sign-in retains safe recovery", async ({
+    page,
+  }) => {
     await page.goto(await betaSignUpPath("guest@example.test"));
     await page.getByLabel("Name").fill("Guest Athlete");
     await page.getByLabel("Email").fill("guest@example.test");
@@ -89,6 +91,12 @@ test.describe("auth", () => {
         name: "Your training log, with a little context.",
       })
     ).toBeVisible();
+    await page.goto("/login?next=/settings");
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByLabel("Email")).toHaveCount(0);
+    await page.goto("/sign-up?invite=not-a-valid-token");
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByLabel("Name")).toHaveCount(0);
     await expect(page.locator("[data-environment-indicator]")).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
@@ -100,5 +108,11 @@ test.describe("auth", () => {
     expect(session?.httpOnly).toBe(true);
     await page.getByRole("button", { name: "Log out" }).click();
     await expect(page).toHaveURL(/\/login$/);
+    await page.goto("/login?next=/weekly-brief");
+    await page.getByLabel("Email").fill("guest@example.test");
+    await page.getByLabel("Password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/weekly-brief$/);
+    await expect(page.getByRole("heading", { name: "This week, in context." })).toBeVisible();
   });
 });

@@ -7,10 +7,6 @@ const mocks = vi.hoisted(() => ({
   signUp: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
-}));
-
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
     signIn: { email: mocks.signIn },
@@ -57,7 +53,7 @@ beforeEach(() => {
 
 describe("AuthForm", () => {
   it("keeps existing sign-in available without exposing a public registration path", () => {
-    render(<AuthForm mode="sign-in" />);
+    render(<AuthForm mode="sign-in" continuationHref="/" />);
 
     expect(screen.getByLabelText("Email")).toBeTruthy();
     expect(screen.getByLabelText("Password")).toBeTruthy();
@@ -72,7 +68,7 @@ describe("AuthForm", () => {
         resolve = done;
       })
     );
-    render(<AuthForm mode="sign-in" />);
+    render(<AuthForm mode="sign-in" continuationHref="/weekly-brief" />);
 
     const email = screen.getByLabelText("Email");
     const password = screen.getByLabelText("Password");
@@ -98,7 +94,7 @@ describe("AuthForm", () => {
     const token = "a".repeat(43);
     window.history.replaceState(null, "", `/sign-up?invite=${token}`);
 
-    render(<AuthForm mode="sign-up" inviteToken={token} />);
+    render(<AuthForm mode="sign-up" inviteToken={token} continuationHref="/" />);
 
     await waitFor(() => expect(window.location.pathname + window.location.search).toBe("/sign-up"));
     expect(screen.getByText("Private invitation ready")).toBeTruthy();

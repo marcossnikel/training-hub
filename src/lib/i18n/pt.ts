@@ -28,7 +28,7 @@ export const pt: Dict = {
   authEntry: {
     brand: "TRAINING HUB",
     privateBeta: "ACESSO AO BETA PRIVADO",
-    invitedStep: "BETA POR CONVITE · ETAPA 1 DE 4",
+    invitedStep: "BETA PRIVADO POR CONVITE",
     signInNarrativeTitle: "Um lugar tranquilo para perceber padrões.",
     signInNarrativeBody:
       "Você conhece seus treinos. O Training Hub aproxima os registros relevantes sem fingir que orienta seu treino.",

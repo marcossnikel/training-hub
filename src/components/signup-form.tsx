@@ -1,5 +1,11 @@
 import { AuthForm } from "./auth-form";
 
-export function SignupForm({ inviteToken }: { inviteToken: string }) {
-  return <AuthForm mode="sign-up" inviteToken={inviteToken} />;
+export function SignupForm({
+  inviteToken,
+  continuationHref,
+}: {
+  inviteToken: string;
+  continuationHref: string;
+}) {
+  return <AuthForm mode="sign-up" inviteToken={inviteToken} continuationHref={continuationHref} />;
 }
