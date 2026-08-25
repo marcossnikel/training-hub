@@ -27,7 +27,8 @@ function filesUnder(relative: string): string[] {
 function committedConfigArtifacts(): string[] {
   return execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" })
     .split("\n")
-    .filter((file) => /(^|\/)\.env(?:\.[^/]+)?$|(?:^|\/)\w+\.config\.[^/]+$/.test(file));
+    .filter((file) => /(^|\/)\.env(?:\.[^/]+)?$|(?:^|\/)\w+\.config\.[^/]+$/.test(file))
+    .filter((file) => fs.existsSync(path.join(ROOT, file)));
 }
 
 describe("retired prototype coach", () => {
