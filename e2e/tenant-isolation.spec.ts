@@ -5,6 +5,7 @@ import { createClient } from "@libsql/client";
 import { encryptStravaSecret } from "@/lib/crypto";
 import { expect, test, type BrowserContext, type Page, type Request } from "@playwright/test";
 import { betaSignUpPath } from "./beta-invite";
+import { expectSuccessfulManualActivityAction } from "./manual-activity";
 
 const PASSWORD = "e2e-test-password";
 const E2E_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 58).toString("base64url");
@@ -120,6 +121,11 @@ async function createBRecords(page: Page, owner: BrowserOwner, suffix: string): 
   const manualKm = page.locator("#manual-km");
   const manualShoe = page.locator("#manual-shoe");
   const addEntry = page.getByRole("button", { name: "Add entry" });
+  // Radix's option list is client-owned, so a real selection is the explicit
+  // hydration boundary before entering controlled date/distance values.
+  await manualShoe.press("Enter");
+  await page.getByRole("option", { name: shoeName }).click();
+  await expect(manualShoe).toContainText(shoeName);
   await manualDate.fill("2026-08-15");
   // Native date inputs can tab through browser-managed day/month/year segments;
   // stay on the real keyboard path until the next actual form control is focused.
@@ -128,11 +134,13 @@ async function createBRecords(page: Page, owner: BrowserOwner, suffix: string): 
   await manualKm.fill("12.34");
   await tabTo(page, manualShoe);
   await expect(manualShoe).toBeFocused();
-  await manualShoe.press("Enter");
-  await page.getByRole("option", { name: shoeName }).click();
   await tabTo(page, addEntry);
   await expect(addEntry).toBeFocused();
-  await addEntry.press("Enter");
+  await expectSuccessfulManualActivityAction(
+    page,
+    () => addEntry.press("Enter"),
+    `Added 12.3 km to ${shoeName}`
+  );
   await expect(manualKm).toHaveValue("");
 
   const database = createClient({
