@@ -1,8 +1,8 @@
 # R2M — Establish safe additive migrations
 
 **Status:** draft
-**Risk:** high
-**Recommended builder:** Terra high
+**Delivery class:** API/backend
+**Risk/model:** high — Terra high
 **Depends on:** R2
 **Unlocks:** R3, R6, R9
 
@@ -77,23 +77,45 @@ would hit the refusal rather than an additive migration.
 
 ## Required automated proof
 
+- preserve `src/lib/db.owner-schema.test.ts` current schema/floor behavior;
+- add `src/lib/db.migrations.integration.test.ts` using disposable on-disk
+  SQLite fixtures rather than mocked SQL;
 - fresh DB reaches latest schema;
-- v23 fixture migrates additively with row preservation;
+- v23 fixture migrates additively with exact row/schema preservation assertions;
 - migration failure rolls back and retains v23;
 - second run is an idempotent no-op;
 - local/E2E auto-apply;
 - preview/production startup behind version fails without write;
-- guarded command refuses unsafe synthetic environments;
+- guarded command refuses unsafe synthetic environments before opening a write
+  transaction;
+- two concurrent runners leave one complete migration and the expected final
+  version, never a partially applied schema.
 
 ```sh
-npm run test:unit -- src/lib/db.owner-schema.test.ts
-npm run verify:fast
+npx vitest run src/lib/db.owner-schema.test.ts src/lib/db.migrations.integration.test.ts
 ```
 
-## Required manual or visual proof
+This API/backend task does not run Playwright, browser validation, a manual
+database inspection, or the full repository gate. Schema shape, version, row
+preservation, rollback, and before/after counts are integration-test assertions
+against disposable files. No remote migration/read is part of completion.
 
-Inspect schema and row counts in disposable before/after fixture databases. No
-browser proof and no remote command.
+## Required integration fixtures
+
+1. Version zero: builds the latest schema once and preserves seeded fixture rows
+   through a second start.
+2. Exact version 23: synthetic v24 adds one nullable field/index and preserves
+   every existing owner row/value.
+3. Failure injection: a statement after the additive change fails; schema,
+   rows, and version remain exactly v23.
+4. Concurrent starts: two runner instances target the same disposable file and
+   converge on one complete v24 result.
+5. Synthetic `LOCAL`/`E2E`: startup auto-applies. Synthetic `PREVIEW`/
+   `PRODUCTION`: startup performs no schema write and returns the redacted
+   behind-version error.
+6. Guarded command: missing approval, mismatched target, disposable-safety
+   violation, and unsafe synthetic target all fail without writing; a secret-
+   bearing URL canary is absent from every captured error/output.
 
 ## Migration, rollout, and rollback
 
@@ -104,10 +126,14 @@ never promise destructive down migration.
 
 ## Stop conditions
 
-- production schema version/current data cannot be established read-only;
-- the remote startup path would auto-write;
-- transaction behavior cannot be proven with libSQL/SQLite; or
-- an existing non-v23 remote database is discovered.
+- accepted remote startup policy would need to change;
+- correct proof requires a preview/production/shared database or unavailable
+  external credential; or
+- the installed libSQL/SQLite runtime lacks a transactional/concurrency primitive
+  and no safe local equivalent can satisfy the accepted atomicity contract.
+
+All ordinary migration SQL, transaction, concurrency, fixture, command, and
+test failures are owned and repaired by the builder within this task.
 
 ## Completion criteria
 
@@ -115,4 +141,5 @@ never promise destructive down migration.
 - local/E2E and remote behavior differ exactly as locked.
 - no product schema addition is bundled.
 - future task packet requirements are documented.
+- The named focused Vitest command passes without browser or remote resources.
 - no remote/shared database was accessed.
