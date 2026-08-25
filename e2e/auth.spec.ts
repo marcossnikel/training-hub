@@ -71,7 +71,7 @@ test.describe("auth", () => {
       })
     ).toHaveCount(0);
     await expect(page.getByText("Morning Easy Run")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Weekly brief" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "This week, in context." })).toHaveCount(0);
   });
 
   test("sign-up creates a session and logout returns to sign-in", async ({ page }) => {

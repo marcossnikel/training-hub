@@ -94,7 +94,9 @@ test("comparable prior activity exposes feedback only for a delivered reliable m
   const sourceId = await addComparableFixture();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`/activity/${sourceId}/compare`);
-  await expect(page.getByRole("heading", { name: "Comparable prior activity" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "A prior session with a similar shape." })
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Was this useful?" })).toBeVisible();
   await page.getByRole("button", { name: "Not useful", exact: true }).click();
   await expect(page.getByText("Feedback saved.")).toBeVisible();

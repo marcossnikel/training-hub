@@ -45,7 +45,7 @@ describe("ComparableActivityView", () => {
   it("renders the one reliable evidence-linked result with factual signed deltas and no prohibited claim", () => {
     renderResult([prior]);
     expect(
-      screen.getByRole("heading", { level: 1, name: "Comparable prior activity" })
+      screen.getByRole("heading", { level: 1, name: "A prior session with a similar shape." })
     ).toBeTruthy();
     expect(
       screen.getByText("A prior running activity met the distance and moving-time criteria.")

@@ -28,11 +28,18 @@ export async function WeeklyBriefContent() {
   const feedback =
     reference && insightFeedbackEnabled() ? await getInsightFeedback(owner, reference) : null;
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <header className="mb-6">
-        <h1 className="font-display text-4xl font-bold">Weekly brief</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-5 lg:py-12">
+      <header className="mb-6 max-w-3xl">
+        <p className="font-mono text-xs font-medium text-muted-foreground uppercase">
+          Training / Weekly brief ·{" "}
           {rangeLabel(result.currentWindow.start, result.currentWindow.end)}
+        </p>
+        <h1 className="font-narrative mt-4 text-[3.25rem] leading-[1.02] font-normal tracking-[-0.035em]">
+          This week, in context.
+        </h1>
+        <p className="mt-4 max-w-2xl text-base leading-6 text-muted-foreground">
+          A factual recap of your most recent completed week. Every observation links to the
+          activities and window behind it.
         </p>
       </header>
       <WeeklyBriefView result={result} />

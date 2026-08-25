@@ -155,7 +155,7 @@ async function openComparison(page: Page, sourceId: number, width: number, heigh
   await page.setViewportSize({ width, height });
   await page.goto(`/activity/${sourceId}/compare`);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
+    page.getByRole("heading", { level: 1, name: "A prior session with a similar shape." })
   ).toBeVisible();
 }
 
@@ -174,7 +174,7 @@ test("a confirmed source enters one evidence-linked comparable prior activity", 
 
   await expect(page).toHaveURL(`/activity/${fixture.sourceId}/compare`);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
+    page.getByRole("heading", { level: 1, name: "A prior session with a similar shape." })
   ).toBeVisible();
   const source = page.getByRole("link", { name: `Open current activity #${fixture.sourceId}` });
   const prior = page.getByRole("link", { name: `Open prior activity #${fixture.priorId}` });
@@ -262,7 +262,7 @@ test("the final route streams its real loading skeleton during a slow client nav
     await capture(page, `37-comparable-prior-activity-loading-${width}.png`);
     await navigation;
     await expect(
-      page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
+      page.getByRole("heading", { level: 1, name: "A prior session with a similar shape." })
     ).toBeVisible();
   }
 });
@@ -307,7 +307,9 @@ test("the no-match result is exact and an unavailable source never renders a com
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`/activity/${fixture.pendingId}/compare`);
   await expect(
-    page.getByRole("heading", { name: /Comparable prior activity|No reliable prior match/ })
+    page.getByRole("heading", {
+      name: /A prior session with a similar shape\.|No reliable prior match/,
+    })
   ).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Open current activity/ })).toHaveCount(0);
   await capture(page, "37-comparable-prior-activity-unavailable-1440.png");
@@ -353,7 +355,10 @@ test("a real owner-scoped read failure announces safely and retry restores the f
       await restoreColumn();
       await page.keyboard.press("Enter");
       await expect(
-        page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
+        page.getByRole("heading", {
+          level: 1,
+          name: "A prior session with a similar shape.",
+        })
       ).toBeVisible();
       await capture(page, `37-comparable-prior-activity-retried-success-${width}.png`);
     }
@@ -387,7 +392,9 @@ test("reduced motion keeps the same comparable activity meaning and focus afford
     expect(await source.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe(
       "0.001s"
     );
-    await expect(page.getByRole("heading", { name: "Comparable prior activity" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "A prior session with a similar shape." })
+    ).toBeVisible();
     await capture(page, `37-comparable-prior-activity-reduced-motion-focus-${width}.png`);
   }
 });

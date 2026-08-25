@@ -361,6 +361,15 @@ export const pt: Dict = {
   },
   comparableActivity: {
     title: "Atividade anterior comparável",
+    headline: "Uma sessão anterior com formato parecido.",
+    intro:
+      "Esta é uma comparação factual de atividades confirmadas — não uma avaliação nem uma pontuação de desempenho.",
+    evidenceEyebrow: "Evidência, não uma nota",
+    traceTitle: "Volte às fontes.",
+    traceBody: "Toda comparação mantém visíveis as atividades de origem e os limites usados.",
+    sourceActivities: "Atividades de origem",
+    viewCurrent: "Ver atividade atual",
+    whyThisOne: "Por que esta?",
     matchExplanation:
       "Uma atividade anterior de {sportFamily} atendeu aos critérios de distância e tempo em movimento.",
     noMatchTitle: "Nenhuma atividade anterior confiável",
@@ -373,6 +382,10 @@ export const pt: Dict = {
     openPrior: "Abrir atividade anterior #{id}",
     distance: "Distância",
     movingTime: "Tempo em movimento",
+    pace: "Ritmo",
+    confirmedMetric: "atividade confirmada",
+    recordedDuration: "duração registrada",
+    derivedMetric: "valor factual derivado",
     source: "Atual",
     prior: "Anterior",
     delta: "Diferença em relação à atual",
