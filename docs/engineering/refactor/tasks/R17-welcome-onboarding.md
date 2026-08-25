@@ -111,11 +111,23 @@ activation.
 
 ## Validation
 
-Focused integration tests for owner-scoped eligibility, versioning, complete,
-skip, safe continuation, and guest/foreign denial. Then iterate invited sign-up,
-existing-account first login, complete, skip, refresh, back, Connect handoff,
-Explore, and no-replay paths in a real browser at 1440/390. Exercise keyboard,
-focus, and reduced motion.
+Add `src/features/onboarding/welcome.integration.test.ts` using disposable
+SQLite plus real session/current-user resolution. It covers existing/new owner
+eligibility, versioning, idempotent complete/skip, the R8 first-auth seam, safe
+Connect/Explore continuation, guest/foreign denial, and independence from every
+Strava connection/activation state.
+
+```sh
+npx vitest run src/features/onboarding/welcome.integration.test.ts src/features/access/auth-journey.integration.test.ts
+npx playwright test e2e/onboarding.spec.ts e2e/auth.spec.ts e2e/byo-connection.spec.ts
+```
+
+Do not run the full repository gate. Make integration green first, then iterate
+invited sign-up and existing-account first login through complete, skip, refresh,
+back, Connect handoff, Explore, and no-replay paths in the real browser at
+1440/390. Exercise keyboard, focus, light/dark, reduced motion, and JavaScript-
+interruption-safe content until the focused Playwright specs and direct
+inspection pass.
 
 ## Migration, compatibility, and rollback
 
@@ -125,6 +137,17 @@ migration/deployment is authorized.
 
 ## Stop only if
 
-Exact copy/route remains undecided at ready time, safe auth continuation cannot
-distinguish guest/onboarding state, or implementing persistence would escape the
-approved prerequisite boundary.
+Exact copy/route/design still requires a Marcos decision at ready time; accepted
+D-019 eligibility/skip semantics must change; or proof requires a live invite,
+remote/shared database, deployment, or external credential.
+
+Auth continuation, persistence, eligibility, route guards, fixtures, motion,
+focus, responsive layout, and all other recoverable local findings are owned and
+fixed by the builder within this task. Onboarding remains independent of Strava
+activation.
+
+## Finish
+
+Both named focused commands pass with disposable data and real-browser proof,
+R17 is marked done in the roadmap, and the complete attributable change is one
+local-main commit with no push, migration execution, or deployment.
