@@ -56,7 +56,8 @@ export const metadata: Metadata = {
     default: "Training Hub",
     template: "%s · Training Hub",
   },
-  description: "A private training journal with Strava sync and per-shoe mileage.",
+  description:
+    "Evidence-linked patterns across your own confirmed training history, with sources and limitations attached.",
 };
 
 export default async function RootLayout({
@@ -104,7 +105,9 @@ export default async function RootLayout({
               id="main-content"
               tabIndex={-1}
               className={
-                owner ? "th-foundation min-w-0 flex-1 bg-background lg:pl-64" : "min-w-0 flex-1"
+                owner
+                  ? "th-foundation min-w-0 flex-1 bg-background lg:pl-64"
+                  : "th-foundation min-w-0 flex-1 bg-background"
               }
             >
               {children}

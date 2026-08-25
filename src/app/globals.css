@@ -64,10 +64,8 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Issue #62 introduces the approved Training Hub foundation without changing
-   the private-beta landing before #67. Authenticated content and auth-entry
-   pages opt into this scope; the variables stay reusable for the later landing
-   slice. */
+/* Training Hub's semantic visual foundation is shared by authenticated,
+   auth-entry, and public product surfaces. */
 .th-foundation {
   --th-surface-canvas: #fbfaf7;
   --th-surface-raised: #ffffff;

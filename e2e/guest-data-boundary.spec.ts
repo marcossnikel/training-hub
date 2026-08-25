@@ -156,7 +156,7 @@ test("cookie-free HTTP and RSC requests stop before owner data can stream", asyn
           expect(response.status(), `${route} ${requestKind.label}`).toBe(200);
           expectGuestRootCacheControl(response.headers()["cache-control"]);
           const body = await response.text();
-          expect(body).toContain("Understand the patterns in your own training history.");
+          expect(body).toContain("See the part of your training history you cannot see alone.");
           expect(body).not.toContain("speed-insights");
           assertNoDomainPayload(body, [shoeSentinel, accountSentinel]);
           continue;
@@ -202,7 +202,7 @@ test("guest landing remains separate from protected recovery at desktop and narr
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Understand the patterns in your own training history.",
+        name: "See the part of your training history you cannot see alone.",
       })
     ).toBeVisible();
     await expect(page.getByText(shoeSentinel, { exact: true })).toHaveCount(0);

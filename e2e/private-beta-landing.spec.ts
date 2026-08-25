@@ -68,19 +68,27 @@ test("guest root presents the invitation-only evidence contract without a public
   await expect(page.locator("main")).toBeVisible();
   await expect(page.locator("footer")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Understand the patterns in your own training history."
+    "See the part of your training history you cannot see alone."
   );
-  await expect(page.getByRole("link", { name: "How beta access works" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "How beta access works" })).toHaveCount(2);
+  await expect(page.getByRole("link", { name: "How beta access works" }).last()).toHaveAttribute(
     "href",
     "#beta-access"
   );
-  await expect(page.getByRole("heading", { name: "Evidence before advice" })).toBeVisible();
   await expect(
-    page.getByText("Training Hub never falls back to the founder's Strava credentials.")
+    page.getByRole("heading", { name: "A change worth placing in context." })
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Private beta" }).first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "What is Training Hub?" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Log in" })).toHaveCount(1);
+  await expect(
+    page.getByText("Example source: 12 confirmed activities · no heart-rate or stream data")
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "The private beta uses athlete-owned credentials rather than a shared founder connection."
+    )
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Invitation-only access" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What does Training Hub do?" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(2);
   await expect(page.locator('script[src*="speed-insights"]')).toHaveCount(0);
   await expect(page.locator('a[href^="/sign-up"]')).toHaveCount(0);
   await expect(page.getByRole("link", { name: /waitlist|contact|payment|checkout/i })).toHaveCount(
@@ -119,7 +127,7 @@ test("guest landing has a complete keyboard path and preserves the invitation ex
     page.getByText("This page does not collect access requests or create accounts.")
   ).toBeVisible();
 
-  const login = page.getByRole("link", { name: "Log in" });
+  const login = page.getByRole("link", { name: "Sign in" });
   await login.focus();
   await expect(login).toBeFocused();
   await expectStaticReducedMotion(login);
@@ -144,7 +152,7 @@ test("an authenticated athlete keeps the recent-training root and the post-sync 
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Understand the patterns in your own training history.",
+        name: "See the part of your training history you cannot see alone.",
       })
     ).toHaveCount(0);
   } finally {

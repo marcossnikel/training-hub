@@ -190,26 +190,33 @@ export function Header({
   const pathname = usePathname();
   const { t } = useI18n();
 
-  // Auth-entry pages carry their own two-part hierarchy. The public landing
-  // keeps its existing minimal utility bar unchanged until issue #67.
+  // Auth-entry pages carry their own two-part hierarchy.
   if (auth === "out" && (pathname === "/login" || pathname === "/sign-up")) return null;
 
   if (auth === "out") {
     return (
-      <header className="border-b border-border/70 bg-background">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <header className="th-foundation bg-background">
+        <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-4 px-6 lg:px-12">
           <Link
             href="/"
-            className="focus-ring rounded-md font-display text-xl font-bold tracking-tight transition-colors duration-150 hover:text-primary motion-reduce:transition-none"
+            className="focus-ring rounded-sm font-mono text-xs font-medium tracking-wide uppercase transition-colors hover:text-primary motion-reduce:transition-none"
           >
             Training Hub
           </Link>
-          <Link
-            href="/login"
-            className="focus-ring rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground motion-reduce:transition-none"
-          >
-            Log in
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/#beta-access"
+              className="focus-ring hidden rounded-sm text-xs font-medium text-muted-foreground transition-colors hover:text-foreground motion-reduce:transition-none sm:inline-flex"
+            >
+              How beta access works
+            </Link>
+            <Link
+              href="/login"
+              className="focus-ring inline-flex min-h-11 items-center rounded-full border bg-card px-4 text-sm font-medium transition-colors hover:border-primary hover:text-primary motion-reduce:transition-none"
+            >
+              Sign in
+            </Link>
+          </div>
         </div>
       </header>
     );
