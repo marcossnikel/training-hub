@@ -64,7 +64,7 @@ STRIPE_MODE=test \
 npm run check:env
 ```
 
-## Rules for builders and the Orchestrator
+## Rules for local implementation agents
 
 - Do not run a migration, seed override, backfill, or reset against a remote,
   shared, preview, or production database unless the operation is explicitly

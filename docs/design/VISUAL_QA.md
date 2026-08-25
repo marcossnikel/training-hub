@@ -1,21 +1,23 @@
 # Visual QA and evidence convention
 
-Use this checklist for every product-facing change. It is deliberately concrete
-enough for an independent reviewer to repeat the relevant path.
+Use this checklist while implementing every product-facing change. The builder
+iterates until the relevant path works in a real browser; a later reviewer may
+repeat it only when Marcos explicitly requests a review session.
 
 ## Capture convention
 
-- Capture against the PR’s preview or local environment with the route, test
-  account/data condition, viewport, browser, and commit recorded in the PR.
-- Include one desktop screenshot (1440 px wide unless the issue specifies
-  another width) and one narrow screenshot (390 px wide unless the issue
+- Capture against a local or explicitly authorized preview environment with the
+  route, test account/data condition, viewport, browser, and commit recorded in
+  the task result.
+- Include one desktop screenshot (1440 px wide unless the task specifies
+  another width) and one narrow screenshot (390 px wide unless the task
   specifies another width). Record the full viewport height used.
-- Name files `<issue>-<route-slug>-<state>-<viewport>.png`, for example
+- Name files `<task>-<route-slug>-<state>-<viewport>.png`, for example
   `35-weekly-brief-partial-1440.png` and `35-weekly-brief-empty-390.png`.
 - Record a short clip only for consequential motion or a multi-step transition:
-  `<issue>-<route-slug>-<interaction>-<viewport>.webm`. It starts before the
+  `<task>-<route-slug>-<interaction>-<viewport>.webm`. It starts before the
   trigger and ends with the stable result. State the reduced-motion equivalent
-  in the PR even when a separate clip is unnecessary.
+  in the task result even when a separate clip is unnecessary.
 - Do not show production data, client secrets, tokens, or unrelated accounts.
   Use approved test data and redact only when redaction cannot conceal the
   behavior being reviewed.
@@ -24,7 +26,7 @@ enough for an independent reviewer to repeat the relevant path.
 
 For the primary path, capture default/success plus each visually distinct
 loading, empty/first-use, partial-or-stale, error/retry, disabled, destructive,
-or narrow-screen state that the issue declares. A state that has no visual
+or narrow-screen state that the task declares. A state that has no visual
 difference still needs a written behavior record. Include focus evidence when
 the main control, error recovery, dialog, or custom interactive pattern is
 in scope.
@@ -34,7 +36,7 @@ in scope.
 ### Contract and evidence
 
 - [ ] The decisive user moment, primary question, supporting evidence, and
-      de-emphasized information match the issue packet.
+      de-emphasized information match the task packet.
 - [ ] Every observation names or links its source and comparison window.
 - [ ] Missing, partial, stale, or low-confidence data is visible at the point
       of interpretation; the copy makes no coaching, medical, causal, or
@@ -65,9 +67,9 @@ in scope.
 - [ ] Motion has a stated trigger and purpose; reduced motion yields the same
       meaning without nonessential movement.
 
-## PR evidence record
+## Optional durable evidence record
 
-Add the following to the PR template, filling every applicable field:
+Use this only when the task requests saved evidence:
 
 ```md
 Visual proof
@@ -79,6 +81,5 @@ Visual proof
 - Keyboard/focus and reduced-motion result:
 ```
 
-When no UI changes exist, say `Not applicable — documentation-only change` and
-link the Ready-for-Build checklist review. A Figma-only handoff or prose-only
-claim is not visual proof for a product-surface implementation.
+When no UI changes exist, browser proof is not applicable. A Figma-only handoff
+or prose-only claim is not visual proof for a product-surface implementation.

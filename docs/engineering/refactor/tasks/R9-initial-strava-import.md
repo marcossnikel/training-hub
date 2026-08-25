@@ -1,9 +1,10 @@
 # R9 — Keep initial Strava history out of Review
 
-**Risk:** high  
-**Recommended builder:** Terra high  
-**Deferred review focus:** Terra high; sync state machine, owner scope, data repair, provider effects  
-**Depends on:** R2M  
+**Status:** draft
+**Delivery class:** full stack
+**Risk:** high
+**Recommended builder:** Terra high
+**Depends on:** R2M
 **Unlocks:** R11
 
 ## Outcome
@@ -15,7 +16,7 @@ retry without skipping older history.
 
 ## Required context
 
-- D-013/D-017, Product onboarding/initial-history wording
+- D-013/D-017/D-020, Product ingestion and connection-activation wording
 - `src/lib/strava.ts`, callback route and tests
 - `src/lib/db/strava-auth.ts`, activity/meta DB modules and lifecycle tests
 - E2E Strava provider and BYO connection spec
@@ -59,8 +60,9 @@ the review-inbox cutoff for new multi-user connections.
    review classification.
 10. Sync result distinguishes historical confirmed imports from new pending
     imports and retains total pending count.
-11. Update product decision/copy: first sync is verified in the recent log;
-    Review contains only post-connection activity, not all imported history.
+11. Update current callback/log copy so it never asks the athlete to review all
+    imported history. R18 later owns the Activation Summary; R9 must expose
+    accurate confirmed/pending counts without inventing that future UI.
 12. Existing-data repair is separate from code rollout. Provide a dry-run-first,
     owner-explicit operation; do not execute it remotely in this task.
 
@@ -134,7 +136,7 @@ the review-inbox cutoff for new multi-user connections.
    dry run makes no changes; write changes only exact candidates and is
    idempotent.
 
-## Required automated proof
+## Required integration proof
 
 - pure cutoff: before/equal/after/invalid;
 - initial all-history import status/splits/counts;
@@ -147,14 +149,9 @@ the review-inbox cutoff for new multi-user connections.
 - callback error leaves connected/retryable state and same cutoff;
 - redaction canaries absent from logs/responses.
 
-```sh
-npm run verify:fast
-npx playwright test e2e/byo-connection.spec.ts e2e/tenant-isolation.spec.ts
-npm run test:e2e:production
-```
-
-Run full `npm run verify` for Milestone M3 only after R11, unless R9 is released
-independently.
+When this draft becomes ready, name the focused integration test files and exact
+command covering the classification, persistence, callback, repair, owner, and
+loopback-provider scenarios above. Do not require the full repository gate.
 
 ## Required manual or visual proof
 
@@ -188,7 +185,7 @@ or exact captured candidate IDs, never a broad status rewrite.
 - repair candidates cannot be bounded owner + Strava origin + cutoff + pending;
 - initial retry needs a provider cursor not available from the current contract;
 - real Strava/remote DB/deployment is required; or
-- D-017/product copy is not updated to the new Inbox meaning.
+- D-020/product copy is not updated to the new Inbox meaning.
 
 ## Completion criteria
 

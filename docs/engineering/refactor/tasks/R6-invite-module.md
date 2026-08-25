@@ -1,9 +1,9 @@
 # R6 — Deepen beta invitation management
 
-**Risk:** high  
-**Recommended builder:** Terra high  
-**Deferred review focus:** Terra high; registration atomicity, creator auth, token secrecy, migration  
-**Depends on:** R3 and R2M  
+**Status:** draft
+**Risk:** high
+**Recommended builder:** Terra high
+**Depends on:** R3 and R2M
 **Unlocks:** R7
 
 ## Outcome

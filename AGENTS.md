@@ -40,11 +40,21 @@ Work as one implementation stream. Use subagents, separate worktrees, or
 formal reviews only when the user asks or when isolation is technically
 necessary to protect overlapping local work.
 
-## Verification budget
+## Verification contract
 
-- UI and ordinary product changes: run focused tests plus a real browser check
-  at the relevant desktop and mobile widths. Run `npm run verify` at meaningful
-  milestones and before release, not after every small slice.
+Every ready task declares exactly one delivery class. Its minimum proof is:
+
+- **API/backend:** focused integration tests at the changed boundary, using a
+  disposable database or local provider double when applicable.
+- **Full stack:** focused integration tests plus iteration in a real browser at
+  the relevant desktop and mobile widths.
+- **Frontend:** iteration in a real browser at the relevant desktop and mobile
+  widths, including the states and interactions named by the task.
+- **Documentation/plan:** link/reference inspection and diff checks; no runtime
+  suite is required unless the document changes executable configuration.
+
+Run `npm run verify` only when the task explicitly requires it or at a
+release-critical milestone. It is not the default proof for every slice.
 - A newly observed failure gets one focused confirmation. Diagnose it now only
   when it reproduces and blocks the active work; otherwise record it and keep
   shipping the requested product.
@@ -63,12 +73,25 @@ Agents may make in-scope local changes, create commits, and merge directly to
 `main`. Pushing, deploying, or changing live/shared services still requires
 explicit authorization.
 
+Agents resolve routine local and recoverable blockers inside the assigned task:
+fix attributable failures, update compatible call sites, add missing focused
+fixtures, and rerun the required proof. Do not create a blocker merely because
+the first implementation attempt or validation failed.
+
 Stop and request direction instead of guessing when an action needs a new
 account or credential, uses a production or shared database, changes a live
 deployment, creates or changes live billing, sends external communications,
 deletes material data, changes an accepted product decision, encounters an
 unowned dirty change that overlaps the required edit, or creates a security or
 privacy ambiguity.
+
+## Ready-task invocation
+
+`Realize Rxx` means: read this file and the named ready task packet, inspect the
+current git state, implement the complete outcome, run its delivery-class proof,
+self-inspect the diff, mark the task done, and commit the attributable files
+directly to local `main`. Do not start another task, reviewer, subagent, push, or
+deployment unless the request explicitly adds that authority.
 
 ## Product and design guardrails
 

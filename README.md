@@ -1,14 +1,16 @@
 # Training Hub
 
-Training Hub is becoming a focused personal training-intelligence product for
-self-coached athletes. The repository currently contains a **single-user local
-prototype** with Strava sync, activity review, gear mileage, journals,
-performance analysis, and race/block comparison. It is not yet a multi-user
-product or a hosted Strava integration.
+Training Hub is a pre-production personal training-intelligence product for
+self-coached athletes. It has account-scoped Strava sync, activity review, gear
+mileage, journals, performance analysis, weekly/comparable evidence, and a
+private-beta foundation. Marcos is currently the only user. It is not yet a
+hosted Strava integration or a released product.
 
-The v0 direction and delivery queue live in the
-[GitHub Project](https://github.com/users/marcossnikel/projects/2) and
-[GitHub Issues](https://github.com/marcossnikel/training-hub/issues).
+Current product direction lives in [the product roadmap](docs/product/ROADMAP.md)
+and accepted behavior in [the decision log](docs/product/DECISIONS.md). The
+executable engineering queue lives in
+[the implementation roadmap](docs/engineering/refactor/ROADMAP.md). GitHub
+issues may track work but are not implementation authority.
 
 ## Current boundaries
 
@@ -19,12 +21,12 @@ The v0 direction and delivery queue live in the
   standard connection model is available. Never use founder credentials as a
   product default.
 - Billing is not implemented. Do not create live Stripe products or deploy a
-  product change without the relevant issue and approval.
+  product change without a ready task and explicit approval.
 - New beta registration is invitation-only and enforced by the server. Read
   [the private-invitation operator boundary](docs/engineering/BETA_INVITES.md)
   before using the local issuance command.
-- The v0 direction is evidence and context, not generic AI coaching or
-  medical/readiness advice.
+- The product is evidence-linked training analysis, not workout prescription,
+  generic chat, or medical/readiness advice.
 
 ## Stack
 
@@ -55,7 +57,7 @@ npm run seed:clear
 ```
 
 Write scripts reject remote database URLs by default. Do not override that
-guard unless the assigned GitHub issue explicitly requires it.
+guard without an explicitly authorized task and environment.
 
 After pulling the owner-schema cutover, reset only a disposable local or E2E
 database with the explicit command below, then run `npm run seed`. The command
@@ -68,17 +70,17 @@ npm run db:reset
 npm run seed
 ```
 
-## Verification
+## Implementation and verification
 
-Run the full local gate before handing work back:
+`AGENTS.md` defines the repository operating rules. A ready task packet contains
+scope, decisions, acceptance, and proof. The default invocation is simply
+`Realize Rxx` in a fresh Codex task.
 
-```bash
-npm run verify
-```
-
-`AGENTS.md` defines the repository operating rules. GitHub Issues carry the
-scope, acceptance criteria, dependencies, and delivery status; do not revive
-historical plans from Git history as an active backlog.
+- API/backend changes use focused integration tests.
+- Full-stack changes use focused integration tests plus real-browser iteration.
+- Frontend changes use real-browser iteration at the named desktop/mobile
+  widths and states.
+- `npm run verify` is a release/milestone gate only when explicitly required.
 
 ## Environments and deployment
 
@@ -93,4 +95,4 @@ work around.
 `data/` (local SQLite and uploads) and `.env.local` are ignored by Git. The
 only preserved founder data needed for productization—shoe mileage—has already
 been exported; development/beta schema work can use a clean reset when the
-relevant data-lifecycle issue approves it.
+relevant data-lifecycle task approves it.

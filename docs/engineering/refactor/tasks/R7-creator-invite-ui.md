@@ -1,10 +1,10 @@
 # R7 — Add creator invitation management UI
 
+**Status:** draft
 **Ready gate note:** a concrete Figma frame must be approved before Ready  
-**Risk:** high  
-**Recommended builder:** Terra medium after design approval  
-**Deferred review focus:** Terra high for auth/token handling plus visual audit  
-**Depends on:** R5 and R6  
+**Risk:** high
+**Recommended builder:** Terra medium after design approval
+**Depends on:** R5 and R6
 **Unlocks:** R8 and creator-operated beta access
 
 ## Outcome

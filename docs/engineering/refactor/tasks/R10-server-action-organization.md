@@ -1,10 +1,10 @@
 # R10 — Organize server actions by owning feature
 
+**Status:** draft
 **Ready gate note:** refresh caller inventory after R1 acceptance  
-**Risk:** medium  
-**Recommended builder:** Terra medium  
-**Deferred review focus:** Terra medium; Server Action boundaries, owner resolution, redirects  
-**Depends on:** R1  
+**Risk:** medium
+**Recommended builder:** Terra medium
+**Depends on:** R1
 **Unlocks:** R12 and R13
 
 ## Outcome

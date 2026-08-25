@@ -1,9 +1,9 @@
 # R2 — Make runtime configuration explicit and testable
 
-**Risk:** high  
-**Recommended builder:** Terra high  
-**Deferred review focus:** Terra high; environment isolation, import-time behavior, secret exposure  
-**Depends on:** R1  
+**Status:** draft
+**Risk:** high
+**Recommended builder:** Terra high
+**Depends on:** R1
 **Unlocks:** R2M
 
 ## Outcome

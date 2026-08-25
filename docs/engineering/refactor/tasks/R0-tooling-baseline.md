@@ -1,9 +1,9 @@
 # R0 — Restore a trustworthy tooling baseline
 
-**Risk:** medium  
-**Recommended builder:** Terra medium  
-**Deferred review focus:** Terra medium; Next/React lint coverage and unrelated-change preservation  
-**Depends on:** none  
+**Status:** done
+**Risk:** medium
+**Recommended builder:** Terra medium
+**Depends on:** none
 **Unlocks:** R1
 
 ## Outcome

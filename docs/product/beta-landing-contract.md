@@ -13,7 +13,7 @@ not collect a visitor's details, create an account, send a message, open a
 waitlist, start checkout, or claim broad availability. Existing developer/test
 registration is not public-beta access.
 
-Until #60 is delivered and independently reviewed, #40 must not link a public
+Until #60 is delivered and validated, #40 must not link a public
 visitor to `/sign-up`, collect access requests, or promote public acquisition.
 It may present an invitation-only landing route whose only primary action
 explains that boundary. A private invitation may later supply a registration
@@ -31,12 +31,13 @@ why the evidence is trustworthy, and why access is currently invitation-only.
 The intended feeling is calm confidence, not urgency or a sales funnel.
 
 The public route is guest `/`. The existing authenticated recent-training log
-continues to render at `/`, including the D-017 first-sync location
-`/?strava=connected`. The implementation resolves authentication on the
-server **before** any product-domain data read: guests receive only landing
-content and a private/no-store response; authenticated users retain the app
-route. Do not duplicate a dashboard, redirect an authenticated athlete through
-marketing, or expose a cached/data-bearing app shell to guests.
+continues to render at `/`. Post-connection activation is governed by
+D-019/D-021 and is not a guest-landing concern. The implementation resolves
+authentication on the server **before** any product-domain data read: guests
+receive only landing content and a private/no-store response; authenticated
+users retain the app route. Do not duplicate a dashboard, redirect an
+authenticated athlete through marketing, or expose a cached/data-bearing app
+shell to guests.
 
 The only primary guest CTA is an in-page link to the invitation explanation.
 The utility `Log in` link remains available for existing accounts. There is no
@@ -113,7 +114,7 @@ meaning; and no auto-playing/decorative motion.
 | --- | --- |
 | Guest default, 1440 px | Utility navigation, promise, evidence, audience, connection, planned-price boundary, invitation section, then footer appear in that reading order. Main column stays readable; any secondary rail contains only the connection/beta boundary. |
 | Guest default, 390 px | One column preserves the same order. CTA and `Log in` remain readable/tappable; no horizontal page scroll, clipped wording, hover-only detail, or decorative replacement for copy. |
-| Authenticated root | Existing authenticated recent-training route renders; it is not a landing-page success state and no guest marketing/data mix is permitted. `/?strava=connected` remains the D-017 post-sync location. |
+| Authenticated root | Existing authenticated recent-training route renders; it is not a landing-page success state and no guest marketing/data mix is permitted. Any post-connection activation route remains owner-scoped and separate from this contract. |
 | Hover, focus, and press | `How beta access works`, `Log in`, and any FAQ disclosure use nonessential 100–150 ms tone/opacity feedback, retain contrast, and show the shared focus ring. Activation acknowledges immediately; any visual transition is at most 150 ms. Enter activates links; Enter/Space activates disclosures. |
 | In-page CTA result | The fragment navigates to `#beta-access`; the explanation becomes visible without a request, analytics event, account creation, or live-region success message. Keyboard focus remains on the link unless an intentional same-document focus move is implemented and proven. |
 | Route loading | The route-level placeholder appears within 200 ms, keeps the headline/section hierarchy, contains no invented product metrics or testimonials, and is static with reduced motion. |
@@ -137,8 +138,8 @@ meaning; and no auto-playing/decorative motion.
 
 #40 is implementation-ready because #60 has a concrete enforcement packet. A
 public promotion or public-registration release is blocked until #60 is
-delivered and independently reviewed. The #40 PR must prove all of the
-following, in addition to `npm run verify` and an independent review:
+delivered and validated. The #40 full-stack task must prove all of the
+following with focused integration tests and browser iteration:
 
 - [ ] Server-side guest/authenticated root separation happens before product
       data reads; guest documents/RSC responses are private/no-store and do

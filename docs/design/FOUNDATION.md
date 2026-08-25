@@ -79,7 +79,7 @@ alone. Token changes belong in a single implementation layer once one exists.
 ## 4. Reusable pattern contract
 
 Use established primitives before introducing a new visual pattern. A product
-issue names the primitive, its content, and each applicable state.
+task names the primitive, its content, and each applicable state.
 
 | Pattern | Required contents and behavior |
 | --- | --- |
@@ -102,7 +102,8 @@ trigger, feedback, duration/intent, keyboard behavior, and reduced-motion
 fallback. Use a bounded duration: hover/focus feedback is 100–150 ms; press or
 pending acknowledgement is immediate and any visual transition is at most 150
 ms; loading-to-content or route/state feedback is at most 200 ms. Longer
-movement needs an issue-specific reason and a recording in review. “Short” is
+movement needs a task-specific reason and a recording when the task requests
+durable evidence. “Short” is
 not an executable duration.
 
 | State | Contract |
@@ -125,7 +126,7 @@ not an executable duration.
 
 - Motion is feedback, not decoration. Declare its trigger, affected element,
   purpose, completion state, bounded duration, keyboard path, and reduced-motion
-  fallback. Apply the matrix timing standard unless the issue records a reason
+  fallback. Apply the matrix timing standard unless the task records a reason
   for a different bound. Never use autoplay, parallax, or looping decoration on
   product surfaces.
 - Under `prefers-reduced-motion: reduce`, remove nonessential movement and use
@@ -142,7 +143,7 @@ not an executable duration.
   or expose an intentional, announced horizontal scroll region.
 - Use semantic headings, landmarks, labels, and live announcements only for
   meaningful asynchronous status. Test zoom, text resizing, contrast, screen
-  reader naming, and focus order as part of the issue’s validation.
+  reader naming, and focus order as part of the task's validation.
 
 ## 6. Reference translation map
 
@@ -157,16 +158,17 @@ component implementation, wording, or proprietary asset.
 | [Brex](https://www.brex.com) | confident clarity for consequential forms, confirmation, and recovery | financial-product flows, language, visual identity, or compliance claims |
 | [Beautiful UI](https://beautifului.dev) | evidence-first cards, contextual detail, and intentional empty/error patterns | shipped snippets, page compositions, tokens, components, or brand assets |
 
-## 7. Builder and reviewer workflow
+## 7. Product-surface task contract
 
-Before code starts, the issue must contain the executable design contract in
-`docs/engineering/ORCHESTRATION.md`: moment/outcome, hierarchy, exact copy or
-rules, components, full state matrix, motion, responsive/a11y path, translated
-references, acceptance checks, data/uncertainty meaning, visual proof, and
-reset/rollback. If a material choice is open, keep the issue in planning and
-name the decision/dependency rather than choosing silently.
+Before code starts, the ready task packet contains the executable design
+contract: moment/outcome, hierarchy, exact copy or rules, components, full state
+matrix, motion, responsive/accessibility path, translated references,
+acceptance checks, data/uncertainty meaning, and rollback. If a material choice
+is open, keep the task `draft` and name the decision rather than choosing it
+silently.
 
-Before review, use [VISUAL_QA.md](./VISUAL_QA.md). A product-facing PR includes
-named desktop and narrow screenshots, plus a short recording when motion or a
-multi-step state change is material. Visual proof is evidence, not a substitute
-for automated and accessibility checks.
+The implementing builder iterates in a real browser using
+[VISUAL_QA.md](./VISUAL_QA.md) at 1440 px and 390 px. A task requests durable
+screenshots or a short recording only when they materially help later product
+comparison. Browser proof does not replace required full-stack integration
+tests.

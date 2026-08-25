@@ -1,10 +1,10 @@
 # R13 — Converge dead code, tooling, and documentation
 
+**Status:** draft
 **Ready gate note:** generate and approve the deletion inventory last  
-**Risk:** medium  
-**Recommended builder:** Luna high for a fixed mechanical list; Terra medium otherwise  
-**Deferred review focus:** Terra medium; entrypoints, docs authority, accidental capability loss  
-**Depends on:** R0 through R12  
+**Risk:** medium
+**Recommended builder:** Luna high for a fixed mechanical list; Terra medium otherwise
+**Depends on:** R0 through R12
 **Unlocks:** Milestone M4 completion
 
 ## Outcome
@@ -16,11 +16,11 @@ implemented feature ownership without relying on stale AI-generated guidance.
 
 ## Required context
 
-- accepted handoffs from R0–R12, especially every named compatibility expiry;
+- done packets from R0–R12, especially every named compatibility expiry;
 - `AGENTS.md`, `package.json`, `biome.json`, `knip.json`, TypeScript/Vitest/
   Playwright configuration, scripts, and import aliases;
 - `docs/product/`, `docs/design/`, `docs/engineering/`, root Markdown files, and
-  `docs/engineering/ORCHESTRATION.md`;
+  current workflow and roadmap documents;
 - framework/config entrypoint conventions from installed Next.js/tool docs;
 - final `rg --files`, import/dependency graph, build output, and full verify.
 
@@ -28,11 +28,12 @@ implemented feature ownership without relying on stale AI-generated guidance.
 
 At discovery time, `knip.json` ignores all `src/lib/db/**` plus UI primitives,
 `src/lib/sports.ts`, and telemetry, so a passing dead-code check cannot prove
-those areas are live. The repository also has an older GitHub Project/draft-PR/
-builder-reviewer workflow in `docs/engineering/ORCHESTRATION.md` that conflicts
-with the current `AGENTS.md` one-stream pre-production rules. Earlier refactors
-will temporarily introduce aliases, exports, scripts, schema compatibility
-fields, or docs that must be deliberately expired.
+those areas are live. The old GitHub Project/draft-PR/orchestrator documents
+were removed while preparing the current task workflow. The retired-Strava
+configuration checker scans every tracked file, so tracked-file removal and
+the check's staging behavior must be understood before further cleanup.
+Earlier refactors may also introduce aliases, exports, scripts, schema
+compatibility fields, or docs that must be deliberately expired.
 
 This task must regenerate its candidate list after R12. The current observations
 are reasons to investigate, not a deletion authorization.
@@ -43,15 +44,14 @@ are reasons to investigate, not a deletion authorization.
    entrypoints, dynamic references, framework conventions, package scripts,
    tests, build behavior, and documentation ownership.
 2. Classify each candidate as delete, keep with named reason, move/merge, or
-   blocked. The milestone orchestrator or Marcos must approve and freeze that
-   table before using a cheap mechanical model.
+   externally blocked. The ready packet freezes that table before using a cheap
+   mechanical model; the builder does not reopen it.
 3. Tighten broad Knip ignores. A remaining ignore must identify the convention
    or dynamic entrypoint that requires it and, where practical, a negative test.
 4. Delete expired compatibility exports/files named by R0–R12. If one remains,
    assign a current owner, reason, and new expiry; “might be used” is not enough.
-5. `AGENTS.md` remains operating authority. Merge unique still-current guidance
-   from `docs/engineering/ORCHESTRATION.md` into the refactor workflow or another
-   correct owner, then delete/replace the stale document so agents see one loop.
+5. `AGENTS.md` remains operating authority. Searches must prove no surviving
+   current document reintroduces the deleted orchestrator/reviewer loop.
 6. Keep product/design decision history when it explains accepted behavior.
    Mark superseded records rather than erasing meaningful decision provenance.
 7. Remove dependencies only after source/config/script usage and package lifecycle
@@ -93,8 +93,7 @@ are reasons to investigate, not a deletion authorization.
 
 ## Candidate inventory format
 
-Before implementation, add an orchestrator- or Marcos-approved table to this
-task or its handoff:
+Before implementation, add a frozen table to this ready task:
 
 | Candidate | Evidence unused/stale | Dynamic/convention checks | Decision | Replacement/expiry | Proof |
 | --- | --- | --- | --- | --- | --- |
@@ -109,18 +108,17 @@ The implementation model may act only on rows marked `delete` or `move`.
    have been checked.
 2. Collect all compatibility/expiry promises from R0–R12 handoffs.
    Completion: each is present in the candidate table with an outcome.
-3. Have the milestone orchestrator or Marcos approve and freeze
-   delete/move/keep decisions before cheap-model execution. Completion: no row
-   asks the builder to judge current product or architecture.
+3. Freeze delete/move/keep decisions when the packet becomes ready. Completion:
+   no row asks the builder to judge current product or architecture.
 4. Tighten Knip entrypoints/ignores until its report is meaningful. Completion:
    remaining ignores are narrow and justified; known safe dead fixture proves the
    checker would fail when appropriate.
 5. Remove accepted code/config/dependency candidates in small coherent groups.
    Completion after each group: focused checks and import/config searches pass;
    lockfile matches package manifest.
-6. Reconcile engineering docs and links, including the old orchestration loop.
-   Completion: one authoritative current workflow remains and link checking/search
-   finds no references presented as current to deleted guidance.
+6. Reconcile engineering docs and links. Completion: one authoritative current
+   workflow remains and link checking/search finds no references presented as
+   current to deleted guidance.
 7. Delete expired compatibility layers and run negative searches/tombstones.
    Completion: each prior expiry has evidence of removal or an approved new owner.
 8. Run full Milestone M4 verification and inspect the built application at the

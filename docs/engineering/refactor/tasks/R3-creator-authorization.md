@@ -1,9 +1,9 @@
 # R3 — Add creator operational authorization
 
-**Risk:** high  
-**Recommended builder:** Terra high  
-**Deferred review focus:** Terra high; auth, tenant isolation, migration, bootstrap  
-**Depends on:** R2M  
+**Status:** draft
+**Risk:** high
+**Recommended builder:** Terra high
+**Depends on:** R2M
 **Unlocks:** R4 and R6
 
 ## Outcome

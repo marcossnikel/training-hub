@@ -4,7 +4,7 @@
 credentials, package, schema, or runtime behavior is selected or changed here.
 
 **Decision boundary.** This document recommends an implementation direction for
-D-012; accepting that recommendation remains a deliberate Product & Architecture
+D-012; accepting that recommendation remains a deliberate product
 decision at #22. D-013 remains **Open** and blocks any user-facing privacy,
 scope, retention, or deletion promise in #26/#27.
 
@@ -317,4 +317,4 @@ unavailable preview or a real Strava account was used.
 - [ ] Encryption/key rotation/OAuth state/redaction tests pass.
 - [ ] D-013 is accepted before any public scope, retention, disconnect, or
       deletion promise is merged.
-- [ ] Automated and manual two-account evidence is attached to the successor PR.
+- [ ] Automated and manual two-account evidence is recorded in the successor task result.

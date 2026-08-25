@@ -237,7 +237,8 @@ unavailable verification at or after its prior verified paid-through time maps
 to restricted `unknown`, not `canceled_or_expired` or `active`, until a webhook
 or reconciliation verifies renewal; canonical `canceled` and
 `incomplete_expired` remain `canceled_or_expired`. Use isolated local/E2E data
-and test fixtures only. Run `npm run verify` plus focused tests.
+and test fixtures only. Run focused owner-scoped Stripe-boundary integration
+tests plus browser iteration through the full state matrix.
 Manual proof must show test-mode-only environment validation and desktop/narrow
 screenshots of the state matrix, without a real payment method or any secret.
 
@@ -251,7 +252,7 @@ external proof.
 ### #43 — Customer Portal and lifecycle packet
 
 Build on #42 only after its ownership, entitlement, webhook, and test-mode
-contract have independent review evidence. Add an owner-bound server Portal
+contract is implemented and validated. Add an owner-bound server Portal
 session creation path and lifecycle coverage, not manual billing administration
 or a second source of entitlement. A Portal return, cancellation click, or
 payment-method change remains advisory until the verified webhook/reconciliation

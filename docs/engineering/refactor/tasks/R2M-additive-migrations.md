@@ -1,9 +1,9 @@
 # R2M — Establish safe additive migrations
 
-**Risk:** high  
-**Recommended builder:** Terra high  
-**Deferred review focus:** Terra high; transactionality, version transitions, remote-write gate  
-**Depends on:** R2  
+**Status:** draft
+**Risk:** high
+**Recommended builder:** Terra high
+**Depends on:** R2
 **Unlocks:** R3, R6, R9
 
 ## Outcome

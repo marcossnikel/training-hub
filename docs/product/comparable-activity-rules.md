@@ -155,7 +155,11 @@ The implementation must add pure-matcher tests and an owner-scoped adapter test.
 | Non-input limitation | Missing HR/streams neither rejects a usable record nor appears as an inferred missing-value explanation; restricted copy remains free of coaching/readiness/AI/equivalence claims. |
 | No match | Exact heading, body, current-activity provenance, and method criteria are available to the UI. |
 
-Run focused unit tests for the matcher and adapter, then the repository gate: `npm run verify`. The implementation does not require a database reset, remote database, account, Strava credential, network call, or deployed environment. There is no persisted matcher state; rollback is removing the pure module, adapter, and surface together.
+Run focused integration tests for the matcher, owner-scoped adapter, and route,
+then iterate the full user story in the browser. The implementation does not
+require a database reset, remote database, account, Strava credential, network
+call, or deployed environment. There is no persisted matcher state; rollback is
+removing the pure module, adapter, and surface together.
 
 ## #37 implementation handoff
 
@@ -175,7 +179,7 @@ The intended feeling is calm confidence in a bounded observation, not a performa
 | Loading | Use a static hierarchy-preserving skeleton within 200 ms; it contains no invented dates or metrics. Capture at one viewport. |
 | No match / first usable state | Use the exact no-match heading/body and visible criteria; keep the current activity provenance. Capture at 1440 px and 390 px. |
 | Error/retry | On a recoverable owner-scoped read failure, retain safe source context, announce a plain-language error, and offer an action-specific retry. Never expose IDs that failed ownership, raw errors, secrets, or another athlete's data. Capture the retryable state and successful retry. |
-| Disabled/unavailable source | A pending, invalid, missing, or unowned source never enters the comparison surface. The authenticated route returns its existing safe not-found/access behavior; do not render a disabled comparison card that leaks why. Document this no-card state in the PR. |
+| Disabled/unavailable source | A pending, invalid, missing, or unowned source never enters the comparison surface. The authenticated route returns its existing safe not-found/access behavior; do not render a disabled comparison card that leaks why. Document this no-card state in the task result. |
 | Hover/focus/press | Source links and retry controls have visible `focus.ring`, a 100–150 ms nonessential tone/opacity response, and immediate press acknowledgement. Keyboard has the same meaning as pointer input; no information depends on hover. |
 | Keyboard | Tab order follows heading → current source link → prior source link → method disclosure → retry when present. Enter activates links; Enter or Space activates semantic buttons/disclosures. Any disclosure returns focus normally. Include focus evidence. |
 | Reduced motion | All state and focus feedback is immediate/static under `prefers-reduced-motion: reduce`; no animation is needed to understand a match or retry. Record the result. |
@@ -189,8 +193,8 @@ Translate references through the foundation: adapt Linear's dense-but-legible hi
 - [ ] The route resolves the source and candidates through authenticated owner + `confirmed` scope and uses the pure matcher with an explicit `asOf`.
 - [ ] Only the reliable and no-match outcomes from this contract can render; no classifier, block, limited tier, or hidden similarity score appears.
 - [ ] Evidence, copy restrictions, method limitation, source provenance, and no-match copy are exact.
-- [ ] Unit, owner-isolation, route/component, keyboard, and reduced-motion tests cover the stated matrix; `npm run verify` passes.
-- [ ] The PR includes the required desktop/narrow/state/focus visual proof and an independent review checks it against this contract.
+- [ ] Focused integration tests cover matcher, owner isolation, and route results; browser iteration covers the stated keyboard, state, responsive, and reduced-motion matrix.
+- [ ] The task result records the required desktop/narrow/state/focus browser proof.
 
 ## Acceptance record for #36
 

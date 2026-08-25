@@ -1,70 +1,86 @@
-# R? — Task title
+# Rxx — Outcome title
 
-**Risk:** low | medium | high  
-**Recommended builder:** model and effort  
-**Deferred review focus:** model/risk focus before relevant live-risk actions  
-**Depends on:** task IDs or none  
-**Unlocks:** task IDs
+**Status:** draft | ready | done
+**Delivery class:** API/backend | full stack | frontend | documentation/plan
+**Risk/model:** low, medium, or high — recommended Codex model and effort
+**Depends on:** done task IDs or none
+**Unlocks:** task IDs or none
 
 ## Outcome
 
-One observable user or developer result. Avoid combining independent outcomes.
+One observable result for the user or developer.
 
-## Required context
+## Current truth
 
-List only files that every builder needs. Add conditional pointers for branch-
-specific material.
-
-## Current behavior and evidence
-
-Describe what the current code does, including the exact implementation and
-test files that prove it. State any confirmed bug mechanism.
+Name the exact files, call sites, tests, existing behavior, and confirmed failure
+mechanism needed to execute this task. Do not rely on the planning chat.
 
 ## Locked decisions
 
-Number each product, domain, interface, migration, and UI decision the builder
-must implement rather than reinterpret.
+Number every product, domain, authorization, data, environment, provider, UI,
+motion, accessibility, migration, and compatibility choice the builder must
+implement rather than reinterpret.
 
-## Protected invariants
+## May change
 
-List authorization, ownership, privacy, environment, data, contract, error,
-responsive, and accessibility behavior that must remain true.
+Name owned files/areas and allowed change types. Include this task-specific
+failure policy:
 
-## Permitted scope
+> The builder may make deterministic behavior-preserving repairs exposed by
+> this change inside <boundary>. If a required repair escapes that boundary or
+> changes accepted behavior, stop only when it meets an external/decision stop
+> condition; otherwise extend the in-scope repair and document it.
 
-List files/modules that may change and the kinds of changes allowed. New files
-should have proposed feature ownership.
+## Must remain true
+
+List protected behavior, owner isolation, privacy, secrets, environment, data,
+route/API contracts, responsive/accessibility behavior, and unrelated work.
 
 ## Non-goals
 
-List adjacent work that must remain unchanged.
+Name attractive adjacent work that this task must not absorb.
 
-## Implementation sequence
+## Implementation map
 
 Number the edits in dependency order. End every step with an observable
-completion criterion.
+completion condition, including cleanup of temporary compatibility code.
 
-## Required automated proof
+## Acceptance
 
-Name test files, scenarios, exact assertions, and commands. Use disposable
-SQLite or local provider doubles where required.
+Use five to ten observable assertions. Each assertion maps to an integration
+test, browser path/state, or documentation inspection below.
 
-## Required manual or visual proof
+## Validation
 
-Name route, authentication state, environment, viewport, interaction, expected
-result, accessibility behavior, and artifact requirements.
+Use only the selected delivery class:
 
-## Migration, rollout, and rollback
+- **API/backend:** exact focused integration test files, fixtures, assertions,
+  and command.
+- **Full stack:** exact focused integration tests plus browser route, auth/data
+  state, interactions, 1440/390 expectations, and relevant failure states.
+- **Frontend:** browser route, auth/data state, interactions, 1440/390
+  expectations, keyboard/focus, and reduced-motion behavior.
+- **Documentation/plan:** exact link/reference/contradiction searches and diff
+  checks.
 
-State schema/data handling, compatibility lifetime, deployment boundary, and
-how to return safely to the previous version. Use `not applicable` explicitly.
+Name `npm run verify` only for a release-critical or explicitly justified gate.
 
-## Stop conditions
+## Migration, compatibility, and rollback
 
-List missing decisions or unsafe states that end the task instead of inviting a
-guess.
+State schema/data handling, idempotency, compatibility lifetime, local/remote
+boundary, and safe rollback. Write `not applicable` where appropriate.
 
-## Completion criteria
+## Stop only if
 
-Use a checkable exhaustive list. The task is not done while any item is unknown
-or supported only by a builder claim.
+List only: inaccessible external credential/account, shared/production/live
+effect, destructive material-data action, unresolved product/security/privacy
+decision requiring Marcos, or unavoidable overlap with unowned dirty work.
+
+## Finish
+
+Inspect the complete diff from the starting commit, all new/deleted files,
+`git diff --check`, and `git status`; fix in-scope findings and rerun affected
+proof; update this packet and `ROADMAP.md` to `done`; stage explicit paths;
+inspect the staged diff; commit once directly on local `main`; do not push or
+deploy; return outcome, SHA, exact checks/browser paths, and genuine external
+blockers.

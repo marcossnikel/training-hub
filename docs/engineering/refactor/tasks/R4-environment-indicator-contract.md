@@ -1,9 +1,10 @@
 # R4 — Approve the creator environment-indicator contract
 
-**Risk:** medium  
-**Recommended builder:** Terra high for product/design planning  
+**Status:** draft
+**Risk:** medium
+**Recommended builder:** Terra high for product/design planning
 **Required approval:** Marcos approval of the selected Figma frame  
-**Depends on:** R3  
+**Depends on:** R3
 **Unlocks:** R5
 
 ## Outcome

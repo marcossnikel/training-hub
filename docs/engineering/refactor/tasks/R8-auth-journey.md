@@ -1,9 +1,9 @@
 # R8 — Make login and invited signup coherent
 
-**Risk:** medium  
-**Recommended builder:** Terra medium  
-**Deferred review focus:** Terra high for auth/session/invite behavior; visual audit  
-**Depends on:** R7  
+**Status:** draft
+**Risk:** medium
+**Recommended builder:** Terra medium
+**Depends on:** R7
 **Unlocks:** Milestone M2 completion
 
 ## Outcome

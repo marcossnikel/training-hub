@@ -1,9 +1,10 @@
 # R1 — Establish the affordable developer loop
 
-**Risk:** medium  
-**Recommended builder:** Terra medium  
-**Deferred review focus:** Terra medium; command isolation and production-mode truth  
-**Depends on:** R0  
+**Status:** ready
+**Delivery class:** API/backend
+**Risk:** medium
+**Recommended builder:** Terra medium
+**Depends on:** R0
 **Unlocks:** R2, R10
 
 ## Outcome
@@ -57,6 +58,11 @@ claimed production-mode run ambiguous.
 - Playwright web-server reuse selection and a dedicated smoke project/spec;
 - developer documentation for the new commands.
 
+The builder may make deterministic behavior-preserving repairs exposed by these
+commands inside package scripts, Playwright server ownership, the dedicated
+smoke spec/project, and their documentation. If a failure belongs to product
+behavior outside that boundary, record it without absorbing the feature.
+
 ## Non-goals
 
 - reorganizing the full E2E dependency graph;
@@ -77,7 +83,7 @@ claimed production-mode run ambiguous.
 5. Document command purpose and resource boundary. Completion: “production
    build” cannot be confused with production environment/data.
 
-## Required automated proof
+## Required integration proof
 
 ```sh
 npm run verify:fast
@@ -85,8 +91,9 @@ npm run test:e2e:production
 ```
 
 The production command output must visibly include `next build` and `next
-start`. Run the ordinary focused smoke once in dev-server mode if a separate
-script is added.
+start`, use the disposable E2E database/provider, and prove the guest and login
+HTTP/browser boundaries. Run the ordinary focused smoke once in dev-server mode
+if a separate script is added. Do not run the full repository gate.
 
 ## Required manual or visual proof
 
@@ -106,10 +113,10 @@ restores the prior server-reuse expression.
 
 ## Stop conditions
 
-- production build requires a remote resource or live secret;
-- a pre-existing listener cannot be safely distinguished/terminated;
-- the smoke needs mutation-project ordering to pass; or
-- R0 is not accepted.
+- the build requires a remote resource or live secret;
+- a safe command-owned port/process cannot be established without affecting an
+  unowned process; or
+- the smoke needs product mutation state outside its read-only contract.
 
 ## Completion criteria
 

@@ -1,9 +1,9 @@
 # R5 — Implement the creator environment indicator
 
-**Risk:** medium  
-**Recommended builder:** Terra medium  
-**Deferred review focus:** Terra high for server authorization; visual audit against approved R4 frame  
-**Depends on:** R4  
+**Status:** draft
+**Risk:** medium
+**Recommended builder:** Terra medium
+**Depends on:** R4
 **Unlocks:** creator operational context for R7
 
 ## Outcome

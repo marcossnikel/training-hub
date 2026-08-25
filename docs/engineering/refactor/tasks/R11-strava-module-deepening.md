@@ -1,10 +1,10 @@
 # R11 — Deepen the Strava integration module
 
+**Status:** draft
 **Ready gate note:** refresh interfaces after R9 acceptance  
-**Risk:** high  
-**Recommended builder:** Terra high  
-**Deferred review focus:** Terra high; tokens, retries, owner scope, import state  
-**Depends on:** R9  
+**Risk:** high
+**Recommended builder:** Terra high
+**Depends on:** R9
 **Unlocks:** R12 and R13
 
 ## Outcome

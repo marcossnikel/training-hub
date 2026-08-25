@@ -1,114 +1,109 @@
-# Refactor roadmap
+# Implementation roadmap
 
-## Sequencing rule
+## Current program state
 
-Only tasks marked **ready** may be dispatched. A later task starts after every
-dependency is **accepted**, not merely implemented. Update target files and
-baseline evidence immediately before marking a packet ready; long-range file
-moves are intentionally not frozen months ahead of execution.
+Product implementation was paused after R0 while the product direction and task
+contract were refined. R1 is the first prepared packet; no implementation starts
+until Marcos invokes it. Every later packet remains non-executable until both its
+file and this index say `ready`.
 
-The task-index `Status` column is canonical execution state. Follow
-`ORCHESTRATION.md` for model selection, one-writer ownership, builder
-self-review, deferred independent review, evidence, automatic progression, and
-milestone context resets.
-
-## Dependency graph
-
-```text
-R0 tooling baseline
-  -> R1 developer loop
-      -> R2 runtime configuration
-          -> R2M additive migration runner
-              -> R3 creator authorization
-                  -> R4 environment indicator contract
-                      -> R5 environment indicator implementation
-                  -> R6 invite module
-                      -> R7 creator invite UI
-                          -> R8 auth journey
-              -> R9 initial Strava import cutoff
-                  -> R11 Strava module deepening
-
-R1 -> R10 server-action organization
-R10 + R11 -> R12 activity/UI hotspots
-R0..R12 -> R13 dead-code and documentation convergence
-```
-
-R3–R8 and R9 are independent only after R2M. They may run separately in
-isolated worktrees if the user explicitly asks for parallel agents and their
-migrations are serialized. Otherwise run them sequentially as one
-implementation stream.
+The state vocabulary is `draft | ready | done | blocked`. `blocked` is reserved
+for a genuinely external dependency; a local implementation or test failure is
+owned by the builder.
 
 ## Task index
 
-| ID | Status | Risk | Outcome | Packet |
-| --- | --- | --- | --- | --- |
-| R0 | accepted | medium | Restore one trustworthy quality baseline around the in-progress lint migration | [R0](tasks/R0-tooling-baseline.md) |
-| R1 | planned | medium | Add an affordable inner loop and an explicit local production-mode smoke | [R1](tasks/R1-developer-loop.md) |
-| R2 | planned | high | Centralize validated runtime semantics without weakening environment isolation | [R2](tasks/R2-runtime-configuration.md) |
-| R2M | planned | high | Replace the exact-version schema gate with explicit additive migrations | [R2M](tasks/R2M-additive-migrations.md) |
-| R3 | planned | high | Add creator/member operational authorization without cross-owner privilege | [R3](tasks/R3-creator-authorization.md) |
-| R4 | planned | medium | Produce and approve the creator-only environment-indicator design contract | [R4](tasks/R4-environment-indicator-contract.md) |
-| R5 | planned | medium | Implement the approved environment indicator | [R5](tasks/R5-environment-indicator-implementation.md) |
-| R6 | planned | high | Deepen invite issuance/list/revocation behind a creator-authorized module | [R6](tasks/R6-invite-module.md) |
-| R7 | planned | high | Let creator generate and copy a ready-to-send invite without exposing recoverable tokens | [R7](tasks/R7-creator-invite-ui.md) |
-| R8 | planned | medium | Make login/signup entry and post-signup continuation coherent | [R8](tasks/R8-auth-journey.md) |
-| R9 | planned | high | Keep initial Strava history out of Review and make retry complete | [R9](tasks/R9-initial-strava-import.md) |
-| R10 | planned | medium | Split the server-action seam by owning feature | [R10](tasks/R10-server-action-organization.md) |
-| R11 | planned | high | Deepen Strava provider, connection, sync, and cache modules | [R11](tasks/R11-strava-module-deepening.md) |
-| R12 | planned | medium | Refactor activity page/chart/data hotspots by reason to change | [R12](tasks/R12-activity-ui-hotspots.md) |
-| R13 | planned | medium | Remove proven dead code and reconcile current documentation | [R13](tasks/R13-cleanup-convergence.md) |
+| ID | Status | Delivery class | Risk/model | Outcome | Packet |
+| --- | --- | --- | --- | --- | --- |
+| R0 | done | documentation/tooling | medium, Terra medium | Trustworthy tooling baseline. | [R0](tasks/R0-tooling-baseline.md) |
+| R1 | ready | API/backend | medium, Terra medium | Affordable developer loop and truthful local production smoke. | [R1](tasks/R1-developer-loop.md) |
+| R2 | draft | API/backend | high, Terra high | Validated runtime configuration without weaker environment isolation. | [R2](tasks/R2-runtime-configuration.md) |
+| R2M | draft | API/backend | high, Terra high | Additive, idempotent schema migration runner. | [R2M](tasks/R2M-additive-migrations.md) |
+| R3 | draft | API/backend | high, Terra high | Creator/member capabilities without cross-owner authority. | [R3](tasks/R3-creator-authorization.md) |
+| R4 | draft | frontend design contract | medium, Sol high | Approved creator-only environment indicator contract. | [R4](tasks/R4-environment-indicator-contract.md) |
+| R5 | draft | full stack | medium, Terra medium | Server-derived creator-only environment indicator. | [R5](tasks/R5-environment-indicator-implementation.md) |
+| R6 | draft | API/backend | high, Terra high | Owner-safe invite issuance, listing, and revocation module. | [R6](tasks/R6-invite-module.md) |
+| R7 | draft | full stack | high, Terra high | Creator generates an email-bound invite and copies a ready message. | [R7](tasks/R7-creator-invite-ui.md) |
+| R8 | draft | full stack | medium, Terra medium | Coherent sign-in/sign-up continuation and access errors. | [R8](tasks/R8-auth-journey.md) |
+| R9 | draft | full stack | high, Terra high | Initial Strava history is confirmed; only later activities enter Review. | [R9](tasks/R9-initial-strava-import.md) |
+| R10 | draft | API/backend | medium, Terra medium | Server actions grouped by owning feature. | [R10](tasks/R10-server-action-organization.md) |
+| R11 | draft | API/backend | high, Terra high | Deep Strava connection, transport, sync, and cache interfaces. | [R11](tasks/R11-strava-module-deepening.md) |
+| R12 | draft | full stack | medium, Terra medium | Activity and performance hotspots split by reason to change. | [R12](tasks/R12-activity-ui-hotspots.md) |
+| R13 | draft | documentation/plan | medium, Luna high | Proven dead code/files removed and documentation converged. | [R13](tasks/R13-cleanup-convergence.md) |
+| R14 | draft | API/backend | high, Terra high | Persisted initial-import job state exposes real stages and counts. | [R14](tasks/R14-import-progress.md) |
+| R15 | draft | API/backend | high, Terra high | Strava gear materializes locally with explicit origin/lifecycle rules. | [R15](tasks/R15-strava-gear-materialization.md) |
+| R16 | draft | full stack | medium, Terra medium | Performance summary data and week/month controls work from imported summaries. | [R16](tasks/R16-performance-first-value.md) |
+| R17 | draft | full stack | medium, Terra medium | One-time, skippable first-login platform onboarding. | [R17](tasks/R17-welcome-onboarding.md) |
+| R18 | draft | full stack | high, Terra high | One-time, skippable post-connection progress and Activation Summary. | [R18](tasks/R18-connection-activation.md) |
+| R19 | draft | full stack | high, Terra high | Athlete performance profile stores nullable values with provenance. | [R19](tasks/R19-athlete-performance-profile.md) |
+| R20 | draft | documentation/plan | high, Sol high | Training Analyst evidence, theory, privacy, and output contract. | [R20](tasks/R20-training-analyst-contract.md) |
+| R21 | draft | full stack | high, Terra high | Bounded Training Analyst hypotheses with confirm/edit/reject feedback. | [R21](tasks/R21-training-analyst-hypotheses.md) |
 
-## Milestones
+Current packet files are under `tasks/`. R1-R21 remain drafts until each receives
+a current-truth refresh, exact target/test commands, and any remaining design or
+external decision required by the new task contract.
 
-### M1 — Trusted development loop
+## Dependency direction
 
-R0–R2M accepted. The baseline is green; environment configuration is testable;
-local production-mode smoke cannot reuse a development server or reach remote
-resources; current databases can advance through explicit additive migrations.
-Run the full `npm run verify` gate.
+```text
+R0
+ └─ R1
+     ├─ R2 ─ R2M
+     │          ├─ R3 ─┬─ R4 ─ R5
+     │          │      └─ R6 ─ R7 ─ R8
+     │          └─ R9 ─ R14 ─ R18
+     │                 ├─ R15
+     │                 ├─ R16
+     │                 └─ R19 ─ R20 ─ R21
+     └─ R10
 
-### M2 — Creator operations
+R17 depends on R2M and R8 and may be delivered before Strava connection.
+R18 depends on R9, R14, R15, R16, and R17.
+R11 follows R9/R14 so it deepens proven boundaries rather than guessing them.
+R12 follows R16 and R19. R13 closes only after the changed product slices.
+```
 
-R3–R8 accepted. Creator capability is server-authorized; member isolation is
-unchanged; the current environment is visible only to creator; creator can
-issue/list/revoke invitations and copy a one-time ready-to-send message;
-login/signup continue into the existing Strava onboarding path. Run full
-verification plus 1440/390 visual proof.
+This graph is a planning direction, not permission to run tasks automatically.
+When a packet becomes ready, replace prose dependencies with exact done IDs.
 
-### M3 — Correct Strava ingestion
+## Packet-refinement order
 
-R9 and R11 accepted. Initial history is confirmed, post-cutoff activities are
-pending, partial initial imports resume completely, and the Strava module has a
-small tested interface. Run full verification plus the local provider story.
+1. Convert R1 to the new task contract and decide whether its production smoke
+   is still worth the cost under the new validation matrix.
+2. Reconcile R2/R2M/R9 so the initial-import fix has the smallest safe migration
+   path and does not inherit unnecessary architecture work.
+3. Specify R14 and R18 together: the backend must expose truthful progress and
+   the UI must never animate invented work or percentages.
+4. Specify R15's provider-origin lifecycle before importing any gear.
+5. Specify R16/R19 around summary-derived immediate value versus later
+   detail/stream enrichment.
+6. Specify creator/access tasks R3-R8 without broad admin semantics.
+7. Keep R20/R21 draft until Marcos supplies the curated theory library and the
+   privacy/provider contract is explicit.
 
-### M4 — Navigable codebase
+## Organization direction
 
-R10–R13 accepted. Feature ownership is discoverable, the largest change
-hotspots have cohesive interfaces, and deletion/documentation evidence is
-current. Run the full gate and inspect the final dependency graph.
-
-## Target organization
-
-This is a direction applied by touched slices, not a bulk-move task:
+Move a touched slice only when its feature interface is known:
 
 ```text
 src/
-  app/                 Next entry points and route/page composition
+  app/                  framework routes/pages/composition
   features/
     access/
     invites/
+    onboarding/
     strava/
     activities/
     gear/
+    performance/
     insights/
   server/
     config/
-    db/                shared DB client/migration infrastructure
+    db/
     storage/
     telemetry/
-  components/ui/       generic visual primitives only
+  components/ui/        generic visual primitives only
 ```
 
-Keep `src/lib` during migration. A touched module moves only when its owning
-feature and new interface are clear. Do not create `core/`, `application/`, and
-`adapters/` as mandatory global layers.
+Keep `src/lib` during incremental migration. Do not create mandatory global
+`core/application/adapters` folders or move files solely to match a diagram.
