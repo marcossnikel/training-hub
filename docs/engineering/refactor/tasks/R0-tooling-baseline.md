@@ -43,6 +43,10 @@ starts; do not assume this snapshot is unchanged.
 6. Dependency and lockfile state must agree after `npm ci`; the current manifest
    names Biome while the lockfile still records direct ESLint dependencies, so
    lockfile regeneration is part of this task.
+7. The user explicitly authorized repairing genuine baseline violations exposed
+   by the recommended Biome preset. Keep those repairs behavior-preserving and
+   limited to the exact files and diagnostics listed under **Permitted scope**;
+   do not downgrade or suppress the rules to obtain green output.
 
 ## Protected invariants
 
@@ -57,6 +61,11 @@ starts; do not assume this snapshot is unchanged.
 - lint/format config, `package.json`, lockfile;
 - tooling-only tests such as `retired-coach.test.ts`;
 - `knip.json` only for dependency recognition needed by the chosen tool.
+- behavior-preserving fixes for `noControlCharactersInRegex` and
+  `noImplicitAnyLet` in `src/app/api/strava/callback/route.ts`,
+  `src/lib/strava-byo.ts`, and `src/lib/strava.ts`;
+- a behavior-preserving `noShadowRestrictedNames` fix in
+  `src/components/totals-table.tsx`.
 
 ## Non-goals
 
@@ -112,7 +121,9 @@ two active linters.
 - the current dirty lint files are owned by another active implementation;
 - Biome lacks a material correctness rule and no accepted substitute is named;
 - `npm ci` would overwrite an unrelated lockfile change; or
-- a baseline application failure reproduces outside the tooling change.
+- a baseline application failure reproduces outside the explicitly authorized
+  source files above, or fixing one of those files would change observable
+  route, authorization, Strava, data, or UI behavior.
 
 ## Completion criteria
 
