@@ -49,7 +49,9 @@ test("BYO credential form is owner-bound, keyboard accessible, and gives only a 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/settings");
   await expect(page.getByText("Connect your Strava app", { exact: true })).toBeVisible();
-  await expect(page.getByText("activity:read_all,profile:read_all", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("read,activity:read_all,profile:read_all", { exact: true })
+  ).toBeVisible();
   await expect(
     page.getByText("http://localhost:3100/api/strava/callback", { exact: true })
   ).toBeVisible();
@@ -115,7 +117,7 @@ test("BYO credential form is owner-bound, keyboard accessible, and gives only a 
   expect(url.origin).toBe("https://www.strava.com");
   expect(url.searchParams.get("client_id")).toBe("athlete-client-30");
   expect(url.searchParams.get("response_type")).toBe("code");
-  expect(url.searchParams.get("scope")).toBe("activity:read_all,profile:read_all");
+  expect(url.searchParams.get("scope")).toBe("read,activity:read_all,profile:read_all");
   expect(url.searchParams.get("redirect_uri")).toBe("http://localhost:3100/api/strava/callback");
   expect(url.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]{43}$/);
   for (const key of ["client_secret", "access_token", "refresh_token", "owner", "redirect"]) {

@@ -51,7 +51,7 @@ beforeEach(() => {
     access_token: "access-token",
     refresh_token: "refresh-token",
     expires_at: 4_000_000_000,
-    scope: "profile:read_all activity:read_all",
+    scope: "profile:read_all read activity:read_all",
     athlete: { id: 42, firstname: "Ada", lastname: "Runner" },
   });
   mocks.promotePendingStravaConnection.mockResolvedValue(true);
@@ -80,7 +80,7 @@ describe("owner-bound Strava callback", () => {
         access_token: "access-token",
         refresh_token: "refresh-token",
         strava_athlete_id: 42,
-        granted_scope: "activity:read_all,profile:read_all",
+        granted_scope: "read,activity:read_all,profile:read_all",
       })
     );
     expect(mocks.syncActivities).toHaveBeenCalledWith(OWNER);
@@ -116,7 +116,7 @@ describe("owner-bound Strava callback", () => {
       access_token: "access-token",
       refresh_token: "refresh-token",
       expires_at: 4_000_000_000,
-      scope: "activity:read_all,profile:read_all,read_all",
+      scope: "read,activity:read_all,profile:read_all,read_all",
       athlete: { id: 42 },
     });
     const response = await GET(request({ state: STATE, code: "provider-code" }));

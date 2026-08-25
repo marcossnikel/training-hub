@@ -111,7 +111,7 @@ describe("owner-scoped pending BYO credentials", () => {
         refresh_token: "callback-refresh-a",
         expires_at: 4_000_000_000,
         strava_athlete_id: 123,
-        granted_scope: "activity:read_all,profile:read_all",
+        granted_scope: "read,activity:read_all,profile:read_all",
       })
     ).toBe(true);
     expect(
@@ -120,7 +120,7 @@ describe("owner-scoped pending BYO credentials", () => {
         refresh_token: "callback-refresh-b",
         expires_at: 4_000_000_000,
         strava_athlete_id: 456,
-        granted_scope: "activity:read_all,profile:read_all",
+        granted_scope: "read,activity:read_all,profile:read_all",
       })
     ).toBe(true);
     // A replay cannot update an already-promoted connection.
@@ -130,7 +130,7 @@ describe("owner-scoped pending BYO credentials", () => {
         refresh_token: "replayed-refresh",
         expires_at: 4_000_000_001,
         strava_athlete_id: 999,
-        granted_scope: "activity:read_all,profile:read_all",
+        granted_scope: "read,activity:read_all,profile:read_all",
       })
     ).toBe(false);
 
@@ -139,7 +139,7 @@ describe("owner-scoped pending BYO credentials", () => {
       access_token: "callback-access-a",
       refresh_token: "callback-refresh-a",
       strava_athlete_id: 123,
-      granted_scope: "activity:read_all,profile:read_all",
+      granted_scope: "read,activity:read_all,profile:read_all",
     });
     expect(await db.getStravaConnection(ownerB)).toMatchObject({
       client_id: "athlete-client-b",

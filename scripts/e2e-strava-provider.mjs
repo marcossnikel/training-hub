@@ -25,7 +25,7 @@ const server = createServer(async (req, res) => {
           ? "e2e-revocation-failure-refresh-token"
           : "e2e-refresh-token-not-a-secret",
         expires_at: 4_000_000_000,
-        scope: "profile:read_all activity:read_all",
+        scope: "profile:read_all read activity:read_all",
         athlete: { id: 314, firstname: "E2E", lastname: "Athlete" },
       });
     }

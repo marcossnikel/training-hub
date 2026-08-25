@@ -18,21 +18,29 @@ afterEach(() => {
 });
 
 describe("granted BYO scopes", () => {
+  it("includes Strava's mandatory public-profile scope in the exact grant", () => {
+    const providerGrant = "read,activity:read_all,profile:read_all";
+
+    expect(STRAVA_BYO_SCOPE).toBe(providerGrant);
+    expect(normalizeExactByoGrantedScope(providerGrant)).toBe(providerGrant);
+  });
+
   it("normalizes only the exact order-insensitive approved scope set", () => {
     for (const scope of [
-      "activity:read_all,profile:read_all",
-      "profile:read_all activity:read_all",
-      "activity:read_all, profile:read_all activity:read_all",
+      "read,activity:read_all,profile:read_all",
+      "profile:read_all read activity:read_all",
+      "activity:read_all, read profile:read_all activity:read_all",
     ]) {
       expect(normalizeExactByoGrantedScope(scope)).toBe(STRAVA_BYO_SCOPE);
     }
     for (const scope of [
       "activity:read_all",
-      "activity:read_all,profile:read_all,read_all",
+      "activity:read_all,profile:read_all",
+      "read,activity:read_all,profile:read_all,read_all",
       "profile:read_all,activity:read",
       "ACTIVITY:READ_ALL,PROFILE:READ_ALL",
       "",
-      "activity:read_all\u0000,profile:read_all",
+      "read,activity:read_all\u0000,profile:read_all",
     ]) {
       expect(normalizeExactByoGrantedScope(scope)).toBeNull();
     }

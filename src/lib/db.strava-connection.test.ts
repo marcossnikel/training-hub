@@ -51,7 +51,7 @@ describe("owner-scoped encrypted Strava connections", () => {
       access_token: "access-token-a",
       refresh_token: "refresh-token-a",
       expires_at: 4_000_000_000,
-      granted_scope: "activity:read_all,profile:read_all",
+      granted_scope: "read,activity:read_all,profile:read_all",
     });
     expect(await db.getStravaConnection(ownerA)).toMatchObject({
       client_id: "client-a",

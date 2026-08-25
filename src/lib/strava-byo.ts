@@ -3,7 +3,7 @@
  * credentials. The submitted app belongs to the current owner; the complete
  * callback, sync, reconnect, and deletion lifecycle stays owner-bound.
  */
-export const STRAVA_BYO_SCOPE = "activity:read_all,profile:read_all";
+export const STRAVA_BYO_SCOPE = "read,activity:read_all,profile:read_all";
 const REQUIRED_STRAVA_BYO_SCOPES = new Set(STRAVA_BYO_SCOPE.split(","));
 export const STRAVA_BYO_HANDOFF_PATH = "/api/strava/byo-connect";
 export const STRAVA_CALLBACK_PATH = "/api/strava/callback";
