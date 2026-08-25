@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { client } from "./db/client";
+import { resolveDatabaseUrl, resolveTursoAuthToken, resolveTursoDatabaseUrl } from "./db/config";
 import { ensureMigrated } from "./db/migrations";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -79,12 +80,13 @@ function remoteDatabaseHost(value: string): string | null {
 export function assertBetaInviteSchemaTarget(env: InviteEnvironment = process.env): void {
   const mode = env.TRAINING_HUB_ENV || "local";
   const vercelEnvironment = env.VERCEL_ENV || "";
-  const remoteUrl = env.TURSO_DATABASE_URL || "";
-  const resolvedDatabaseUrl = remoteUrl || env.DATABASE_URL || "file:data/app.db";
+  const remoteUrl = resolveTursoDatabaseUrl(env);
+  const remoteAuthToken = resolveTursoAuthToken(env);
+  const resolvedDatabaseUrl = resolveDatabaseUrl(env);
   const remoteHost = remoteDatabaseHost(remoteUrl);
 
   if (mode === "local" || mode === "e2e") {
-    if (!resolvedDatabaseUrl.startsWith("file:") || remoteUrl || env.TURSO_AUTH_TOKEN) {
+    if (!resolvedDatabaseUrl.startsWith("file:") || remoteUrl || remoteAuthToken) {
       throw new Error("Beta invitation schema requires an isolated local/E2E file database.");
     }
     return;
@@ -110,7 +112,7 @@ export function assertBetaInviteSchemaTarget(env: InviteEnvironment = process.en
     remoteHost &&
     /^libsql:\/\//i.test(remoteUrl) &&
     !/preview|staging/i.test(remoteHost) &&
-    env.TURSO_AUTH_TOKEN &&
+    remoteAuthToken &&
     !resolvedDatabaseUrl.startsWith("file:")
   ) {
     return;
@@ -284,8 +286,9 @@ function isDirectLoopbackOrigin(origin: URL): boolean {
 export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.env): string {
   const target = env.TRAINING_HUB_INVITE_TARGET;
   const mode = env.TRAINING_HUB_ENV || "local";
-  const remoteUrl = env.TURSO_DATABASE_URL || "";
-  const resolvedDatabaseUrl = remoteUrl || env.DATABASE_URL || "file:data/app.db";
+  const remoteUrl = resolveTursoDatabaseUrl(env);
+  const remoteAuthToken = resolveTursoAuthToken(env);
+  const resolvedDatabaseUrl = resolveDatabaseUrl(env);
 
   if (!betaInviteRegistrationEnabled(env)) {
     throw new Error("BETA_INVITE_REGISTRATION_ENABLED=1 is required before issuing an invitation.");
@@ -304,7 +307,7 @@ export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.
     "TRAINING_HUB_PUBLIC_ORIGIN"
   );
   if (target === "local") {
-    if (remoteUrl || env.TURSO_AUTH_TOKEN || !resolvedDatabaseUrl.startsWith("file:")) {
+    if (remoteUrl || remoteAuthToken || !resolvedDatabaseUrl.startsWith("file:")) {
       throw new Error(
         "Local invitation issuance requires an isolated file: database with no Turso credentials."
       );
@@ -363,7 +366,7 @@ export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.
     !productionHost ||
     !/^libsql:\/\//i.test(remoteUrl) ||
     /preview|staging/i.test(productionHost) ||
-    !env.TURSO_AUTH_TOKEN ||
+    !remoteAuthToken ||
     resolvedDatabaseUrl.startsWith("file:")
   ) {
     throw new Error(

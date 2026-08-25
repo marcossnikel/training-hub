@@ -158,6 +158,15 @@ describe("beta invitation server boundary", () => {
     expect(assertBetaInviteIssuanceTarget(production)).toBe("https://training-hub.example");
     expect(() => assertBetaInviteSchemaTarget(production)).not.toThrow();
     expect(() =>
+      assertBetaInviteSchemaTarget({
+        ...production,
+        TRAINING_HUB_TURSO_DATABASE_URL: "libsql://stable-production.turso.io",
+        TRAINING_HUB_TURSO_AUTH_TOKEN: "stable-production-token",
+        TURSO_DATABASE_URL: "libsql://dpl-preview.turso.io",
+        TURSO_AUTH_TOKEN: "deployment-token",
+      })
+    ).not.toThrow();
+    expect(() =>
       assertBetaInviteIssuanceTarget({
         ...production,
         TRAINING_HUB_PRODUCTION_INVITES_ENABLED: "",

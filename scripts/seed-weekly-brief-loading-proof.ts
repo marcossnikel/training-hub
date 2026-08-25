@@ -18,7 +18,11 @@ const MARKER = '{"seed":true,"weeklyBriefLoadingProof":true}';
 const ROWS_PER_WEEK = 2_000;
 
 function databaseUrl(): string {
-  const url = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || "file:data/app.db";
+  const url =
+    process.env.TRAINING_HUB_TURSO_DATABASE_URL ||
+    process.env.TURSO_DATABASE_URL ||
+    process.env.DATABASE_URL ||
+    "file:data/app.db";
   if (!url.startsWith("file:")) {
     throw new Error("Refusing weekly-brief visual fixture outside a local file database.");
   }

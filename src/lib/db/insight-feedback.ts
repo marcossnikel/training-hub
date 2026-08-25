@@ -29,6 +29,8 @@ export function insightFeedbackEnabled(env: FeedbackEnvironment = process.env): 
     env.TRAINING_HUB_INSIGHT_FEEDBACK_ENABLED === "1" &&
     (mode === "local" || mode === "e2e") &&
     IS_LOCAL_FILE &&
+    !env.TRAINING_HUB_TURSO_DATABASE_URL &&
+    !env.TRAINING_HUB_TURSO_AUTH_TOKEN &&
     !env.TURSO_DATABASE_URL &&
     !env.TURSO_AUTH_TOKEN
   );

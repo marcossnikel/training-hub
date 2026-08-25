@@ -74,7 +74,7 @@ const ZONES: DerivedZones = {
 };
 
 async function main() {
-  const url = process.env.TURSO_DATABASE_URL ?? "";
+  const url = process.env.TRAINING_HUB_TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || "";
   if (url && !url.startsWith("file:")) {
     throw new Error(`Refusing to write to a remote database (${url}). Unset TURSO_DATABASE_URL.`);
   }

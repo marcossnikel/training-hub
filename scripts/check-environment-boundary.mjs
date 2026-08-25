@@ -4,7 +4,10 @@ const mode = process.env.TRAINING_HUB_ENV || "local";
 const allowedModes = new Set(["local", "e2e", "preview", "production"]);
 const failures = [];
 
-const tursoUrl = process.env.TURSO_DATABASE_URL || "";
+const tursoUrl =
+  process.env.TRAINING_HUB_TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || "";
+const tursoAuthToken =
+  process.env.TRAINING_HUB_TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || "";
 const databaseUrl = process.env.DATABASE_URL || "";
 const resolvedDatabaseUrl = tursoUrl || databaseUrl || "file:data/app.db";
 const isLocalFile = resolvedDatabaseUrl.startsWith("file:");
@@ -27,8 +30,8 @@ if (!allowedModes.has(mode)) {
 }
 
 if (mode === "local" || mode === "e2e") {
-  if (tursoUrl || process.env.TURSO_AUTH_TOKEN) {
-    fail(`${mode} must not set TURSO_DATABASE_URL or TURSO_AUTH_TOKEN`);
+  if (tursoUrl || tursoAuthToken) {
+    fail(`${mode} must not set Turso database credentials`);
   }
   if (isRemoteDatabase) {
     fail(`${mode} must resolve to a file: database, got ${urlHost(resolvedDatabaseUrl)}`);

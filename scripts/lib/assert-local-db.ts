@@ -17,7 +17,11 @@
  * Called BEFORE ensureMigrated so a refusal causes zero DB traffic.
  */
 export function assertLocalDb({ allowForceFlag = false }: { allowForceFlag?: boolean } = {}): void {
-  const url = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || "file:data/app.db";
+  const url =
+    process.env.TRAINING_HUB_TURSO_DATABASE_URL ||
+    process.env.TURSO_DATABASE_URL ||
+    process.env.DATABASE_URL ||
+    "file:data/app.db";
   if (url.startsWith("file:")) return;
   if (process.env.ALLOW_REMOTE_DB === "1") return;
   if (allowForceFlag && process.argv.includes("--force")) return;

@@ -6,8 +6,10 @@ import path from "node:path";
 const confirmation = "--confirm-reset-disposable-data";
 const dryRun = process.argv.includes("--dry-run");
 const mode = process.env.TRAINING_HUB_ENV || "local";
-const tursoUrl = process.env.TURSO_DATABASE_URL || "";
-const tursoAuthToken = process.env.TURSO_AUTH_TOKEN || "";
+const tursoUrl =
+  process.env.TRAINING_HUB_TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || "";
+const tursoAuthToken =
+  process.env.TRAINING_HUB_TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || "";
 const vercelEnvironment = process.env.VERCEL_ENV || "";
 const databaseUrl = process.env.DATABASE_URL || "file:data/app.db";
 
@@ -19,9 +21,10 @@ function refuse(message) {
 if (!new Set(["local", "e2e"]).has(mode)) {
   refuse(`TRAINING_HUB_ENV=${mode} is not a disposable local/E2E environment`);
 }
-if (tursoUrl) refuse("TURSO_DATABASE_URL is set; remote databases are never reset by this command");
+if (tursoUrl)
+  refuse("a Turso database URL is set; remote databases are never reset by this command");
 if (tursoAuthToken)
-  refuse("TURSO_AUTH_TOKEN is set; remote credentials are never accepted by this command");
+  refuse("a Turso auth token is set; remote credentials are never accepted by this command");
 if (vercelEnvironment === "preview" || vercelEnvironment === "production") {
   refuse(`VERCEL_ENV=${vercelEnvironment} is never a disposable reset target`);
 }
