@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 27;
+export const OWNER_SCHEMA_VERSION = 28;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -307,6 +307,27 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
 
            UPDATE "user" SET "betaInviteClaim" = NULL WHERE id = NEW.id;
          END`,
+    ],
+  },
+  {
+    // D-020: the Review boundary belongs to one Strava connection lifecycle,
+    // not to personal gear-baseline policy. Existing retained connections get
+    // a conservative cutoff at their own creation time.
+    version: 28,
+    statements: [
+      "ALTER TABLE strava_connections ADD COLUMN review_after TEXT",
+      "ALTER TABLE strava_connections ADD COLUMN initial_sync_completed_at TEXT",
+      "UPDATE strava_connections SET review_after = created_at WHERE review_after IS NULL",
+      `UPDATE strava_connections
+       SET initial_sync_completed_at = (
+         SELECT value FROM user_meta
+         WHERE user_meta.user_id = strava_connections.user_id AND key = 'last_sync_at'
+       )
+       WHERE initial_sync_completed_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM user_meta
+           WHERE user_meta.user_id = strava_connections.user_id AND key = 'last_sync_at'
+         )`,
     ],
   },
 ];

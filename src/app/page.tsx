@@ -241,8 +241,8 @@ async function TrainingLogPage({
           <CableIcon aria-hidden />
           <AlertTitle>Strava is connected</AlertTitle>
           <AlertDescription>
-            Your import has finished. Review the recent records below before drawing conclusions
-            from them.
+            Your existing history was added to Recent training. New activities will appear in Review
+            when they need your confirmation.
           </AlertDescription>
         </Alert>
       ) : null}

@@ -1,6 +1,6 @@
 import { client } from "./client";
 import { ensureMigrated } from "./migrations";
-import { exec, one } from "./helpers";
+import { exec, many, one } from "./helpers";
 import type { OwnerContext } from "../owner-context";
 import { decryptStravaSecret, encryptStravaSecret, StravaSecretStorageError } from "../crypto";
 
@@ -20,6 +20,11 @@ export interface StravaConnectionInput extends StravaAuthRow {
   granted_scope?: string;
 }
 
+export interface StravaSyncState {
+  reviewAfter: string;
+  initialSyncCompletedAt: string | null;
+}
+
 interface EncryptedConnectionRow {
   client_id: string | null;
   client_secret_ciphertext: string | null;
@@ -30,6 +35,8 @@ interface EncryptedConnectionRow {
   strava_athlete_id: number | null;
   granted_scope: string | null;
   status: string;
+  review_after: string | null;
+  initial_sync_completed_at: string | null;
 }
 
 export type StravaConnectionStatus = "disconnected" | "pending_authorization" | "connected";
@@ -38,6 +45,13 @@ export type StravaConnectionStatus = "disconnected" | "pending_authorization" | 
 export interface DeletedStravaData {
   activities: number;
   connection: boolean;
+}
+
+export interface HistoricalReviewRepairResult {
+  candidates: number;
+  oldestStartedAt: string | null;
+  newestStartedAt: string | null;
+  changed: number;
 }
 
 export interface PendingStravaConnectionInput {
@@ -69,6 +83,86 @@ export async function getStravaConnectionStatus(
   );
   if (row?.status === "pending_authorization" || row?.status === "connected") return row.status;
   return "disconnected";
+}
+
+/** Owner-bound, non-secret sync lifecycle facts. */
+export async function getStravaSyncState(owner: OwnerContext): Promise<StravaSyncState | null> {
+  const row = await one<
+    Pick<EncryptedConnectionRow, "review_after" | "initial_sync_completed_at" | "status">
+  >(
+    "SELECT review_after, initial_sync_completed_at, status FROM strava_connections WHERE user_id = ?",
+    [owner.userId]
+  );
+  if (row?.status !== "connected" || !row.review_after) return null;
+  return { reviewAfter: row.review_after, initialSyncCompletedAt: row.initial_sync_completed_at };
+}
+
+export async function markInitialStravaSyncComplete(
+  owner: OwnerContext,
+  completedAt: string
+): Promise<void> {
+  await exec(
+    `UPDATE strava_connections
+     SET initial_sync_completed_at = COALESCE(initial_sync_completed_at, ?), updated_at = datetime('now')
+     WHERE user_id = ? AND status = 'connected'`,
+    [completedAt, owner.userId]
+  );
+}
+
+/**
+ * Owner-explicit repair for rows created before D-020. The default caller must
+ * pass dryRun=true; this returns aggregates only, never provider payloads or
+ * connection material. Invalid timestamps are intentionally not candidates.
+ */
+export async function repairHistoricalReviewImports(
+  owner: OwnerContext,
+  { dryRun = true }: { dryRun?: boolean } = {}
+): Promise<HistoricalReviewRepairResult> {
+  const state = await getStravaSyncState(owner);
+  if (!state) return { candidates: 0, oldestStartedAt: null, newestStartedAt: null, changed: 0 };
+  const cutoff = Date.parse(state.reviewAfter);
+  if (!Number.isFinite(cutoff)) throw new Error("Strava review cutoff is invalid.");
+  const rows = await many<{ id: number; started_at: string }>(
+    `SELECT id, started_at FROM activities
+     WHERE user_id = ? AND strava_id IS NOT NULL AND status = 'pending_review' AND started_at IS NOT NULL`,
+    [owner.userId]
+  );
+  const candidates = rows.filter((row) => {
+    const started = Date.parse(row.started_at);
+    return Number.isFinite(started) && started <= cutoff;
+  });
+  const timestamps = candidates.map((row) => row.started_at).sort();
+  if (dryRun || candidates.length === 0) {
+    return {
+      candidates: candidates.length,
+      oldestStartedAt: timestamps[0] ?? null,
+      newestStartedAt: timestamps.at(-1) ?? null,
+      changed: 0,
+    };
+  }
+  await ensureMigrated();
+  const tx = await client.transaction("write");
+  try {
+    for (const candidate of candidates) {
+      await tx.execute({
+        sql: "UPDATE activities SET status = 'confirmed' WHERE id = ? AND user_id = ? AND status = 'pending_review'",
+        args: [candidate.id, owner.userId],
+      });
+      await tx.execute({
+        sql: "DELETE FROM activity_splits WHERE activity_id = ?",
+        args: [candidate.id],
+      });
+    }
+    await tx.commit();
+  } finally {
+    tx.close();
+  }
+  return {
+    candidates: candidates.length,
+    oldestStartedAt: timestamps[0] ?? null,
+    newestStartedAt: timestamps.at(-1) ?? null,
+    changed: candidates.length,
+  };
 }
 
 /**
@@ -242,8 +336,8 @@ export async function saveStravaConnection(
     `INSERT INTO strava_connections
        (id, user_id, client_id, client_secret_ciphertext, access_token_ciphertext,
         refresh_token_ciphertext, encryption_key_version, expires_at, strava_athlete_id,
-        granted_scope, status)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'connected')
+        granted_scope, status, review_after)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'connected', ?)
      ON CONFLICT(user_id) DO UPDATE SET
        client_id = excluded.client_id,
        client_secret_ciphertext = excluded.client_secret_ciphertext,
@@ -254,6 +348,7 @@ export async function saveStravaConnection(
        strava_athlete_id = excluded.strava_athlete_id,
        granted_scope = excluded.granted_scope,
        status = excluded.status,
+       review_after = COALESCE(strava_connections.review_after, excluded.review_after),
        updated_at = datetime('now')`,
     [
       crypto.randomUUID(),
@@ -265,6 +360,7 @@ export async function saveStravaConnection(
       input.expires_at,
       input.strava_athlete_id ?? null,
       input.granted_scope ?? null,
+      new Date().toISOString(),
     ]
   );
 }
@@ -287,6 +383,7 @@ export async function promotePendingStravaConnection(
          strava_athlete_id = ?,
          granted_scope = ?,
          status = 'connected',
+         review_after = COALESCE(review_after, ?),
          updated_at = datetime('now')
      WHERE user_id = ?
        AND status = 'pending_authorization'
@@ -300,6 +397,7 @@ export async function promotePendingStravaConnection(
       input.expires_at,
       input.strava_athlete_id,
       input.granted_scope,
+      new Date().toISOString(),
       owner.userId,
     ]
   );

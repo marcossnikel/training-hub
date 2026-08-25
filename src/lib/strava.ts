@@ -4,11 +4,12 @@ import {
   findBikeIdByGear,
   findShoeIdByGear,
   getActivityStreamsJson,
-  getAthleteThresholds,
   getMeta,
+  getAthleteThresholds,
   getMetricsActivity,
   getStravaAuth,
   getStravaConnection,
+  getStravaSyncState,
   insertSyncedActivity,
   latestSyncedStartEpoch,
   listBestEffortCounts,
@@ -18,6 +19,7 @@ import {
   saveStravaAuth,
   markStravaConnectionRecoverable,
   setMeta,
+  markInitialStravaSyncComplete,
   upsertActivityBestEfforts,
   upsertActivityMetrics,
 } from "./db";
@@ -36,6 +38,7 @@ import { round2 } from "./format";
 import { isRunSport } from "./validate";
 import type { SplitInput, StravaGear } from "./types";
 import type { OwnerContext } from "./owner-context";
+import { classifyInitialImportStart } from "../features/strava/initial-import";
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const API_BASE = "https://www.strava.com/api/v3";
@@ -654,27 +657,31 @@ interface StravaActivity {
 
 export interface SyncResult {
   imported: number;
+  historicalConfirmed: number;
   pendingNew: number;
   pendingTotal: number;
 }
 
 /**
- * Pulls activities from Strava, newest first, only asking for activities that
- * started after the most recent synced one. Activities older than the baseline
- * date are stored as confirmed with no splits: they show up in the log but the
- * shoe baselines already cover their mileage. Everything newer lands in the
- * review queue with one pre-filled split.
+ * The first sync deliberately walks all history on every retry. Existing
+ * owner+provider IDs make that safe and prevent a page-two failure from
+ * permanently skipping older pages. Later syncs use the newest stored epoch.
  */
 export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
-  const afterEpoch = await latestSyncedStartEpoch(owner);
-  const baselineIso = await getMeta(owner, "baseline_date");
-  const baselineMs = baselineIso ? Date.parse(baselineIso) : 0;
+  const syncState = await getStravaSyncState(owner);
+  if (!syncState) throw new Error("Strava connection sync state is unavailable.");
+  const initialSync = syncState.initialSyncCompletedAt === null;
+  const afterEpoch = initialSync ? null : await latestSyncedStartEpoch(owner);
 
   let imported = 0;
+  let historicalConfirmed = 0;
   let pendingNew = 0;
   const perPage = 100;
 
-  for (let page = 1; page <= 50; page++) {
+  // A terminal short/empty page is the completion fact. If a broken provider
+  // repeats full pages forever, leave the lifecycle incomplete rather than
+  // falsely enabling incremental cursors and skipping old history.
+  for (let page = 1; page <= 1_000; page++) {
     const params: Record<string, string> = {
       per_page: String(perPage),
       page: String(page),
@@ -685,7 +692,21 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
     if (batch.length === 0) break;
 
     for (const activity of batch) {
-      if (!activity.id || !activity.start_date) continue;
+      if (!activity.id) {
+        logger.warn("strava.sync.skipInvalidActivity", {
+          ownerId: owner.userId,
+          reason: "missing_id",
+        });
+        continue;
+      }
+      const classification = classifyInitialImportStart(activity.start_date, syncState.reviewAfter);
+      if (classification === "invalid") {
+        logger.warn("strava.sync.skipInvalidActivity", {
+          ownerId: owner.userId,
+          reason: "invalid_start",
+        });
+        continue;
+      }
       if (await activityExistsByStravaId(owner, activity.id)) continue;
 
       const distanceKm = activity.distance ? round2(activity.distance / 1000) : 0;
@@ -695,14 +716,13 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
           ? Math.round(movingS / (activity.distance / 1000))
           : null;
       const sport = activity.sport_type ?? activity.type ?? null;
-      const preBaseline = Date.parse(activity.start_date) < baselineMs;
-
       let status: "confirmed" | "pending_review";
       let splits: SplitInput[] = [];
       let bikeId: number | null = null;
-      if (preBaseline) {
+      if (classification === "confirmed") {
         // History only: visible in the log, zero gear mileage.
         status = "confirmed";
+        historicalConfirmed++;
       } else {
         status = "pending_review";
         const matchedGearId = activity.gear_id ?? null;
@@ -723,7 +743,7 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
           strava_id: activity.id,
           name: activity.name ?? null,
           sport_type: sport,
-          started_at: activity.start_date,
+          started_at: activity.start_date!,
           started_at_local: activity.start_date_local ?? null,
           distance_km: distanceKm,
           moving_time_s: movingS,
@@ -740,8 +760,11 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
     }
 
     if (batch.length < perPage) break;
+    if (page === 1_000) throw new Error("Strava initial history pagination did not terminate.");
   }
 
-  await setMeta(owner, "last_sync_at", new Date().toISOString());
-  return { imported, pendingNew, pendingTotal: await countPending(owner) };
+  const completedAt = new Date().toISOString();
+  if (initialSync) await markInitialStravaSyncComplete(owner, completedAt);
+  await setMeta(owner, "last_sync_at", completedAt);
+  return { imported, historicalConfirmed, pendingNew, pendingTotal: await countPending(owner) };
 }

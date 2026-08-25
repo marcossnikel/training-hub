@@ -77,6 +77,8 @@ describe("owner-scoped Strava lifecycle deletion", () => {
       expires_at: 4_000_000_000,
     });
 
+    const cutoffBeforeReconnect = (await db.getStravaSyncState(ownerA))?.reviewAfter;
+    expect(cutoffBeforeReconnect).toBeTruthy();
     expect(await db.prepareStravaReconnect(ownerA)).toBe(true);
     expect(await db.getStravaConnectionStatus(ownerA)).toBe("pending_authorization");
     expect(await db.getPendingStravaAuthorization(ownerA)).toEqual({ client_id: "client-a" });
@@ -84,6 +86,16 @@ describe("owner-scoped Strava lifecycle deletion", () => {
     expect(await db.getStravaDeauthorizationAccessToken(ownerA)).toBe("access-a");
     expect(await db.getStravaConnectionStatus(ownerB)).toBe("connected");
     expect(await db.prepareStravaReconnect(ownerA)).toBe(false);
+    expect(
+      await db.promotePendingStravaConnection(ownerA, {
+        access_token: "renewed-access-a",
+        refresh_token: "renewed-refresh-a",
+        expires_at: 4_000_000_000,
+        strava_athlete_id: 11,
+        granted_scope: "read,activity:read_all,profile:read_all",
+      })
+    ).toBe(true);
+    expect((await db.getStravaSyncState(ownerA))?.reviewAfter).toBe(cutoffBeforeReconnect);
   });
 
   it("atomically deletes only Strava-origin data and keeps manual roots and another owner", async () => {

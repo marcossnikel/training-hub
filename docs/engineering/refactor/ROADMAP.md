@@ -11,7 +11,7 @@ The state vocabulary is `queued | done | blocked`. `blocked` is reserved
 for a genuinely external dependency; a local implementation or test failure is
 owned by the builder.
 
-**Next task:** R9
+**Next task:** R14
 
 ## Task index
 
@@ -27,7 +27,7 @@ owned by the builder.
 | R6 | done | API/backend | high, Terra high | Owner-safe invite issuance, listing, and revocation module. | [R6](tasks/R6-invite-module.md) |
 | R7 | done | full stack | high, Terra medium | Creator generates an email-bound invite and copies a ready message. | [R7](tasks/R7-creator-invite-ui.md) |
 | R8 | done | full stack | medium, Terra medium | Coherent sign-in/sign-up continuation and access errors. | [R8](tasks/R8-auth-journey.md) |
-| R9 | queued | full stack | high, Terra high | Initial Strava history is confirmed; only later activities enter Review. | [R9](tasks/R9-initial-strava-import.md) |
+| R9 | done | full stack | high, Terra high | Initial Strava history is confirmed; only later activities enter Review. | [R9](tasks/R9-initial-strava-import.md) |
 | R10 | queued | full stack | medium, Terra medium | Server actions grouped by owning feature. | [R10](tasks/R10-server-action-organization.md) |
 | R11 | queued | API/backend | high, Terra high | Deep Strava connection, transport, sync, and cache interfaces. | [R11](tasks/R11-strava-module-deepening.md) |
 | R12 | queued | full stack | medium, Terra medium | Activity and performance hotspots split by reason to change. | [R12](tasks/R12-activity-ui-hotspots.md) |

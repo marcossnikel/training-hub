@@ -176,7 +176,7 @@ test("the authenticated callback reaches a real owner-bound mock exchange and in
   await expect(page.getByRole("alert").filter({ hasText: "Strava is connected" })).toBeVisible();
   await expect(
     page.getByText(
-      "Your import has finished. Review the recent records below before drawing conclusions from them."
+      "Your existing history was added to Recent training. New activities will appear in Review when they need your confirmation."
     )
   ).toBeVisible();
   await captureEvidence(page, "32-recent-training-first-value-1440.png");

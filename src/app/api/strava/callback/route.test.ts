@@ -55,7 +55,12 @@ beforeEach(() => {
     athlete: { id: 42, firstname: "Ada", lastname: "Runner" },
   });
   mocks.promotePendingStravaConnection.mockResolvedValue(true);
-  mocks.syncActivities.mockResolvedValue({ imported: 1, pendingNew: 1, pendingTotal: 1 });
+  mocks.syncActivities.mockResolvedValue({
+    imported: 1,
+    historicalConfirmed: 1,
+    pendingNew: 0,
+    pendingTotal: 0,
+  });
 });
 
 afterEach(() => {
