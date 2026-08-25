@@ -31,10 +31,10 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => {} }),
 }));
-vi.mock("./auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
+vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
 // Only the two DB functions saveThresholdsAction touches are stubbed; actions.ts
 // imports many more names from ./db, but none are referenced on this code path.
-vi.mock("./db", () => ({
+vi.mock("@/lib/db", () => ({
   saveAthleteThresholds: mocks.saveAthleteThresholds,
   getAthleteThresholds: mocks.getAthleteThresholds,
 }));
@@ -44,7 +44,7 @@ import {
   applyThresholdPaceAction,
   saveThresholdsAction,
   type ThresholdsInput,
-} from "./actions";
+} from "@/features/activities/server/actions";
 
 const VALID: ThresholdsInput = {
   maxHr: 190,

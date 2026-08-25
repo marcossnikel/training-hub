@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/select";
 import { GearSelectItem } from "@/components/gear-select-item";
 import { useI18n } from "@/components/i18n-provider";
-import { createManualActivityAction, setBikeGearAction, setShoeGearAction } from "@/lib/actions";
+import { createManualActivityAction } from "@/features/activities/server/actions";
+import { setBikeGearAction, setShoeGearAction } from "@/features/gear/server/actions";
 import { NONE } from "@/lib/constants";
 import { fmtKm, localDateInputValue } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/components/i18n-provider";
-import { setActivityRaceAction } from "@/lib/actions";
+import { setActivityRaceAction } from "@/features/activities/server/actions";
 import { fmtPaceShort, parsePace } from "@/lib/format";
 import type { Activity } from "@/lib/types";
 

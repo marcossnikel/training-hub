@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n-provider";
 import { AutoSync, SyncButton } from "@/components/sync-button";
-import { logoutAction, setLangAction } from "@/lib/actions";
+import { logoutAction, setLangAction } from "@/features/access/server/account-actions";
 import type { Lang } from "@/lib/i18n";
 import { EnvironmentIndicator } from "@/components/environment-indicator";
 import type { EnvironmentIndicatorModel } from "@/features/access/environment-indicator";

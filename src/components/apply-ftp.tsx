@@ -5,7 +5,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n-provider";
-import { applyFtpAction } from "@/lib/actions";
+import { applyFtpAction } from "@/features/activities/server/actions";
 import { FTP_RANGE } from "@/lib/fitness";
 
 /**

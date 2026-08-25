@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
-vi.mock("@/lib/actions", () => ({
+vi.mock("@/features/gear/server/actions", () => ({
   saveShoeFormAction: mocks.saveShoeFormAction,
   saveBikeFormAction: mocks.saveBikeFormAction,
   saveShoeAction: vi.fn(),

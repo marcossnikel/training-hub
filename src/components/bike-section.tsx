@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { BikeSelect } from "@/components/bike-select";
 import { useI18n } from "@/components/i18n-provider";
-import { setActivityBikeAction } from "@/lib/actions";
+import { setActivityBikeAction } from "@/features/activities/server/actions";
 import type { ActivityWithSplits, BikeOption } from "@/lib/types";
 
 export function BikeSection({

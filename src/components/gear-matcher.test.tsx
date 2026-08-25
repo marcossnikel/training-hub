@@ -19,12 +19,11 @@ const { setShoeGearAction, setBikeGearAction } = vi.hoisted(() => ({
     .mockResolvedValue({ ok: true }),
 }));
 
-vi.mock("@/lib/actions", () => ({
+vi.mock("@/features/gear/server/actions", () => ({
   setShoeGearAction,
   setBikeGearAction,
-  // Other action imported by settings-forms but unused in this test.
-  createManualActivityAction: vi.fn(),
 }));
+vi.mock("@/features/activities/server/actions", () => ({ createManualActivityAction: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }));

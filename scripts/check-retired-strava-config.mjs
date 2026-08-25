@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const retiredNames = [
   ["STRAVA", "CLIENT", "ID"].join("_"),
@@ -13,6 +13,9 @@ const trackedFiles = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" 
 const violations = [];
 
 for (const file of trackedFiles) {
+  // During a behavior-preserving source move, git's index can still list a
+  // deleted path until the final commit. There is no source to inspect then.
+  if (!existsSync(file)) continue;
   const contents = readFileSync(file, "utf8");
   for (const name of retiredNames) {
     if (contents.includes(name)) violations.push(`${file}: retired ${name} reference`);

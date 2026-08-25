@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useI18n } from "@/components/i18n-provider";
-import { syncNowAction, type SyncActionResult } from "@/lib/actions";
+import { syncNowAction, type SyncActionResult } from "@/features/strava/server/sync-actions";
 import { fillStr, type Dict } from "@/lib/i18n";
 
 function announce(result: SyncActionResult, manual: boolean, t: Dict) {

@@ -1,6 +1,6 @@
 # R10 — Organize server actions by owning feature
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium
 **Depends on:** R1
@@ -34,9 +34,21 @@ resolve the authenticated owner before calling DB helpers. Existing tests
 concentrate on auth, owner scope, and threshold behavior; several component
 tests mock the broad module.
 
-At the start of the same implementation session, regenerate the exact export/
-import matrix with `rg` and refresh it in this packet. Earlier tasks may add
-creator/invite actions and must not be silently omitted.
+Refreshed 2026-08-25 with `rg`; each former broad-module export has exactly one
+owner and its callers/tests now import that seam:
+
+| Owner | Server module | Actions | Direct callers/tests |
+| --- | --- | --- | --- |
+| access/account | `src/features/access/server/account-actions.ts` | `setLangAction`, `logoutAction` | `header.tsx` |
+| activities | `src/features/activities/server/actions.ts` | review, journal, splits, bike/race, thresholds, manual activity | Review/detail/threshold/settings components; threshold test |
+| gear | `src/features/gear/server/actions.ts` | shoe/bike save, form, retirement, Strava-gear actions | gear/settings components; gear mocks and owner-scope test |
+| goals | `src/features/goals/server/actions.ts` | create/delete | `goals-manager.tsx` |
+| insights | `src/features/insights/server/feedback-actions.ts` | usefulness/note/remove feedback | feedback component and test |
+| strava | `src/features/strava/server/sync-actions.ts` | `syncNowAction` | `sync-button.tsx` |
+
+The independent invite actions remain under `src/features/invites/actions.ts`.
+The pre-existing BYO/lifecycle Strava seams remain direct, narrow modules and
+are not imported through the removed broad module.
 
 ## Locked decisions
 

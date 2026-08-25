@@ -8,7 +8,7 @@ const actions = vi.hoisted(() => ({
   removeInsightFeedbackAction: vi.fn(),
 }));
 
-vi.mock("@/lib/actions", () => actions);
+vi.mock("@/features/insights/server/feedback-actions", () => actions);
 
 import { InsightFeedback } from "./insight-feedback";
 

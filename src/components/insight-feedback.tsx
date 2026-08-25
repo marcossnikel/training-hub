@@ -9,7 +9,7 @@ import {
   saveInsightFeedbackNoteAction,
   saveInsightUsefulnessAction,
   type InsightFeedbackTargetInput,
-} from "@/lib/actions";
+} from "@/features/insights/server/feedback-actions";
 import { INSIGHT_NOTE_MAX_LENGTH, type InsightUsefulness } from "@/lib/insight-feedback";
 import { cn } from "@/lib/utils";
 

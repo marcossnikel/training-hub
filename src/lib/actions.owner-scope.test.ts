@@ -13,12 +13,12 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("./auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
-vi.mock("./db", () => ({
+vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
+vi.mock("@/lib/db", () => ({
   getShoe: mocks.getShoe,
   setShoeRetired: mocks.setShoeRetired,
 }));
-vi.mock("./action-helpers", () => ({
+vi.mock("@/lib/action-helpers", () => ({
   dict: async () => ({ errors: { unauthorized: "Unauthorized", shoeNotFound: "Shoe not found" } }),
   inRange: vi.fn(),
   normalizeJournal: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock("./action-helpers", () => ({
   refreshAll: mocks.refreshAll,
 }));
 
-import { setShoeRetiredAction } from "./actions";
+import { setShoeRetiredAction } from "@/features/gear/server/actions";
 
 beforeEach(() => {
   mocks.requireCurrentUser.mockResolvedValue({ userId: "owner-a" });

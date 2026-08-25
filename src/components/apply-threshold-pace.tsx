@@ -5,7 +5,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n-provider";
-import { applyThresholdPaceAction } from "@/lib/actions";
+import { applyThresholdPaceAction } from "@/features/activities/server/actions";
 import { THRESHOLD_PACE_RANGE } from "@/lib/fitness";
 
 /**

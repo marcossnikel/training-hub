@@ -23,7 +23,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { SplitsEditor, rowsToSplits } from "@/components/splits-editor";
 import { initForm, type FormState, type Summary } from "@/components/review-flow-form";
 import { Stat, ReviewSummaryScreen, useReviewKeyboard } from "@/components/review-flow-parts";
-import { confirmActivityAction } from "@/lib/actions";
+import { confirmActivityAction } from "@/features/activities/server/actions";
 import {
   fmtDate,
   fmtDuration,

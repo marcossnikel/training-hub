@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/components/i18n-provider";
-import { createGoalAction, deleteGoalAction } from "@/lib/actions";
+import { createGoalAction, deleteGoalAction } from "@/features/goals/server/actions";
 import { fmtDate, fmtDuration } from "@/lib/format";
 import type { Goal } from "@/lib/types";
 

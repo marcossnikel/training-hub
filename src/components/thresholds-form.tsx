@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/components/i18n-provider";
-import { saveThresholdsAction } from "@/lib/actions";
+import { saveThresholdsAction } from "@/features/activities/server/actions";
 import { fmtPaceShort, parsePace } from "@/lib/format";
 import { parseFiniteNumber } from "@/lib/validate";
 import type { AthleteThresholds } from "@/lib/fitness";

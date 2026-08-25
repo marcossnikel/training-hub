@@ -29,7 +29,7 @@ import {
   saveShoeFormAction,
   setBikeRetiredAction,
   setShoeRetiredAction,
-} from "@/lib/actions";
+} from "@/features/gear/server/actions";
 import { NONE } from "@/lib/constants";
 import { fillStr } from "@/lib/i18n";
 import type { Bike, Shoe, StravaGear } from "@/lib/types";

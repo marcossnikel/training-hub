@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FeelingBadge } from "@/components/feeling-badge";
 import { FeelingControl, RpeControl } from "@/components/journal-controls";
 import { useI18n } from "@/components/i18n-provider";
-import { updateJournalAction } from "@/lib/actions";
+import { updateJournalAction } from "@/features/activities/server/actions";
 import type { Activity, Feeling } from "@/lib/types";
 
 function NoteBlock({
