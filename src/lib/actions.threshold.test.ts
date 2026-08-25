@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => {
       ftpProvisional: false,
       updatedAt: "2026-01-01T00:00:00Z",
     })),
+    requireCurrentUser: vi.fn(async (): Promise<{ userId: string } | null> => ({
+      userId: "owner-a",
+    })),
     revalidatePath: vi.fn(),
   };
 });
@@ -28,6 +31,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => {} }),
 }));
+vi.mock("./auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
 // Only the two DB functions saveThresholdsAction touches are stubbed; actions.ts
 // imports many more names from ./db, but none are referenced on this code path.
 vi.mock("./db", () => ({
@@ -57,21 +61,34 @@ afterEach(() => {
 });
 
 describe("saveThresholdsAction (T3.7)", () => {
+  it("rejects a guest before reading or writing domain thresholds", async () => {
+    mocks.requireCurrentUser.mockResolvedValueOnce(null);
+
+    const result = await saveThresholdsAction(VALID);
+
+    expect(result.ok).toBe(false);
+    expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
+  });
+
   it("persists thresholds synchronously and returns without awaiting the recompute", async () => {
     const result = await saveThresholdsAction(VALID);
 
     expect(result).toEqual({ ok: true });
     // The edit is written in-request, before the response returns.
     expect(mocks.saveAthleteThresholds).toHaveBeenCalledTimes(1);
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith({
-      maxHr: 190,
-      restingHr: 45,
-      lthr: 165,
-      thresholdPaceSPerKm: 240,
-      ftpW: 250,
-      restingHrEstimated: false,
-      ftpProvisional: false,
-    });
+    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith(
+      { userId: "owner-a" },
+      {
+        maxHr: 190,
+        restingHr: 45,
+        lthr: 165,
+        thresholdPaceSPerKm: 240,
+        ftpW: 250,
+        restingHrEstimated: false,
+        ftpProvisional: false,
+      }
+    );
   });
 
   it("does not persist anything when thresholds are invalid", async () => {
@@ -91,15 +108,18 @@ describe("applyThresholdPaceAction (pace-only apply)", () => {
     // then writes them back with only the pace changed — so a concurrent edit to
     // maxHr/restingHr/lthr/ftp made after page load is not reverted.
     expect(mocks.getAthleteThresholds).toHaveBeenCalledTimes(1);
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith({
-      maxHr: 195,
-      restingHr: 50,
-      lthr: 170,
-      thresholdPaceSPerKm: 240,
-      ftpW: 260,
-      restingHrEstimated: true,
-      ftpProvisional: false,
-    });
+    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith(
+      { userId: "owner-a" },
+      {
+        maxHr: 195,
+        restingHr: 50,
+        lthr: 170,
+        thresholdPaceSPerKm: 240,
+        ftpW: 260,
+        restingHrEstimated: true,
+        ftpProvisional: false,
+      }
+    );
   });
 
   it("rejects an out-of-range pace without reading or writing thresholds", async () => {
@@ -130,16 +150,19 @@ describe("applyFtpAction (eFTP apply, T28)", () => {
     // Same contract as the pace apply: read the CURRENT thresholds server-side,
     // write them back with one field changed, so a concurrent edit is not lost.
     expect(mocks.getAthleteThresholds).toHaveBeenCalledTimes(1);
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith({
-      maxHr: 195,
-      restingHr: 50,
-      lthr: 170,
-      thresholdPaceSPerKm: 300,
-      // Rounded to whole watts, and no longer a placeholder.
-      ftpW: 249,
-      restingHrEstimated: true,
-      ftpProvisional: false,
-    });
+    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith(
+      { userId: "owner-a" },
+      {
+        maxHr: 195,
+        restingHr: 50,
+        lthr: 170,
+        thresholdPaceSPerKm: 300,
+        // Rounded to whole watts, and no longer a placeholder.
+        ftpW: 249,
+        restingHrEstimated: true,
+        ftpProvisional: false,
+      }
+    );
   });
 
   it("rejects an out-of-range FTP without reading or writing thresholds", async () => {

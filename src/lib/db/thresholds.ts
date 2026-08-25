@@ -1,10 +1,10 @@
 // The athlete's reference thresholds (max HR, resting HR, LTHR, threshold pace,
-// FTP). Split out of the old load.ts when training load was removed: the zones,
-// the performance page and the coach all still need these.
+// FTP). Split out of the old load.ts when training load was removed: the zones
+// and performance page both still need these.
 import { exec, one } from "./helpers";
 import { THRESHOLD_DEFAULTS } from "../baseline";
 import type { AthleteThresholds } from "../fitness";
-import { currentAthlete, requireAthlete } from "../identity";
+import type { OwnerContext } from "../owner-context";
 
 interface AthleteThresholdsRow {
   max_hr: number | null;
@@ -17,12 +17,12 @@ interface AthleteThresholdsRow {
   updated_at: string | null;
 }
 
-export async function getAthleteThresholds(): Promise<AthleteThresholds> {
+export async function getAthleteThresholds(owner: OwnerContext): Promise<AthleteThresholds> {
   const row = await one<AthleteThresholdsRow>(
     `SELECT max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
             resting_hr_estimated, ftp_provisional, updated_at
-     FROM athlete_thresholds WHERE id = ?`,
-    [currentAthlete().id]
+     FROM athlete_profiles WHERE user_id = ?`,
+    [owner.userId]
   );
   if (!row) return { ...THRESHOLD_DEFAULTS };
   return {
@@ -47,13 +47,16 @@ export interface AthleteThresholdFields {
   ftpProvisional: boolean;
 }
 
-export async function saveAthleteThresholds(fields: AthleteThresholdFields): Promise<void> {
+export async function saveAthleteThresholds(
+  owner: OwnerContext,
+  fields: AthleteThresholdFields
+): Promise<void> {
   await exec(
-    `INSERT INTO athlete_thresholds
-       (id, max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
+    `INSERT INTO athlete_profiles
+       (user_id, max_hr, resting_hr, lthr, threshold_pace_s_per_km, ftp_w,
         resting_hr_estimated, ftp_provisional, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
+     ON CONFLICT(user_id) DO UPDATE SET
        max_hr = excluded.max_hr,
        resting_hr = excluded.resting_hr,
        lthr = excluded.lthr,
@@ -63,7 +66,7 @@ export async function saveAthleteThresholds(fields: AthleteThresholdFields): Pro
        ftp_provisional = excluded.ftp_provisional,
        updated_at = excluded.updated_at`,
     [
-      requireAthlete().id,
+      owner.userId,
       fields.maxHr,
       fields.restingHr,
       fields.lthr,

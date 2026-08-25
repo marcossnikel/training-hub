@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { GitCompareIcon, MedalIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
@@ -9,12 +10,15 @@ import { fmtDate, fmtDuration, fmtKm, fmtPace, fmtPaceShort, localStartedAt } fr
 import { fillStr } from "@/lib/i18n";
 import { raceCategory } from "@/lib/races";
 import { isRunSport } from "@/lib/validate";
+import { requireCurrentUser } from "@/lib/auth";
 
 export const metadata = { title: "Races" };
 
 export default async function RacesPage() {
+  const owner = await requireCurrentUser();
+  if (!owner) redirect("/login");
   const { lang, t } = await getDict();
-  const races = await listRaces();
+  const races = await listRaces(owner);
 
   // Fastest half marathon for the subtitle headline, when there is one.
   const halves = races.filter((r) => raceCategory(r) === "half" && r.avg_pace_s_per_km);

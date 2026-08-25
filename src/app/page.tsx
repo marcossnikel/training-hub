@@ -8,6 +8,7 @@ import {
   SearchXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
 import { FeelingBadge } from "@/components/feeling-badge";
 import { FilterPill } from "@/components/filter-pill";
@@ -15,7 +16,9 @@ import { ReviewBanner } from "@/components/review-banner";
 import { SportIcon } from "@/components/sport-icon";
 import { countPending, listConfirmedActivities } from "@/lib/db";
 import { getDict } from "@/lib/lang";
-import { isStravaConnected, stravaConfigured } from "@/lib/strava";
+import { isStravaConnected } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
+import { PrivateBetaLanding } from "@/components/private-beta-landing";
 import {
   fmtDate,
   fmtDateWithYear,
@@ -33,7 +36,10 @@ import { fmtPower, fmtSpeed, isRideSport, rideMetrics } from "@/lib/cycling";
 import { isRunSport } from "@/lib/validate";
 import type { ActivityWithSplits } from "@/lib/types";
 
-export const metadata = { title: "Training log" };
+// The root log is per-owner data. Keep this explicit even though the parent
+// proxy handles the ordinary HTTP request, so a future proxy matcher change
+// cannot turn a missing session into a rendered empty/data-bearing route.
+export const dynamic = "force-dynamic";
 
 interface WeekGroup {
   key: string;
@@ -174,15 +180,29 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
 /** Rows the log renders before offering the rest. */
 const LOG_PAGE_SIZE = 150;
 
-export default async function TrainingLogPage({ searchParams }: PageProps<"/">) {
+export default async function RootPage({ searchParams }: PageProps<"/">) {
+  // This branch is deliberately ahead of every product-domain import call.
+  // A cookie-free root request receives only the static beta explanation; the
+  // proxy adds private/no-store before this page starts rendering.
+  const owner = await requireCurrentUser();
+  if (!owner) return <PrivateBetaLanding />;
+  return <TrainingLogPage owner={owner} searchParams={searchParams} />;
+}
+
+async function TrainingLogPage({
+  owner,
+  searchParams,
+}: {
+  owner: NonNullable<Awaited<ReturnType<typeof requireCurrentUser>>>;
+  searchParams: PageProps<"/">["searchParams"];
+}) {
   const params = await searchParams;
   const { lang, t } = await getDict();
   const [pending, activities, connected] = await Promise.all([
-    countPending(),
-    listConfirmedActivities(),
-    isStravaConnected(),
+    countPending(owner),
+    listConfirmedActivities(owner),
+    isStravaConnected(owner),
   ]);
-  const configured = stravaConfigured();
 
   const counts = new Map<SportCategory, number>();
   for (const activity of activities) {
@@ -244,6 +264,17 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
         </div>
       </div>
 
+      {params.strava === "connected" ? (
+        <Alert className="mt-5 border-emerald-500/30 text-emerald-800 dark:text-emerald-200">
+          <CableIcon aria-hidden />
+          <AlertTitle>Strava is connected</AlertTitle>
+          <AlertDescription>
+            Your import has finished. Review the recent records below before drawing conclusions
+            from them.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {pending > 0 ? (
         <div className="mt-5">
           <ReviewBanner count={pending} />
@@ -282,11 +313,11 @@ export default async function TrainingLogPage({ searchParams }: PageProps<"/">) 
                 <Link href="/review">{t.log.goToReview}</Link>
               </Button>
             </EmptyState>
-          ) : !configured || !connected ? (
+          ) : !connected ? (
             <EmptyState
               icon={CableIcon}
               title={t.log.connectTitle}
-              description={configured ? t.log.connectBodyConfigured : t.log.connectBodyMissing}
+              description={t.log.connectBodyConfigured}
             >
               <Button asChild>
                 <Link href="/settings">{t.log.openSettings}</Link>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useState, useTransition } from "react";
 import { ArchiveIcon, ArchiveRestoreIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,8 @@ import {
 import { GearSelectItem } from "@/components/gear-select-item";
 import { useI18n } from "@/components/i18n-provider";
 import {
-  saveBikeAction,
-  saveShoeAction,
+  saveBikeFormAction,
+  saveShoeFormAction,
   setBikeRetiredAction,
   setShoeRetiredAction,
 } from "@/lib/actions";
@@ -47,43 +47,9 @@ export function GearDialog(props: GearDialogProps) {
   const { kind, gear, gearOptions, connected, children } = props;
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const close = useCallback(() => setOpen(false), []);
 
   const d = kind === "shoe" ? t.shoeDialog : t.bikeDialog;
-  const save = kind === "shoe" ? saveShoeAction : saveBikeAction;
-  const namePlaceholder = kind === "shoe" ? "ASICS Superblast 3" : "TSW TR10 One";
-  const baselineStep = kind === "shoe" ? "0.1" : "1";
-
-  function submit(formData: FormData) {
-    startTransition(async () => {
-      const result = await save(formData);
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      const updated = kind === "shoe" ? t.toasts.shoeUpdated : t.toasts.bikeUpdated;
-      const added = kind === "shoe" ? t.toasts.shoeAdded : t.toasts.bikeAdded;
-      toast.success(gear ? updated : added);
-      setOpen(false);
-    });
-  }
-
-  const gearList = gearOptions ?? [];
-
-  const baselineField = (
-    <div className="space-y-1.5">
-      <Label htmlFor={`${kind}-initial`}>{d.baseline}</Label>
-      <Input
-        id={`${kind}-initial`}
-        name="initial_km"
-        type="number"
-        step={baselineStep}
-        min="0"
-        defaultValue={gear?.initial_km ?? 0}
-        className="font-mono tabular-nums"
-      />
-    </div>
-  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -93,88 +59,197 @@ export function GearDialog(props: GearDialogProps) {
           <DialogTitle>{gear ? fillStr(d.editTitle, { name: gear.name }) : d.addTitle}</DialogTitle>
           <DialogDescription>{gear ? d.editBody : d.addBody}</DialogDescription>
         </DialogHeader>
-        <form action={submit} className="space-y-4">
-          {gear ? <input type="hidden" name="id" value={gear.id} /> : null}
-
-          <div className="space-y-1.5">
-            <Label htmlFor={`${kind}-name`}>{d.name}</Label>
-            <Input
-              id={`${kind}-name`}
-              name="name"
-              required
-              defaultValue={gear?.name ?? ""}
-              placeholder={namePlaceholder}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor={`${kind}-role`}>{d.role}</Label>
-            <Input
-              id={`${kind}-role`}
-              name="role"
-              defaultValue={gear?.role ?? ""}
-              placeholder={d.rolePlaceholder}
-            />
-          </div>
-
-          {props.kind === "shoe" ? (
-            <div className="grid grid-cols-2 gap-3">
-              {baselineField}
-              <div className="space-y-1.5">
-                <Label htmlFor="shoe-retirement">{t.shoeDialog.retireAt}</Label>
-                <Input
-                  id="shoe-retirement"
-                  name="retirement_km"
-                  type="number"
-                  step="10"
-                  min="1"
-                  defaultValue={props.gear?.retirement_km ?? 700}
-                  className="font-mono tabular-nums"
-                />
-              </div>
-            </div>
-          ) : (
-            baselineField
-          )}
-
-          <div className="space-y-1.5">
-            <Label htmlFor={`${kind}-photo`}>{d.photo}</Label>
-            <Input id={`${kind}-photo`} name="photo" type="file" accept="image/*" />
-            {gear?.photo_path ? (
-              <p className="text-xs text-muted-foreground">{d.keepPhoto}</p>
-            ) : null}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor={`${kind}-gear`}>{d.gear}</Label>
-            {gearList.length > 0 ? (
-              <Select name="strava_gear_id" defaultValue={gear?.strava_gear_id ?? NONE}>
-                <SelectTrigger id={`${kind}-gear`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>{d.notLinked}</SelectItem>
-                  {gearList.map((g) => (
-                    <GearSelectItem key={g.id} gear={g} />
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                {connected ? d.gearUnavailable : d.gearConnectHint}
-              </p>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button type="submit" disabled={pending}>
-              {pending ? <Loader2Icon className="animate-spin" data-icon="inline-start" /> : null}
-              {gear ? d.save : d.add}
-            </Button>
-          </DialogFooter>
-        </form>
+        {kind === "shoe" ? (
+          <ShoeGearForm
+            gear={gear}
+            gearOptions={gearOptions}
+            connected={connected}
+            onSuccess={close}
+          />
+        ) : (
+          <BikeGearForm
+            gear={gear}
+            gearOptions={gearOptions}
+            connected={connected}
+            onSuccess={close}
+          />
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+type GearFormProps = {
+  gearOptions: StravaGear[] | null;
+  connected: boolean;
+  onSuccess: () => void;
+};
+
+function ShoeGearForm({ gear, ...props }: GearFormProps & { gear?: Shoe }) {
+  const [result, formAction, pending] = useActionState(saveShoeFormAction, null);
+  return (
+    <GearForm
+      kind="shoe"
+      gear={gear}
+      result={result}
+      formAction={formAction}
+      pending={pending}
+      {...props}
+    />
+  );
+}
+
+function BikeGearForm({ gear, ...props }: GearFormProps & { gear?: Bike }) {
+  const [result, formAction, pending] = useActionState(saveBikeFormAction, null);
+  return (
+    <GearForm
+      kind="bike"
+      gear={gear}
+      result={result}
+      formAction={formAction}
+      pending={pending}
+      {...props}
+    />
+  );
+}
+
+function GearForm({
+  kind,
+  gear,
+  gearOptions,
+  connected,
+  onSuccess,
+  result,
+  formAction,
+  pending,
+}: GearFormProps & {
+  kind: "shoe" | "bike";
+  gear?: Shoe | Bike;
+  result: Awaited<ReturnType<typeof saveShoeFormAction>> | null;
+  formAction: (payload: FormData) => void;
+  pending: boolean;
+}) {
+  const { t } = useI18n();
+  const d = kind === "shoe" ? t.shoeDialog : t.bikeDialog;
+  const namePlaceholder = kind === "shoe" ? "ASICS Superblast 3" : "TSW TR10 One";
+
+  useEffect(() => {
+    if (!result) return;
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(
+      gear
+        ? kind === "shoe"
+          ? t.toasts.shoeUpdated
+          : t.toasts.bikeUpdated
+        : kind === "shoe"
+          ? t.toasts.shoeAdded
+          : t.toasts.bikeAdded
+    );
+    onSuccess();
+  }, [gear, kind, onSuccess, result, t]);
+
+  const baselineField = (
+    <div className="space-y-1.5">
+      <Label htmlFor={`${kind}-initial`}>{d.baseline}</Label>
+      <Input
+        id={`${kind}-initial`}
+        name="initial_km"
+        type="number"
+        step={kind === "shoe" ? "0.1" : "1"}
+        min="0"
+        defaultValue={gear?.initial_km ?? 0}
+        className="font-mono tabular-nums"
+      />
+    </div>
+  );
+
+  return (
+    <form action={formAction} className="space-y-4">
+      {gear ? <input type="hidden" name="id" value={gear.id} /> : null}
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${kind}-name`}>{d.name}</Label>
+        <Input
+          id={`${kind}-name`}
+          name="name"
+          required
+          defaultValue={gear?.name ?? ""}
+          placeholder={namePlaceholder}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${kind}-role`}>{d.role}</Label>
+        <Input
+          id={`${kind}-role`}
+          name="role"
+          defaultValue={gear?.role ?? ""}
+          placeholder={d.rolePlaceholder}
+        />
+      </div>
+
+      {kind === "shoe" ? (
+        <div className="grid grid-cols-2 gap-3">
+          {baselineField}
+          <div className="space-y-1.5">
+            <Label htmlFor="shoe-retirement">{t.shoeDialog.retireAt}</Label>
+            <Input
+              id="shoe-retirement"
+              name="retirement_km"
+              type="number"
+              step="1"
+              min="1"
+              defaultValue={(gear as Shoe | undefined)?.retirement_km ?? 700}
+              className="font-mono tabular-nums"
+            />
+          </div>
+        </div>
+      ) : (
+        baselineField
+      )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${kind}-photo`}>{d.photo}</Label>
+        <Input id={`${kind}-photo`} name="photo" type="file" accept="image/*" />
+        {gear?.photo_path ? <p className="text-xs text-muted-foreground">{d.keepPhoto}</p> : null}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${kind}-gear`}>{d.gear}</Label>
+        {gearOptions && gearOptions.length > 0 ? (
+          <Select name="strava_gear_id" defaultValue={gear?.strava_gear_id ?? NONE}>
+            <SelectTrigger id={`${kind}-gear`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>{d.notLinked}</SelectItem>
+              {gearOptions.map((option) => (
+                <GearSelectItem key={option.id} gear={option} />
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            {connected ? d.gearUnavailable : d.gearConnectHint}
+          </p>
+        )}
+      </div>
+
+      <DialogFooter>
+        <Button type="submit" disabled={pending}>
+          {pending ? (
+            <Loader2Icon
+              className="animate-spin motion-reduce:animate-none"
+              data-icon="inline-start"
+            />
+          ) : null}
+          {gear ? d.save : d.add}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

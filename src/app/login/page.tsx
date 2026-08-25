@@ -16,7 +16,7 @@ export default async function LoginPage() {
             <LockIcon className="size-4.5 text-muted-foreground" />
           </div>
           <CardTitle as="h1">{t.login.title}</CardTitle>
-          <CardDescription>{t.login.subtitle}</CardDescription>
+          <CardDescription>Use your Training Hub account to continue.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />

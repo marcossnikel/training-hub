@@ -764,15 +764,14 @@ describe("vdotTrend", () => {
   it("ignores efforts dated after asOf, so the tile and the chart see one dataset", () => {
     // A skewed watch clock (or the UTC/local mix in the row dates) can date a row past
     // today. Unbounded, it would feed `current` with no month to land in, and the card
-    // would vanish while the zones agent was still handed the value.
+    // would vanish while another retained surface still read the value.
     const { months, current } = vdotTrend([vdotEffort("2026-08-02T07:00:00", 5000, 18 * 60)], asOf);
     expect(current).toBeNull();
     expect(months.every((m) => m.vdot === null)).toBe(true);
   });
 
   it("reports the same current value whether or not the trend is built", () => {
-    // The zones agent reads `currentVdot` and /performance reads `vdotTrend`; the two
-    // must never quote the athlete different numbers.
+    // Any direct current-value reader and /performance must never quote different numbers.
     const rows = [
       vdotEffort("2026-07-05T07:00:00", 30000, 8726),
       vdotEffort("2026-06-27T07:00:00", 20000, 6977),

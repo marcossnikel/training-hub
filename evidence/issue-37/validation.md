@@ -1,0 +1,15 @@
+# Issue #37 visual validation
+
+Environment: local production `next build` + `next start` server with the disposable `file:data/e2e.db` Playwright fixture on port 3220. Browser: Chromium. Commit: pending repair handoff.
+
+The captures are made by `E2E_PORT=3220 E2E_PRODUCTION=1 CAPTURE_COMPARABLE_ACTIVITY_EVIDENCE=1 npm run test:e2e -- e2e/comparable-activity.spec.ts`; the test uses only disposable owner-scoped rows, removes them after every test, and restores the temporary local schema change used for the real read-error/retry proof. Port 3210 remains the isolated loopback Strava provider for the wider E2E suite.
+
+| State | Desktop 1440 | Narrow 390 | Result |
+| --- | --- | --- | --- |
+| Reliable/default | `37-comparable-prior-activity-reliable-1440.png` | `37-comparable-prior-activity-reliable-390.png` | One deterministic prior result, owner-scoped links, values, signed deltas, thresholds, and limitation. |
+| Loading | `37-comparable-prior-activity-loading-1440.png` | `37-comparable-prior-activity-loading-390.png` | Real client navigation through the final comparison Link while a disposable high-volume confirmed history is read. The Link uses Next 16 `useLinkStatus` only while its actual dynamic navigation is pending, and renders the exact shared final-route skeleton used by `loading.tsx` and the nested Suspense boundary. The `aria-busy="true"` skeleton has seven static parts and no fabricated values before the real result replaces it. |
+| No match | `37-comparable-prior-activity-no-match-1440.png` | `37-comparable-prior-activity-no-match-390.png` | Exact no-match copy and source provenance, with no limited tier. |
+| Unavailable safe no-card | `37-comparable-prior-activity-unavailable-1440.png` | `37-comparable-prior-activity-unavailable-390.png` | Pending source reaches the existing safe not-found path without comparison content. |
+| Keyboard focus and activation | `37-comparable-prior-activity-keyboard-source-1440.png`, `37-comparable-prior-activity-keyboard-prior-1440.png`, `37-comparable-prior-activity-keyboard-method-1440.png` | `37-comparable-prior-activity-keyboard-source-390.png`, `37-comparable-prior-activity-keyboard-prior-390.png`, `37-comparable-prior-activity-keyboard-method-390.png` | Real Tab traversal reaches current source, prior source, then the native method disclosure in that order. Enter activates each link; Space opens the disclosure. The entry link and error retry are also reached by Tab and activated with Enter. |
+| Error/retry | `37-comparable-prior-activity-error-focus-1440.png`, `37-comparable-prior-activity-retried-success-1440.png` | `37-comparable-prior-activity-error-focus-390.png`, `37-comparable-prior-activity-retried-success-390.png` | Real local read failure has safe copy and `unstable_retry` restores the final route after the local schema is restored. |
+| Reduced motion | `37-comparable-prior-activity-reduced-motion-focus-1440.png` | `37-comparable-prior-activity-reduced-motion-focus-390.png` | `prefers-reduced-motion: reduce` changes the focus transition to the global immediate `1ms` fallback without changing meaning. |

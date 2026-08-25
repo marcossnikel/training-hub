@@ -117,7 +117,7 @@ function halfEf(half: Sample[]): { hr: number; ef: number } {
 /**
  * The two halves an aerobic-decoupling reading is made of. The percentage alone
  * answers "did efficiency fall?"; the half heart rates answer "at what cost?",
- * which is what the coach prompt quotes for a long run.
+ * which makes the reading interpretable for a long run.
  */
 export interface DecouplingHalves {
   /** Mean heart rate of the first half, bpm. */
@@ -147,8 +147,8 @@ export function computeDecoupling(input: DecouplingInput): number | null {
  * The full reading behind {@link computeDecoupling}: the same split, the same
  * warm-up exclusion and the same null cases, plus each half's mean heart rate.
  * THE single decoupling implementation in the app — the activity page, the
- * persisted metrics pipeline and the coach's field signals all land here, so a
- * change to the semantics can never move one of them without the others.
+ * persisted metrics pipeline all land here, so a change to the semantics cannot
+ * move one surface without the others.
  */
 export function computeDecouplingHalves(input: DecouplingInput): DecouplingHalves | null {
   const { streams, basis } = input;

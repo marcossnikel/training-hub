@@ -844,7 +844,7 @@ export function vdotTrend(efforts: readonly VdotEffort[], asOf: Date): VdotTrend
 
 /**
  * Just the current VDOT, for callers that want the tile's number and not the chart
- * (the zones agent's evidence). Reads only the trailing window instead of building
+ * (the performance page's evidence). Reads only the trailing window instead of building
  * twelve months of history to throw eleven of them away; identical by construction to
  * `vdotTrend(...).current`, which maxes over the same window of the same rows.
  */

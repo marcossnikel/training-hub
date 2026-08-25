@@ -14,15 +14,13 @@ import type { Lang } from "@/lib/i18n";
 
 /**
  * Auth control state passed from the server layout:
- *  - "disabled": auth is unconfigured (dev/e2e) — show nothing.
  *  - "out": auth is configured, no valid session — show a Log in link.
  *  - "in": authenticated owner — show a Log out button (submits logoutAction).
  */
-export type AuthControl = "disabled" | "in" | "out";
+export type AuthControl = "in" | "out";
 
 function AuthButton({ state }: { state: AuthControl }) {
   const { t } = useI18n();
-  if (state === "disabled") return null;
   if (state === "out") {
     return (
       <Button asChild variant="ghost" size="sm">
@@ -45,6 +43,7 @@ function AuthButton({ state }: { state: AuthControl }) {
 
 const NAV = [
   { href: "/", key: "log" },
+  { href: "/weekly-brief", key: "weeklyBrief" },
   { href: "/performance", key: "performance" },
   { href: "/races", key: "races" },
   { href: "/review", key: "review" },
@@ -105,22 +104,44 @@ function LangToggle() {
 export function Header({
   pendingCount,
   connected,
-  configured,
   autoSync,
   auth,
 }: {
   pendingCount: number;
   connected: boolean;
-  configured: boolean;
   autoSync: boolean;
   auth: AuthControl;
 }) {
   const pathname = usePathname();
   const { t } = useI18n();
 
+  // Guests do not need an app-navigation shell. Keep the landing utility bar
+  // deliberately small: existing athletes can sign in, while a visitor cannot
+  // discover a public registration or product-data route from it.
+  if (auth === "out") {
+    return (
+      <header className="border-b border-border/70 bg-background">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Link
+            href="/"
+            className="focus-ring rounded-md font-display text-xl font-bold tracking-tight transition-colors duration-150 hover:text-primary motion-reduce:transition-none"
+          >
+            Training Hub
+          </Link>
+          <Link
+            href="/login"
+            className="focus-ring rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground motion-reduce:transition-none"
+          >
+            Log in
+          </Link>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-[25px]">
-      {autoSync && configured ? <AutoSync /> : null}
+      {autoSync ? <AutoSync /> : null}
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:gap-5 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center gap-1.5">
           <span className="font-display text-xl font-bold tracking-tight">Training Hub</span>

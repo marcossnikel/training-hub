@@ -8,16 +8,19 @@ import { listBikes, listShoes } from "@/lib/db";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected, tryFetchBikes, tryFetchGear } from "@/lib/strava";
 import { fmtKm } from "@/lib/format";
+import { requireCurrentUser } from "@/lib/auth";
 import type { BikeWithMileage, ShoeWithMileage } from "@/lib/types";
 
 // The shoes/bikes collection bodies, extracted so both the consolidated /gear
 // page (tabbed) and the legacy /shoes//bikes routes render the same thing.
 
 export async function ShoesSection() {
+  const owner = await requireCurrentUser();
+  if (!owner) return null;
   const { t } = await getDict();
-  const shoes = await listShoes();
-  const connected = await isStravaConnected();
-  const gear = await tryFetchGear();
+  const shoes = await listShoes(owner);
+  const connected = await isStravaConnected(owner);
+  const gear = await tryFetchGear(owner);
   const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));
 
   const active = shoes.filter((s) => !s.retired_at);
@@ -80,10 +83,12 @@ export async function ShoesSection() {
 }
 
 export async function BikesSection() {
+  const owner = await requireCurrentUser();
+  if (!owner) return null;
   const { t } = await getDict();
-  const bikes = await listBikes();
-  const connected = await isStravaConnected();
-  const gear = await tryFetchBikes();
+  const bikes = await listBikes(owner);
+  const connected = await isStravaConnected(owner);
+  const gear = await tryFetchBikes(owner);
   const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));
 
   const active = bikes.filter((b) => !b.retired_at);

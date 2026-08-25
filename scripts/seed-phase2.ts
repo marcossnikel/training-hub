@@ -18,14 +18,17 @@ import type { DerivedZones } from "../src/lib/zones";
 // Confirmed by the athlete. The Butinada Trail is included because it IS a race;
 // `raceCategory` already buckets it as "trail" on its name, so `distanceOf`
 // returns null for it and the critical-speed fit never sees its 1081 m of climb.
-const RACES: { id: number; label: string }[] = [
-  { id: 327, label: "Athena's Run Longer Meia Maratona (19/10/2025)" },
-  { id: 176, label: "Butinada Trail (22/02/2026)" },
-  { id: 142, label: "Treino de Luxo New Balance 15k (29/03/2026)" },
-  { id: 128, label: "Meia Maratona Jundiaí Shopping (12/04/2026)" },
-  { id: 97, label: "Prova Lupo 12k (03/05/2026)" },
-  { id: 82, label: "ASICS Golden Run 2026 (17/05/2026)" },
-  { id: 30, label: "Hoka 30k (05/07/2026)" },
+const RACES: { name: string; label: string }[] = [
+  {
+    name: "Athena's Run Longer Meia Maratona",
+    label: "Athena's Run Longer Meia Maratona (19/10/2025)",
+  },
+  { name: "Butinada Trail", label: "Butinada Trail (22/02/2026)" },
+  { name: "Treino de Luxo New Balance 15k", label: "Treino de Luxo New Balance 15k (29/03/2026)" },
+  { name: "Meia Maratona Jundiaí Shopping", label: "Meia Maratona Jundiaí Shopping (12/04/2026)" },
+  { name: "Prova Lupo 12k", label: "Prova Lupo 12k (03/05/2026)" },
+  { name: "ASICS Golden Run 2026", label: "ASICS Golden Run 2026 (17/05/2026)" },
+  { name: "Hoka 30k", label: "Hoka 30k (05/07/2026)" },
 ];
 
 /** m:ss per km as seconds. */
@@ -77,25 +80,32 @@ async function main() {
   }
 
   await ensureMigrated();
+  const ownerId = process.env.TRAINING_HUB_OWNER_ID;
+  if (!ownerId)
+    throw new Error("TRAINING_HUB_OWNER_ID is required; scripts never select a default owner.");
+  const owner = { userId: ownerId };
   const version = await client.execute("SELECT version FROM schema_version WHERE id = 1");
   console.log(`schema_version: ${version.rows[0]?.version}`);
 
   console.log("\nMarking races:");
   for (const race of RACES) {
     const res = await client.execute({
-      sql: "UPDATE activities SET is_race = 1 WHERE id = ?",
-      args: [race.id],
+      sql: "UPDATE activities SET is_race = 1 WHERE user_id = ? AND name = ?",
+      args: [owner.userId, race.name],
     });
     console.log(`  ${res.rowsAffected ? "ok " : "MISS"} ${race.label}`);
   }
-  const count = await client.execute("SELECT COUNT(*) AS n FROM activities WHERE is_race = 1");
+  const count = await client.execute({
+    sql: "SELECT COUNT(*) AS n FROM activities WHERE user_id = ? AND is_race = 1",
+    args: [owner.userId],
+  });
   console.log(`  total marked: ${count.rows[0]?.n}`);
 
   console.log("\nSeeding training zones...");
-  await setTrainingZones(ZONES);
+  await setTrainingZones(owner, ZONES);
 
   console.log("Updating measured resting HR (50 estimated -> 52 measured)...");
-  await saveAthleteThresholds({
+  await saveAthleteThresholds(owner, {
     maxHr: 199,
     restingHr: 52,
     lthr: 178,

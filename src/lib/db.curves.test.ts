@@ -12,7 +12,49 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-curves-${process.pid}-${Date.now()}.db`);
 
-let db: typeof import("./db");
+type Db = typeof import("./db");
+type TestDb = Omit<
+  Db,
+  | "saveActivityCurvePoints"
+  | "listCurveBests"
+  | "upsertActivityBestEfforts"
+  | "listSeedEfforts"
+  | "listCurvePointBuckets"
+> & {
+  saveActivityCurvePoints(
+    activityId: number,
+    points: Parameters<Db["saveActivityCurvePoints"]>[2],
+    options: Parameters<Db["saveActivityCurvePoints"]>[3]
+  ): Promise<void>;
+  listCurveBests(
+    kind: Parameters<Db["listCurveBests"]>[1],
+    since: Parameters<Db["listCurveBests"]>[2]
+  ): ReturnType<Db["listCurveBests"]>;
+  upsertActivityBestEfforts(
+    activityId: number,
+    rows: Parameters<Db["upsertActivityBestEfforts"]>[2]
+  ): Promise<void>;
+  listSeedEfforts(): ReturnType<Db["listSeedEfforts"]>;
+  listCurvePointBuckets(
+    kind: Parameters<Db["listCurvePointBuckets"]>[1]
+  ): ReturnType<Db["listCurvePointBuckets"]>;
+};
+let db: TestDb;
+const TEST_OWNER = "curves-test-owner";
+const OWNER = { userId: TEST_OWNER };
+
+function bindOwner(raw: Db): TestDb {
+  return {
+    ...raw,
+    saveActivityCurvePoints: (activityId, points, options) =>
+      raw.saveActivityCurvePoints(OWNER, activityId, points, options),
+    listCurveBests: (kind, since) => raw.listCurveBests(OWNER, kind, since),
+    upsertActivityBestEfforts: (activityId, rows) =>
+      raw.upsertActivityBestEfforts(OWNER, activityId, rows),
+    listSeedEfforts: () => raw.listSeedEfforts(OWNER),
+    listCurvePointBuckets: (kind) => raw.listCurvePointBuckets(OWNER, kind),
+  };
+}
 
 /** Every stored activity, so each test can read the ones it inserted by name. */
 const ids: Record<string, number> = {};
@@ -23,9 +65,9 @@ async function insertActivity(
   status = "confirmed"
 ): Promise<number> {
   const row = await db.client.execute({
-    sql: `INSERT INTO activities (name, sport_type, started_at, started_at_local, distance_km, status)
-          VALUES (?, 'Run', ?, ?, 10, ?)`,
-    args: [name, startedAt, startedAt, status],
+    sql: `INSERT INTO activities (user_id, name, sport_type, started_at, started_at_local, distance_km, status)
+          VALUES (?, ?, 'Run', ?, ?, 10, ?)`,
+    args: [TEST_OWNER, name, startedAt, startedAt, status],
   });
   return Number(row.lastInsertRowid);
 }
@@ -34,8 +76,22 @@ beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
   delete process.env.TURSO_AUTH_TOKEN;
   process.env.DATABASE_URL = `file:${dbFile}`;
-  db = await import("./db");
+  db = bindOwner(await import("./db"));
   await db.ensureMigrated();
+  const now = new Date().toISOString();
+  await db.client.batch(
+    [
+      {
+        sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: ["curves-test-auth", "Curves Test", "curves@example.test", 0, now, now],
+      },
+      {
+        sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [TEST_OWNER, "curves-test-auth"],
+      },
+    ],
+    "write"
+  );
 });
 
 afterAll(() => {

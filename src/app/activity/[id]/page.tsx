@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, CheckCircle2Icon, ClockIcon, DownloadIcon } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MedalIcon } from "lucide-react";
 import { ActivityChart } from "@/components/activity-chart";
 import { ActivityMetricsStrip } from "@/components/activity-metrics-strip";
 import { BikeSection } from "@/components/bike-section";
-import { CoachChat } from "@/components/coach-chat";
 import { ExecutionCard } from "@/components/execution-card";
 import { RaceControl } from "@/components/race-control";
 import { JournalEditor } from "@/components/journal-editor";
@@ -17,7 +16,6 @@ import {
   getActivity,
   getAthleteThresholds,
   getActivityMetrics,
-  listActivityChat,
   listBikes,
   listFastestBestEfforts,
   listShoes,
@@ -32,7 +30,6 @@ import {
   type EfBasis,
 } from "@/lib/analysis";
 import { analyzeRace } from "@/lib/blocks";
-import { isCoachConfigured } from "@/lib/coach";
 import {
   easyHardPct,
   hrZones,
@@ -52,6 +49,7 @@ import {
   type StravaLap,
   type StravaSplit,
 } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
 import { fmtCadence, fmtEnergy, fmtPower, fmtSpeed, isRideSport, rideMetrics } from "@/lib/cycling";
 import {
   fmtDateLong,
@@ -70,10 +68,14 @@ import { runMetrics } from "@/lib/running";
 import { avgGapSPerKm } from "@/lib/stream-metrics";
 import { isRunSport } from "@/lib/validate";
 import { toGearOption } from "@/lib/gear";
+import { isComparablePriorActivitySource } from "@/lib/comparable-activity";
+import { ComparePriorActivityEntry } from "./compare-prior-activity-entry";
 
 export async function generateMetadata({ params }: PageProps<"/activity/[id]">) {
+  const owner = await requireCurrentUser();
+  if (!owner) return { title: "Activity" };
   const { id } = await params;
-  const activity = Number.isInteger(Number(id)) ? await getActivity(Number(id)) : null;
+  const activity = Number.isInteger(Number(id)) ? await getActivity(owner, Number(id)) : null;
   return { title: activity?.name ?? "Activity" };
 }
 
@@ -401,29 +403,41 @@ function KmSplitsTable({ splits, t }: { splits: StravaSplit[]; t: Dict }) {
 }
 
 export default async function ActivityPage({ params }: PageProps<"/activity/[id]">) {
+  const owner = await requireCurrentUser();
+  if (!owner) redirect("/login");
   const { id } = await params;
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) notFound();
 
-  const activity = await getActivity(numericId);
+  const activity = await getActivity(owner, numericId);
   if (!activity) notFound();
 
   const { lang, t } = await getDict();
   const run = isRunSport(activity.sport_type);
   const ride = isRideSport(activity.sport_type);
   const confirmed = activity.status === "confirmed";
+  const comparableSource = isComparablePriorActivitySource(
+    {
+      id: activity.id,
+      sportType: activity.sport_type,
+      startedAt: activity.started_at,
+      distanceKm: activity.distance_km,
+      movingTimeS: activity.moving_time_s,
+    },
+    new Date().toISOString()
+  );
 
-  const shoes = ride ? [] : (await listShoes()).map(toGearOption);
-  const bikes = ride ? (await listBikes()).map(toGearOption) : [];
+  const shoes = ride ? [] : (await listShoes(owner)).map(toGearOption);
+  const bikes = ride ? (await listBikes(owner)).map(toGearOption) : [];
   const metrics = ride ? rideMetrics(activity) : null;
   // Run form (T14): cadence and the stride it implies. runMetrics owns the sport
   // gate, so non-runs come back as nulls and the tiles stay hidden.
   const runStats = runMetrics(activity);
 
-  const thresholds = await getAthleteThresholds();
+  const thresholds = await getAthleteThresholds(owner);
 
-  const detail = await ensureActivityDetail(activity);
-  const streams = await ensureActivityStreams(activity);
+  const detail = await ensureActivityDetail(owner, activity);
+  const streams = await ensureActivityStreams(owner, activity);
 
   const laps = (detail?.laps ?? []).filter(
     (lap) => (lap.distance ?? 0) > 0 || (lap.moving_time ?? 0) > 0
@@ -445,7 +459,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   const prNames = claimsRecord
     ? prBadgeEffortNames(
         bestEfforts,
-        await listFastestBestEfforts({ includeActivityId: activity.id })
+        await listFastestBestEfforts(owner, { includeActivityId: activity.id })
       )
     : new Set<string>();
   // Devices auto-lap every km; only show laps when they carry real structure.
@@ -469,7 +483,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // pipeline still shows the same tiles — the persisted value is just cheaper,
   // and (at metrics_version 2) taken at full resolution rather than off the
   // 400-point downsample.
-  const storedMetrics = await getActivityMetrics(activity.id);
+  const storedMetrics = await getActivityMetrics(owner, activity.id);
   // Aerobic quality (T12): rides read watts against HR, but only from a real
   // power meter; runs read speed against HR. Every other sport (and a ride with
   // estimated wattage) gets no basis, so its EF and decoupling tiles stay hidden.
@@ -528,7 +542,7 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // STALE AFTER A THRESHOLD CHANGE: unlike EF and decoupling, a zone split
   // depends on the thresholds, and the stored one was frozen at the LTHR and
   // threshold pace in force when the stream was fetched. Saving new thresholds
-  // (Settings, or the zones agent applying a suggestion) does NOT invalidate it,
+  // (Settings, for example) does NOT invalidate it,
   // so these bars keep the old split until the row is recomputed. The fallback
   // below always reflects the CURRENT thresholds, so while a row is stale it is
   // the more correct of the two — a stale stored split is worse here than no row
@@ -563,12 +577,6 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
       : null;
 
   const description = detail?.description?.trim();
-
-  const coachConfigured = isCoachConfigured();
-  const coachMessages = (await listActivityChat(activity.id)).map((m) => ({
-    role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-    content: m.content,
-  }));
 
   let rawPretty: string | null = null;
   const rawSource = detail ?? (activity.raw_json ? activity.raw_json : null);
@@ -656,6 +664,14 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
       {confirmed ? (
         <div className="mt-4">
           <RaceControl activity={activity} />
+        </div>
+      ) : null}
+
+      {confirmed && comparableSource ? (
+        <div className="mt-4">
+          <ComparePriorActivityEntry activityId={activity.id}>
+            {t.detail.comparePriorActivity}
+          </ComparePriorActivityEntry>
         </div>
       ) : null}
 
@@ -803,21 +819,6 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
         </CardHeader>
         <CardContent>
           <JournalEditor activity={activity} />
-        </CardContent>
-      </Card>
-
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>{t.coach.title}</CardTitle>
-          <CardDescription>{t.coach.subtitle}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CoachChat
-            activityId={activity.id}
-            messages={coachMessages}
-            insight={activity.coach_insight}
-            configured={coachConfigured}
-          />
         </CardContent>
       </Card>
 

@@ -1,5 +1,6 @@
 import { batchWrite, many, one } from "./helpers";
 import type { CurveBucketBest, CurveKind, CurvePoint } from "../curves";
+import type { OwnerContext } from "../owner-context";
 
 // Reads and writes of `activity_curve_points`: one row per (activity, kind,
 // bucket) holding that activity's best pace or power in that bucket. The pure
@@ -28,11 +29,19 @@ import type { CurveBucketBest, CurveKind, CurvePoint } from "../curves";
  * at that size, and the scan is still the better-founded number.
  */
 export async function saveActivityCurvePoints(
+  owner: OwnerContext,
   activityId: number,
   points: readonly CurvePoint[],
   { overwrite }: { overwrite: boolean }
 ): Promise<void> {
   if (points.length === 0) return;
+  if (
+    !(await one("SELECT 1 FROM activities WHERE id = ? AND user_id = ?", [
+      activityId,
+      owner.userId,
+    ]))
+  )
+    return;
   const conflict = overwrite ? "DO UPDATE SET value = excluded.value" : "DO NOTHING";
   await batchWrite(
     points.map((point) => ({
@@ -70,6 +79,7 @@ interface CurveBestRow {
  * only the matching sport ever writes.
  */
 export async function listCurveBests(
+  owner: OwnerContext,
   kind: CurveKind,
   since: string | null
 ): Promise<CurveBucketBest[]> {
@@ -85,12 +95,12 @@ export async function listCurveBests(
               ) AS rn
        FROM activity_curve_points p
        JOIN activities a ON a.id = p.activity_id
-       WHERE p.kind = ?
+       WHERE a.user_id = ? AND p.kind = ?
          AND a.status = 'confirmed'
          AND (? IS NULL OR COALESCE(a.started_at_local, a.started_at) >= ?)
      )
      WHERE rn = 1`,
-    [kind, since, since]
+    [owner.userId, kind, since, since]
   );
   return rows.map((row) => ({
     bucket: row.bucket,
@@ -105,10 +115,11 @@ export async function listCurveBests(
  * hides below a floor of these: two rides make a "curve" that is really two
  * rides, and a duration curve drawn from them would read as a capability claim.
  */
-export async function countCurveActivities(kind: CurveKind): Promise<number> {
+export async function countCurveActivities(owner: OwnerContext, kind: CurveKind): Promise<number> {
   const row = await one<{ n: number }>(
-    "SELECT COUNT(DISTINCT activity_id) AS n FROM activity_curve_points WHERE kind = ?",
-    [kind]
+    `SELECT COUNT(DISTINCT p.activity_id) AS n FROM activity_curve_points p
+     JOIN activities a ON a.id = p.activity_id WHERE a.user_id = ? AND p.kind = ?`,
+    [owner.userId, kind]
   );
   return row?.n ?? 0;
 }
@@ -130,13 +141,16 @@ export interface StoredCurveBucket {
  * activity would permanently strand any bucket Strava reports and the scan
  * missed.
  */
-export async function listCurvePointBuckets(kind: CurveKind): Promise<StoredCurveBucket[]> {
+export async function listCurvePointBuckets(
+  owner: OwnerContext,
+  kind: CurveKind
+): Promise<StoredCurveBucket[]> {
   return many<StoredCurveBucket>(
     `SELECT activity_id, bucket
-     FROM activity_curve_points
-     WHERE kind = ?
+     FROM activity_curve_points p JOIN activities a ON a.id = p.activity_id
+     WHERE a.user_id = ? AND p.kind = ?
      ORDER BY activity_id ASC`,
-    [kind]
+    [owner.userId, kind]
   );
 }
 
@@ -160,14 +174,15 @@ export interface SeedEffortRow {
  * Unbounded — 200 rows exist across 29 activities, and the seed reads the table
  * once.
  */
-export async function listSeedEfforts(): Promise<SeedEffortRow[]> {
+export async function listSeedEfforts(owner: OwnerContext): Promise<SeedEffortRow[]> {
   return many<SeedEffortRow>(
     `SELECT e.activity_id, e.distance_m, e.elapsed_time_s
      FROM activity_best_efforts e
      JOIN activities a ON a.id = e.activity_id
-     WHERE e.distance_m > 0 AND e.elapsed_time_s > 0
+     WHERE a.user_id = ? AND e.distance_m > 0 AND e.elapsed_time_s > 0
        AND a.status = 'confirmed'
        AND LOWER(COALESCE(a.sport_type, '')) LIKE '%run%'
-     ORDER BY e.activity_id ASC, e.distance_m ASC`
+     ORDER BY e.activity_id ASC, e.distance_m ASC`,
+    [owner.userId]
   );
 }

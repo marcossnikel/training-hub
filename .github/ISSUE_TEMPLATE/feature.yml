@@ -1,0 +1,118 @@
+name: Product delivery issue
+description: Create a self-contained, PR-sized issue an Orchestrator can execute.
+title: "[Feature]: "
+labels: ["type: task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is the Builder packet. Be concrete enough for a fresh-context
+        agent to implement without inventing product behavior or visual design.
+        Product-facing work may not start until every required design-contract
+        field is complete. Use docs/design/FOUNDATION.md and
+        docs/design/VISUAL_QA.md; name an unresolved product decision as a
+        blocker rather than guessing.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User outcome
+      description: What can the user do, understand, or trust when this is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence_meaning
+    attributes:
+      label: Data, evidence, and uncertainty meaning
+      description: Name the source data, comparison/window, what users may infer, and exactly how missing, stale, partial, or low-confidence data is disclosed. State the no-coaching/no-medical boundary.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and non-goals
+      description: Include both what changes and what must not change.
+    validations:
+      required: true
+  - type: textarea
+    id: user_moment
+    attributes:
+      label: User moment and journey
+      description: Who is here, what prompted the visit, how they enter, the primary and secondary path, and what they do or understand when leaving.
+    validations:
+      required: true
+  - type: textarea
+    id: design_intent
+    attributes:
+      label: Design intent and information hierarchy
+      description: State the intended feeling, the one primary decision, supporting evidence, visual density, content priority, and exact copy or copy rules. Link to relevant design-system guidance.
+    validations:
+      required: true
+  - type: textarea
+    id: interaction_states
+    attributes:
+      label: Interaction and state matrix
+      description: Cover desktop/default, hover/focus, press, loading/skeleton, empty/first-use, partial or stale data, error/retry, success, disabled, and narrow-screen states. For every applicable microinteraction, specify trigger, feedback, concrete duration/intent (for example 100-150 ms or <=200 ms), keyboard behavior, and reduced-motion fallback; “short” alone is not sufficient.
+      placeholder: |
+        - Desktop/default:
+        - Hover/focus — trigger, feedback, duration/intent, keyboard, reduced motion:
+        - Press/pending — trigger, feedback, duration/intent, keyboard, reduced motion:
+        - Loading/skeleton — trigger, feedback, duration/intent, keyboard, reduced motion:
+        - Empty/first-use:
+        - Partial or stale data:
+        - Error/retry:
+        - Success:
+        - Disabled:
+        - Responsive/narrow screen:
+        - Reduced motion fallback:
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Reference translation and visual proof
+      description: Link each reference, name the specific principle/component to adapt, state what must not be copied, and list required desktop/narrow screenshots or a recording when motion matters.
+      placeholder: |
+        - Reference: [link]
+          Adapt: [specific principle]
+          Do not copy: [boundary]
+        - Required proof: [route, viewport, screenshot/recording]
+    validations:
+      required: true
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Responsive and accessibility contract
+      description: Define semantic labels, keyboard/focus order, contrast requirements, screen-reader behavior, touch targets, and behavior at narrow widths.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Technical and data impact
+      description: Files/systems, data, auth, privacy, Strava, billing, deployment, and rollback/reset implications.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Write observable, testable conditions.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Required validation and acceptance evidence
+      description: Exact automated commands plus manual, accessibility, and visual checks. Name desktop and narrow viewport proof; add a recording when consequential motion or a multi-step state changes. State the expected evidence, not just the tool name.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and stop conditions
+      description: Dependencies, prohibited actions, credentials/production boundaries, or unresolved decisions.
+    validations:
+      required: true

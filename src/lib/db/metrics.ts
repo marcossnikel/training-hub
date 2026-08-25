@@ -1,4 +1,5 @@
 import { exec, many, one } from "./helpers";
+import type { OwnerContext } from "../owner-context";
 import {
   metricsActivityOf,
   parseZoneSecs,
@@ -83,13 +84,15 @@ function decodeMetrics(row: MetricsRow): StoredActivityMetrics {
 
 /** An activity's stored metrics, or null when nothing has been computed for it. */
 export async function getActivityMetrics(
+  owner: OwnerContext,
   activityId: number
 ): Promise<StoredActivityMetrics | null> {
   const row = await one<MetricsRow>(
     `SELECT ef, decoupling_pct, np_w, hr_zone_secs, pace_zone_secs, avg_gap_s_per_km,
             metrics_version
-     FROM activity_metrics WHERE activity_id = ?`,
-    [activityId]
+     FROM activity_metrics m JOIN activities a ON a.id = m.activity_id
+     WHERE m.activity_id = ? AND a.user_id = ?`,
+    [activityId, owner.userId]
   );
   return row ? decodeMetrics(row) : null;
 }
@@ -101,10 +104,18 @@ export async function getActivityMetrics(
  * the resolution it came from.
  */
 export async function upsertActivityMetrics(
+  owner: OwnerContext,
   activityId: number,
   metrics: ActivityMetrics,
   metricsVersion: number
 ): Promise<void> {
+  if (
+    !(await one("SELECT 1 FROM activities WHERE id = ? AND user_id = ?", [
+      activityId,
+      owner.userId,
+    ]))
+  )
+    return;
   await exec(
     `INSERT INTO activity_metrics
        (activity_id, ef, decoupling_pct, np_w, hr_zone_secs, pace_zone_secs,
@@ -148,11 +159,14 @@ interface MetricsActivityRow {
  * computes the same numbers no matter how thin the activity object its caller
  * happened to be holding.
  */
-export async function getMetricsActivity(activityId: number): Promise<MetricsActivity | null> {
+export async function getMetricsActivity(
+  owner: OwnerContext,
+  activityId: number
+): Promise<MetricsActivity | null> {
   const row = await one<MetricsActivityRow>(
     `SELECT sport_type, distance_km, moving_time_s, avg_pace_s_per_km, avg_hr, raw_json
-       FROM activities WHERE id = ?`,
-    [activityId]
+       FROM activities WHERE id = ? AND user_id = ?`,
+    [activityId, owner.userId]
   );
   return row ? metricsActivityOf(row) : null;
 }
@@ -178,19 +192,22 @@ export interface StreamedActivity {
  * negative marker `ensureActivityStreams` caches for a streamless activity, so
  * those rows are filtered out here rather than parsed and discarded downstream.
  */
-export async function listStreamedActivities(page: {
-  afterId: number;
-  limit: number;
-}): Promise<StreamedActivity[]> {
+export async function listStreamedActivities(
+  owner: OwnerContext,
+  page: {
+    afterId: number;
+    limit: number;
+  }
+): Promise<StreamedActivity[]> {
   return many<StreamedActivity>(
     `SELECT a.id, a.sport_type, a.distance_km, a.moving_time_s, a.avg_pace_s_per_km,
             a.avg_hr, a.raw_json, s.json, m.metrics_version
      FROM activity_streams s
      JOIN activities a ON a.id = s.activity_id
      LEFT JOIN activity_metrics m ON m.activity_id = a.id
-     WHERE s.json != 'null' AND a.id > ?
+     WHERE a.user_id = ? AND s.json != 'null' AND a.id > ?
      ORDER BY a.id ASC
      LIMIT ?`,
-    [page.afterId, page.limit]
+    [owner.userId, page.afterId, page.limit]
   );
 }

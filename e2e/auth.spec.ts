@@ -1,54 +1,50 @@
 import { test, expect } from "@playwright/test";
+import { betaSignUpPath } from "./beta-invite";
 
-// T1.6 — the auth boundary. The e2e server sets AUTH_PASSWORD / AUTH_SECRET
-// (playwright.config.ts), so auth is CONFIGURED here. Reads stay open (only
-// mutating server actions are gated), which is why the other specs still pass
-// without logging in; this spec covers the login flow itself.
-//
-// The exhaustive reject/allow proof for the gated actions lives in the node
-// unit test (src/lib/actions.auth.test.ts); here we assert the /login page
-// renders, rejects a wrong password, and on the correct password establishes a
-// session cookie and lands on the home log.
 test.describe("auth", () => {
-  const PASSWORD = "e2e-owner-password";
+  const PASSWORD = "e2e-test-password";
 
-  test("/login renders the password form", async ({ page }) => {
+  test("/login renders the email/password form", async ({ page }) => {
     await page.goto("/login");
-    await expect(
-      page.getByText("This is a private training log. Enter the owner password to continue.")
-    ).toBeVisible();
+    await expect(page.getByText("Use your Training Hub account to continue.")).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
   });
 
-  test("a wrong password is rejected and sets no session", async ({ page }) => {
+  test("invalid credentials are rejected and set no session", async ({ page }) => {
     await page.goto("/login");
+    await page.getByLabel("Email").fill("nobody@example.test");
     await page.getByLabel("Password").fill("definitely-wrong");
     await page.getByRole("button", { name: "Log in" }).click();
 
     await expect(page.getByRole("alert")).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);
     const cookies = await page.context().cookies();
-    expect(cookies.some((c) => c.name === "th_session")).toBe(false);
+    expect(cookies.some((c) => c.name.includes("session_token"))).toBe(false);
   });
 
-  test("the correct password logs in, sets the session cookie, and redirects home", async ({
-    page,
-  }) => {
-    await page.goto("/login");
-    await page.getByLabel("Password").fill(PASSWORD);
-    await page.getByRole("button", { name: "Log in" }).click();
+  test("a guest is redirected before a protected page renders domain data", async ({ page }) => {
+    await page.goto("/weekly-brief");
 
-    // loginAction redirects to "/" only after createSession() succeeds.
+    await expect(page).toHaveURL(/\/login\?next=%2Fweekly-brief$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toHaveCount(0);
+    await expect(page.getByText("Morning Easy Run")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Weekly brief" })).toHaveCount(0);
+  });
+
+  test("sign-up creates a session and logout returns to sign-in", async ({ page }) => {
+    await page.goto(await betaSignUpPath("guest@example.test"));
+    await page.getByLabel("Name").fill("Guest Athlete");
+    await page.getByLabel("Email").fill("guest@example.test");
+    await page.getByLabel("Password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Create account" }).click();
+
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toBeVisible();
-
-    const cookies = await page.context().cookies();
-    const session = cookies.find((c) => c.name === "th_session");
-    expect(session).toBeDefined();
+    const session = (await page.context().cookies()).find((c) => c.name.includes("session_token"));
     expect(session?.httpOnly).toBe(true);
-
-    // The header now offers a Log out control for the authenticated owner.
-    await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
+    await page.getByRole("button", { name: "Log out" }).click();
+    await expect(page).toHaveURL(/\/login$/);
   });
 });

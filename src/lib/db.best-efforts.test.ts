@@ -11,19 +11,71 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-best-efforts-${process.pid}-${Date.now()}.db`);
 
-let db: typeof import("./db");
+type Db = typeof import("./db");
+type TestDb = Omit<
+  Db,
+  | "upsertActivityBestEfforts"
+  | "listBestEffortCounts"
+  | "listFastestBestEfforts"
+  | "listBestEffortsForVdot"
+> & {
+  upsertActivityBestEfforts(
+    activityId: number,
+    rows: Parameters<Db["upsertActivityBestEfforts"]>[2]
+  ): Promise<void>;
+  listBestEffortCounts(activityId?: number): ReturnType<Db["listBestEffortCounts"]>;
+  listFastestBestEfforts(
+    options?: Parameters<Db["listFastestBestEfforts"]>[1]
+  ): ReturnType<Db["listFastestBestEfforts"]>;
+  listBestEffortsForVdot(): ReturnType<Db["listBestEffortsForVdot"]>;
+};
+let db: TestDb;
 let activityId: number;
+const TEST_OWNER = "best-efforts-test-owner";
+const OWNER = { userId: TEST_OWNER };
+
+function bindOwner(raw: Db): TestDb {
+  return {
+    ...raw,
+    upsertActivityBestEfforts: (activityId, rows) =>
+      raw.upsertActivityBestEfforts(OWNER, activityId, rows),
+    listBestEffortCounts: (activityId) => raw.listBestEffortCounts(OWNER, activityId),
+    listFastestBestEfforts: (options) => raw.listFastestBestEfforts(OWNER, options),
+    listBestEffortsForVdot: () => raw.listBestEffortsForVdot(OWNER),
+  };
+}
 
 beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
   delete process.env.TURSO_AUTH_TOKEN;
   process.env.DATABASE_URL = `file:${dbFile}`;
-  db = await import("./db");
+  db = bindOwner(await import("./db"));
   await db.ensureMigrated();
+  const now = new Date().toISOString();
+  await db.client.batch(
+    [
+      {
+        sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [
+          "best-efforts-test-auth",
+          "Best efforts Test",
+          "best-efforts@example.test",
+          0,
+          now,
+          now,
+        ],
+      },
+      {
+        sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [TEST_OWNER, "best-efforts-test-auth"],
+      },
+    ],
+    "write"
+  );
   const inserted = await db.client.execute({
-    sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status)
-          VALUES (?, 'Run', ?, ?, 'confirmed')`,
-    args: ["Best efforts test", "2026-01-01T12:00:00Z", 10],
+    sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status)
+          VALUES (?, ?, 'Run', ?, ?, 'confirmed')`,
+    args: [TEST_OWNER, "Best efforts test", "2026-01-01T12:00:00Z", 10],
   });
   activityId = Number(inserted.lastInsertRowid);
 });
@@ -91,9 +143,9 @@ describe("listFastestBestEfforts", () => {
     sportType = "Run"
   ): Promise<number> {
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, started_at_local, distance_km, status, is_race)
-            VALUES (?, ?, ?, ?, 21, ?, ?)`,
-      args: [name, sportType, startedAt, startedAt, status, isRace],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, started_at_local, distance_km, status, is_race)
+            VALUES (?, ?, ?, ?, ?, 21, ?, ?)`,
+      args: [TEST_OWNER, name, sportType, startedAt, startedAt, status, isRace],
     });
     return Number(inserted.lastInsertRowid);
   }
@@ -216,9 +268,9 @@ describe("listBestEffortsForVdot", () => {
   beforeAll(async () => {
     async function insert(name: string, sportType: string, status: string): Promise<number> {
       const row = await db.client.execute({
-        sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, is_race)
-              VALUES (?, ?, '2026-05-05T09:00:00Z', 21, ?, 0)`,
-        args: [name, sportType, status],
+        sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, is_race)
+              VALUES (?, ?, ?, '2026-05-05T09:00:00Z', 21, ?, 0)`,
+        args: [TEST_OWNER, name, sportType, status],
       });
       return Number(row.lastInsertRowid);
     }

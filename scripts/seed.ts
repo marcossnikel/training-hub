@@ -7,10 +7,13 @@
  *   npm run seed:clear  remove only seeded activities
  */
 import { client, ensureMigrated } from "../src/lib/db";
+import { betaInviteRegistrationEnabled, ensureBetaInviteSchema } from "../src/lib/beta-invites";
+import { BASELINE_BIKES, BASELINE_SHOES } from "../src/lib/baseline";
 import type { Feeling } from "../src/lib/types";
 
 const SEED_MARKER = '{"seed":true}';
 const SEED_FILTER = "json_extract(raw_json, '$.seed') = 1";
+const FIXTURE_OWNER = "e2e-fixture-owner";
 
 /**
  * Guard against seeding a remote (shared/prod Turso) database. Resolves the DB URL
@@ -38,8 +41,11 @@ function assertLocalDb(): void {
 async function clearSeeds(): Promise<number> {
   const results = await client.batch(
     [
-      `DELETE FROM activity_splits WHERE activity_id IN (SELECT id FROM activities WHERE ${SEED_FILTER})`,
-      `DELETE FROM activities WHERE ${SEED_FILTER}`,
+      {
+        sql: `DELETE FROM activity_splits WHERE activity_id IN (SELECT id FROM activities WHERE user_id = ? AND ${SEED_FILTER})`,
+        args: [FIXTURE_OWNER],
+      },
+      { sql: `DELETE FROM activities WHERE user_id = ? AND ${SEED_FILTER}`, args: [FIXTURE_OWNER] },
     ],
     "write"
   );
@@ -49,6 +55,46 @@ async function clearSeeds(): Promise<number> {
 async function main() {
   assertLocalDb();
   await ensureMigrated();
+  if (betaInviteRegistrationEnabled()) await ensureBetaInviteSchema();
+
+  // Fixture data is intentionally seeded only by this explicit disposable-data
+  // script, never by schema bootstrap. Its owner exists in both sides of the
+  // auth bridge so every root domain write satisfies the #23 foreign key.
+  const fixtureOwner = FIXTURE_OWNER;
+  const fixtureAuthSubject = "seed-fixture-auth-subject";
+  const now = new Date().toISOString();
+  await client.batch(
+    [
+      {
+        sql: 'INSERT OR IGNORE INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [fixtureAuthSubject, "Seed Fixture", "seed@example.test", 0, now, now],
+      },
+      {
+        sql: "INSERT OR IGNORE INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [fixtureOwner, fixtureAuthSubject],
+      },
+    ],
+    "write"
+  );
+  const existingShoes = await client.execute({
+    sql: "SELECT COUNT(*) AS count FROM shoes WHERE user_id = ?",
+    args: [fixtureOwner],
+  });
+  if (Number(existingShoes.rows[0].count) === 0) {
+    await client.batch(
+      [
+        ...BASELINE_SHOES.map((shoe) => ({
+          sql: "INSERT INTO shoes (user_id, name, role, initial_km) VALUES (?, ?, ?, ?)",
+          args: [fixtureOwner, shoe.name, shoe.role, shoe.initial_km],
+        })),
+        ...BASELINE_BIKES.map((bike) => ({
+          sql: "INSERT INTO bikes (user_id, name, role, photo_path, initial_km) VALUES (?, ?, ?, ?, ?)",
+          args: [fixtureOwner, bike.name, bike.role, bike.photo, bike.initial_km],
+        })),
+      ],
+      "write"
+    );
+  }
 
   if (process.argv.includes("--clear")) {
     const removed = await clearSeeds();
@@ -56,7 +102,12 @@ async function main() {
     return;
   }
 
-  const shoeRows = (await client.execute("SELECT id, name FROM shoes")).rows as unknown as Array<{
+  const shoeRows = (
+    await client.execute({
+      sql: "SELECT id, name FROM shoes WHERE user_id = ?",
+      args: [fixtureOwner],
+    })
+  ).rows as unknown as Array<{
     id: number;
     name: string;
   }>;
@@ -291,11 +342,12 @@ async function main() {
     const startedAtLocal = localWallClock(started);
     const result = await client.execute({
       sql: `INSERT INTO activities
-            (strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s,
+            (user_id, strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s,
              avg_pace_s_per_km, avg_hr, elevation_gain_m, status, rpe, feeling,
              workout_notes, health_notes, raw_json)
-            VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
+        fixtureOwner,
         a.name,
         a.sport,
         startedAtUtc,
@@ -320,6 +372,35 @@ async function main() {
         args: [activityId, split.shoe, split.km],
       });
     }
+  }
+
+  // A compact, deterministic five-week run for the weekly-brief route. It is
+  // based on the host's app-calendar Monday so the route's fixed "last complete
+  // week" selector always has four baseline weeks and a visible evidence-linked
+  // observation. This is disposable local/E2E data only.
+  const currentMonday = new Date();
+  currentMonday.setHours(12, 0, 0, 0);
+  currentMonday.setDate(currentMonday.getDate() - ((currentMonday.getDay() + 6) % 7));
+  const completedMonday = new Date(currentMonday);
+  completedMonday.setDate(completedMonday.getDate() - 7);
+  for (let week = -4; week <= 0; week += 1) {
+    const day = new Date(completedMonday);
+    day.setDate(day.getDate() + week * 7 + 1);
+    const movingTimeS = week === 0 ? 7200 : 3600;
+    await client.execute({
+      sql: `INSERT INTO activities
+            (user_id, strava_id, name, sport_type, started_at, started_at_local, distance_km, moving_time_s, status, raw_json)
+            VALUES (?, NULL, ?, 'Run', ?, ?, ?, ?, 'confirmed', ?)`,
+      args: [
+        fixtureOwner,
+        week === 0 ? "Weekly brief current evidence" : "Weekly brief baseline evidence",
+        day.toISOString(),
+        localWallClock(day),
+        movingTimeS / 600,
+        movingTimeS,
+        SEED_MARKER,
+      ],
+    });
   }
 
   const pending = ACTIVITIES.filter((a) => a.status === "pending_review").length;

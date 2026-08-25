@@ -1,39 +1,53 @@
-import { CableIcon, CheckCircle2Icon, CircleAlertIcon, KeyRoundIcon } from "lucide-react";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { CableIcon, CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SyncButton } from "@/components/sync-button";
-import { DisconnectButton, GearMatcher, ManualActivityForm } from "@/components/settings-forms";
+import { GearMatcher, ManualActivityForm } from "@/components/settings-forms";
+import { ByoConnectionForm } from "@/components/byo-connection-form";
+import { StravaConnectionControls } from "@/components/strava-connection-controls";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { GoalsManager } from "@/components/goals-manager";
-import { getAthleteThresholds, getMeta, listBikes, listGoals, listShoes } from "@/lib/db";
+import {
+  getAthleteThresholds,
+  getMeta,
+  getStravaConnectionStatus,
+  listBikes,
+  listGoals,
+  listShoes,
+} from "@/lib/db";
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
-import { isStravaConnected, stravaConfigured, tryFetchAllGear } from "@/lib/strava";
+import { isStravaConnected, tryFetchAllGear } from "@/lib/strava";
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
+import { requireCurrentUser } from "@/lib/auth";
+import { callbackUrlForOrigin, resolveSettingsByoOrigin, STRAVA_BYO_SCOPE } from "@/lib/strava-byo";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
+  const owner = await requireCurrentUser();
+  if (!owner) redirect("/login");
   const params = await searchParams;
   const { lang, t } = await getDict();
-  const configured = stravaConfigured();
-  const connected = await isStravaConnected();
-  const athleteName = await getMeta("athlete_name");
-  const lastSync = await getMeta("last_sync_at");
-  const baselineDate = await getMeta("baseline_date");
-  const allGear = connected ? await tryFetchAllGear() : null;
+  const connected = await isStravaConnected(owner);
+  const connectionStatus = await getStravaConnectionStatus(owner);
+  const callbackOrigin = resolveSettingsByoOrigin(await headers());
+  const callbackUrl = callbackOrigin ? callbackUrlForOrigin(callbackOrigin) : null;
+  const athleteName = await getMeta(owner, "athlete_name");
+  const lastSync = await getMeta(owner, "last_sync_at");
+  const baselineDate = await getMeta(owner, "baseline_date");
+  const allGear = connected ? await tryFetchAllGear(owner) : null;
   const gear = allGear?.shoes ?? null;
   const bikeGear = allGear?.bikes ?? null;
-  const shoes = await listShoes();
-  const bikes = await listBikes();
-  const thresholds = await getAthleteThresholds();
-  const goals = await listGoals();
+  const shoes = await listShoes(owner);
+  const bikes = await listBikes(owner);
+  const thresholds = await getAthleteThresholds(owner);
+  const goals = await listGoals(owner);
 
-  const justConnected = params.connected === "1";
-  const errorKey = typeof params.error === "string" ? params.error : null;
-  const errorMessage = errorKey ? (t.settingsPage.errors[errorKey] ?? t.errors.generic) : null;
+  const callbackResult = typeof params.strava === "string" ? params.strava : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -41,18 +55,55 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       <p className="mt-1 text-sm text-muted-foreground">{t.settingsPage.subtitle}</p>
 
       <div className="mt-6 space-y-6">
-        {justConnected ? (
+        {callbackResult === "connected" ? (
           <Alert className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
             <CheckCircle2Icon />
-            <AlertTitle>{t.settingsPage.connectedAlert}</AlertTitle>
-            <AlertDescription>{t.settingsPage.connectedAlertBody}</AlertDescription>
+            <AlertTitle>Strava is connected</AlertTitle>
+            <AlertDescription>
+              Your authorized scopes were confirmed. Import status is shown from your account data.
+            </AlertDescription>
           </Alert>
         ) : null}
-        {errorMessage ? (
+        {callbackResult === "scope" ? (
           <Alert variant="destructive">
             <CircleAlertIcon />
-            <AlertTitle>{t.settingsPage.failedAlert}</AlertTitle>
-            <AlertDescription>{errorMessage}</AlertDescription>
+            <AlertTitle>Strava access wasn’t approved</AlertTitle>
+            <AlertDescription>
+              This connection needs activity and profile access. You can try authorization again.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {callbackResult === "recovery" ? (
+          <Alert variant="destructive">
+            <CircleAlertIcon />
+            <AlertTitle>We couldn’t connect Strava</AlertTitle>
+            <AlertDescription>
+              Your app credentials remain private. Try authorization again.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {callbackResult === "reconnect" ? (
+          <Alert className="border-state-blue-fg/30 text-state-blue-fg">
+            <CheckCircle2Icon />
+            <AlertTitle>Reconnect your Strava app</AlertTitle>
+            <AlertDescription>Continue to Strava to renew this connection.</AlertDescription>
+          </Alert>
+        ) : null}
+        {callbackResult === "deleted" ? (
+          <Alert className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2Icon />
+            <AlertTitle>Disconnected and local imported data deleted</AlertTitle>
+            <AlertDescription>Your manual training records stay in Training Hub.</AlertDescription>
+          </Alert>
+        ) : null}
+        {callbackResult === "deleted_provider_unconfirmed" ? (
+          <Alert variant="destructive">
+            <CircleAlertIcon />
+            <AlertTitle>Disconnected and local imported data deleted</AlertTitle>
+            <AlertDescription>
+              We couldn’t confirm revocation with Strava. Remove this app in Strava settings if
+              needed.
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -62,84 +113,86 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             <CardDescription>{t.settingsPage.stravaBody}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!configured ? (
-              <div className="space-y-3 text-sm">
-                <p className="flex items-center gap-2 font-medium">
-                  <KeyRoundIcon className="size-4 text-wear-worn" aria-hidden />
-                  {t.settingsPage.keysMissing}
-                </p>
-                <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
-                  <li>
-                    {t.settingsPage.step1a}{" "}
-                    <a
-                      href="https://www.strava.com/settings/api"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline underline-offset-2 hover:text-foreground"
-                    >
-                      strava.com/settings/api
-                    </a>{" "}
-                    {t.settingsPage.step1b}{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                      localhost
-                    </code>
-                  </li>
-                  <li>
-                    {t.settingsPage.step2a}{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                      .env.example
-                    </code>{" "}
-                    {t.settingsPage.step2b}{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                      .env.local
-                    </code>{" "}
-                    {t.settingsPage.step2c}
-                  </li>
-                  <li>{t.settingsPage.step3}</li>
-                </ol>
-              </div>
-            ) : connected ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm">
-                  <p className="flex items-center gap-2 font-medium">
-                    <span aria-hidden className="size-2 rounded-full bg-positive" />
-                    {fillStr(t.settingsPage.connectedAs, {
-                      name: athleteName ? ` · ${athleteName}` : "",
-                    })}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {lastSync
-                      ? fillStr(t.settingsPage.lastSync, {
-                          date: fmtDate(lastSync, lang),
-                          time: fmtTime(lastSync),
-                        })
-                      : t.settingsPage.neverSynced}
-                  </p>
+            {connected && connectionStatus === "connected" ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm">
+                    <p className="flex items-center gap-2 font-medium">
+                      <span aria-hidden className="size-2 rounded-full bg-positive" />
+                      {fillStr(t.settingsPage.connectedAs, {
+                        name: athleteName ? ` · ${athleteName}` : "",
+                      })}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {lastSync
+                        ? fillStr(t.settingsPage.lastSync, {
+                            date: fmtDate(lastSync, lang),
+                            time: fmtTime(lastSync),
+                          })
+                        : t.settingsPage.neverSynced}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <SyncButton connected={connected} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <SyncButton connected={connected} />
-                  <Button asChild variant="outline" size="sm">
-                    <a href="/api/strava/connect">{t.settingsPage.reconnect}</a>
-                  </Button>
-                  <DisconnectButton />
-                </div>
-              </div>
+                <StravaConnectionControls />
+              </>
             ) : (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm">
+              <div className="space-y-5">
+                <div className="space-y-2 text-sm">
                   <p className="flex items-center gap-2 font-medium">
-                    <span aria-hidden className="size-2 rounded-full bg-muted-foreground/40" />
-                    {t.settingsPage.notConnected}
+                    <CableIcon className="size-4 text-muted-foreground" aria-hidden />
+                    Connect your Strava app
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t.settingsPage.notConnectedBody}
+                  <p className="text-muted-foreground">
+                    This beta connects through a Strava app you create and control. We’ll ask only
+                    for the approved access needed to import your training history.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Requested access:{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                      {STRAVA_BYO_SCOPE}
+                    </code>
+                    . Training Hub reads your data and does not write anything to Strava. Using your
+                    own app does not resolve Strava’s platform or commercial requirements.
                   </p>
                 </div>
-                <Button asChild>
-                  <a href="/api/strava/connect">
-                    <CableIcon data-icon="inline-start" /> {t.settingsPage.connect}
-                  </a>
-                </Button>
+                <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                  <p className="font-medium">Create and configure your app</p>
+                  <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-muted-foreground">
+                    <li>
+                      Create an app in{" "}
+                      <a
+                        href="https://www.strava.com/settings/api"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline underline-offset-2 hover:text-foreground"
+                      >
+                        Strava’s API settings
+                      </a>{" "}
+                      that you control.
+                    </li>
+                    <li id="callback-help">
+                      Register this exact callback URL for this environment:{" "}
+                      {callbackUrl ? (
+                        <code className="break-all rounded bg-background px-1 py-0.5 font-mono text-xs">
+                          {callbackUrl}
+                        </code>
+                      ) : (
+                        <span>
+                          unavailable. This environment needs a canonical callback configuration
+                          before credentials can be entered.
+                        </span>
+                      )}
+                    </li>
+                    <li>Enter the Client ID and Client Secret from that app below.</li>
+                  </ol>
+                </div>
+                <ByoConnectionForm
+                  callbackUrl={callbackUrl}
+                  pendingAuthorization={connectionStatus === "pending_authorization"}
+                />
               </div>
             )}
 

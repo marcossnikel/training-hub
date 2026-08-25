@@ -14,8 +14,27 @@ import { hrZones, zoneIndexOf, zoneSeconds } from "./fitness";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-strava-${process.pid}-${Date.now()}.db`);
 
-let strava: typeof import("./strava");
+type StravaModule = typeof import("./strava");
+type StravaTestApi = Pick<StravaModule, "backoff"> & {
+  deauthorizeStravaAccessToken(
+    accessToken: string
+  ): ReturnType<StravaModule["deauthorizeStravaAccessToken"]>;
+  apiGet<T>(pathname: string, params?: Record<string, string>): Promise<T>;
+  exchangeByoCode(
+    credentials: { client_id: string; client_secret: string },
+    code: string
+  ): ReturnType<StravaModule["exchangeByoCode"]>;
+  ensureActivityStreams(
+    activity: Parameters<StravaModule["ensureActivityStreams"]>[1]
+  ): ReturnType<StravaModule["ensureActivityStreams"]>;
+  ensureActivityDetail(
+    activity: Parameters<StravaModule["ensureActivityDetail"]>[1]
+  ): ReturnType<StravaModule["ensureActivityDetail"]>;
+};
+
+let strava: StravaTestApi;
 let db: typeof import("./db");
+const TEST_OWNER = { userId: "strava-test-owner" };
 
 const realFetch = global.fetch;
 
@@ -44,7 +63,9 @@ function rateLimitResponse(retryAfter: string | null): Response {
 // A valid, far-from-expiry token so apiGet never triggers a refresh fetch — the
 // only fetches a test sees are the ones it mocks for the endpoint under test.
 async function connectWithFreshToken(): Promise<void> {
-  await db.saveStravaAuth({
+  await db.saveStravaConnection(TEST_OWNER, {
+    client_id: "athlete-test-client",
+    client_secret: "athlete-test-secret",
     access_token: "access-abc",
     refresh_token: "refresh-abc",
     expires_at: Math.floor(Date.now() / 1000) + 3600,
@@ -55,11 +76,28 @@ beforeAll(async () => {
   delete process.env.TURSO_DATABASE_URL;
   delete process.env.TURSO_AUTH_TOKEN;
   process.env.DATABASE_URL = `file:${dbFile}`;
-  process.env.STRAVA_CLIENT_ID = "test-client";
-  process.env.STRAVA_CLIENT_SECRET = "test-secret";
+  process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 37).toString("base64url");
   db = await import("./db");
-  strava = await import("./strava");
+  const stravaModule = await import("./strava");
+  strava = {
+    backoff: stravaModule.backoff,
+    deauthorizeStravaAccessToken: stravaModule.deauthorizeStravaAccessToken,
+    apiGet: <T>(pathname: string, params?: Record<string, string>) =>
+      stravaModule.apiGet<T>(TEST_OWNER, pathname, params),
+    exchangeByoCode: (credentials, code) => stravaModule.exchangeByoCode(credentials, code),
+    ensureActivityStreams: (activity) => stravaModule.ensureActivityStreams(TEST_OWNER, activity),
+    ensureActivityDetail: (activity) => stravaModule.ensureActivityDetail(TEST_OWNER, activity),
+  };
   await db.ensureMigrated();
+  const now = new Date().toISOString();
+  await db.client.execute({
+    sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+    args: ["strava-test-auth", "Strava test", "strava@example.test", 0, now, now],
+  });
+  await db.client.execute({
+    sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+    args: [TEST_OWNER.userId, "strava-test-auth"],
+  });
 });
 
 afterAll(() => {
@@ -125,12 +163,81 @@ describe("token refresh fetch carries a timeout signal (G7.4)", () => {
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    await strava.exchangeCode("auth-code");
+    await strava.exchangeByoCode(
+      { client_id: "athlete-owned-client", client_secret: "athlete-owned-secret" },
+      "auth-code"
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [tokenUrl, options] = fetchMock.mock.calls[0];
     expect(String(tokenUrl)).toContain("/oauth/token");
     expect(options?.signal).toBeInstanceOf(AbortSignal);
+    const body = new URLSearchParams(String(options?.body));
+    expect(body.get("client_id")).toBe("athlete-owned-client");
+    expect(body.get("client_secret")).toBe("athlete-owned-secret");
+    expect(body.toString()).not.toContain("test-client");
+  });
+
+  it("refreshes only with the encrypted current owner's client credentials, never process globals", async () => {
+    await db.saveStravaConnection(TEST_OWNER, {
+      client_id: "owner-refresh-client",
+      client_secret: "owner-refresh-secret",
+      access_token: "expired-access",
+      refresh_token: "owner-refresh-token",
+      expires_at: 1,
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: "refreshed-owner-access",
+          refresh_token: "refreshed-owner-token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ athlete: "owner only" }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await strava.apiGet("/athlete");
+
+    const [, tokenOptions] = fetchMock.mock.calls[0];
+    const tokenBody = new URLSearchParams(String(tokenOptions?.body));
+    expect(tokenBody.get("client_id")).toBe("owner-refresh-client");
+    expect(tokenBody.get("client_secret")).toBe("owner-refresh-secret");
+    expect(fetchMock.mock.calls[1][1]?.headers).toEqual({
+      Authorization: "Bearer refreshed-owner-access",
+    });
+    expect(await db.getStravaConnection(TEST_OWNER)).toMatchObject({
+      client_id: "owner-refresh-client",
+      access_token: "refreshed-owner-access",
+      refresh_token: "refreshed-owner-token",
+    });
+  });
+});
+
+describe("provider deauthorization is bounded and redacted", () => {
+  it("uses a no-store form request and treats provider failure as an opaque false result", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ignored: "provider body" }, 500));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await strava.deauthorizeStravaAccessToken("owner-access-token");
+
+    expect(result).toBe(false);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("https://www.strava.com/oauth/deauthorize");
+    expect(options).toMatchObject({ method: "POST", cache: "no-store" });
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+    expect(new URLSearchParams(String(options?.body)).get("access_token")).toBe(
+      "owner-access-token"
+    );
+  });
+
+  it("maps a timeout/network rejection to false without leaking an error", async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error("provider says secret response")) as unknown as typeof fetch;
+
+    await expect(strava.deauthorizeStravaAccessToken("owner-access-token")).resolves.toBe(false);
   });
 });
 
@@ -138,9 +245,9 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
   it("does not re-hit the API on a second view of a streamless activity", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('No streams', 'Run', '2026-01-01T12:00:00Z', 5, 'confirmed', 99999)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'No streams', 'Run', '2026-01-01T12:00:00Z', 5, 'confirmed', 99999)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -160,9 +267,9 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
   it("still caches and returns non-empty streams unchanged", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('With streams', 'Run', '2026-01-02T12:00:00Z', 5, 'confirmed', 88888)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'With streams', 'Run', '2026-01-02T12:00:00Z', 5, 'confirmed', 88888)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -191,9 +298,9 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
     // short of deleting their cached streams.
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('Key list', 'Run', '2026-01-03T12:00:00Z', 5, 'confirmed', 88801)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'Key list', 'Run', '2026-01-03T12:00:00Z', 5, 'confirmed', 88801)`,
+      args: [TEST_OWNER.userId],
     });
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ time: { data: [0, 1, 2] } }));
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -223,10 +330,10 @@ describe("derived metrics are written from the fetched stream", () => {
   it("stores a full-resolution row on the fetch and nothing on a cached view", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, moving_time_s,
                                     avg_hr, status, strava_id)
-            VALUES ('Metrics run', 'Run', '2026-01-04T12:00:00Z', 10, 3000, 150, 'confirmed', 77777)`,
-      args: [],
+            VALUES (?, 'Metrics run', 'Run', '2026-01-04T12:00:00Z', 10, 3000, 150, 'confirmed', 77777)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -255,12 +362,12 @@ describe("derived metrics are written from the fetched stream", () => {
 
     const downsampled = await strava.ensureActivityStreams({ id: activityId, strava_id: 77777 });
 
-    const zones = hrZones(await db.getAthleteThresholds());
+    const zones = hrZones(await db.getAthleteThresholds(TEST_OWNER));
     const spikeZone = zoneIndexOf(190, zones);
     expect(spikeZone).toBeGreaterThan(zoneIndexOf(150, zones));
     expect(spikeCount).toBe(350);
 
-    const stored = await db.getActivityMetrics(activityId);
+    const stored = await db.getActivityMetrics(TEST_OWNER, activityId);
     // 2, not 3: this payload carries no altitude and no `grade_smooth`, so the
     // row is full resolution WITHOUT grade. The stamp reports what the payload
     // held, never what the request asked for — a future re-fetch reads the
@@ -294,10 +401,10 @@ describe("derived metrics are written from the fetched stream", () => {
   it("stamps version 3 and stores a grade-adjusted pace when the payload carries grade", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, moving_time_s,
                                     avg_pace_s_per_km, avg_hr, status, strava_id)
-            VALUES ('Hill run', 'Run', '2026-01-06T12:00:00Z', 6, 1800, 300, 150, 'confirmed', 77701)`,
-      args: [],
+            VALUES (?, 'Hill run', 'Run', '2026-01-06T12:00:00Z', 6, 1800, 300, 150, 'confirmed', 77701)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -316,7 +423,7 @@ describe("derived metrics are written from the fetched stream", () => {
 
     await strava.ensureActivityStreams({ id: activityId, strava_id: 77701 });
 
-    const stored = await db.getActivityMetrics(activityId);
+    const stored = await db.getActivityMetrics(TEST_OWNER, activityId);
     expect(stored?.metricsVersion).toBe(3);
     // Climbing, so the flat-ground equivalent is quicker than the stored pace,
     // and it is the STORED pace it scales.
@@ -336,15 +443,20 @@ describe("derived metrics are written from the fetched stream", () => {
     // resolution exists.
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, moving_time_s,
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, moving_time_s,
                                     avg_pace_s_per_km, status, strava_id)
-            VALUES ('Seeded run', 'Run', '2026-01-07T12:00:00Z', 0.8, 240, 300, 'confirmed', 77702)`,
-      args: [],
+            VALUES (?, 'Seeded run', 'Run', '2026-01-07T12:00:00Z', 0.8, 240, 300, 'confirmed', 77702)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
-    await db.saveActivityCurvePoints(activityId, [{ kind: "pace", bucket: "400m", value: 999 }], {
-      overwrite: false,
-    });
+    await db.saveActivityCurvePoints(
+      TEST_OWNER,
+      activityId,
+      [{ kind: "pace", bucket: "400m", value: 999 }],
+      {
+        overwrite: false,
+      }
+    );
 
     // 800 m at 300 s/km, 1 Hz: one reachable bucket, at a pace nothing else has.
     const seconds = Array.from({ length: 241 }, (_, i) => i);
@@ -369,9 +481,9 @@ describe("derived metrics are written from the fetched stream", () => {
   it("caches the stream even when the metrics cannot be derived", async () => {
     await connectWithFreshToken();
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, strava_id)
-            VALUES ('Cadence only', 'Workout', '2026-01-05T12:00:00Z', 0, 'confirmed', 66666)`,
-      args: [],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, strava_id)
+            VALUES (?, 'Cadence only', 'Workout', '2026-01-05T12:00:00Z', 0, 'confirmed', 66666)`,
+      args: [TEST_OWNER.userId],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -386,7 +498,7 @@ describe("derived metrics are written from the fetched stream", () => {
 
     expect(streams?.cadence).toEqual([80, 81, 82]);
     // Nothing computable from a cadence trace, so no row is invented for it.
-    expect(await db.getActivityMetrics(activityId)).toBeNull();
+    expect(await db.getActivityMetrics(TEST_OWNER, activityId)).toBeNull();
   });
 });
 
@@ -399,9 +511,9 @@ describe("best efforts are mirrored once, not on every view", () => {
       ],
     });
     const inserted = await db.client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status, detail_json)
-            VALUES ('Cached detail', 'Run', '2026-01-03T12:00:00Z', 10, 'confirmed', ?)`,
-      args: [detailJson],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status, detail_json)
+            VALUES (?, 'Cached detail', 'Run', '2026-01-03T12:00:00Z', 10, 'confirmed', ?)`,
+      args: [TEST_OWNER.userId, detailJson],
     });
     const activityId = Number(inserted.lastInsertRowid);
     const activity = { id: activityId, strava_id: null, detail_json: detailJson };
@@ -412,13 +524,17 @@ describe("best efforts are mirrored once, not on every view", () => {
 
     await strava.ensureActivityDetail(activity);
     expect(batchSpy).toHaveBeenCalledTimes(1);
-    expect(await db.listBestEffortCounts(activityId)).toEqual([{ activity_id: activityId, n: 2 }]);
+    expect(await db.listBestEffortCounts(TEST_OWNER, activityId)).toEqual([
+      { activity_id: activityId, n: 2 },
+    ]);
 
     await strava.ensureActivityDetail(activity);
     await strava.ensureActivityDetail(activity);
 
     // Still one write across three views: the stored rows were detected and left alone.
     expect(batchSpy).toHaveBeenCalledTimes(1);
-    expect(await db.listBestEffortCounts(activityId)).toEqual([{ activity_id: activityId, n: 2 }]);
+    expect(await db.listBestEffortCounts(TEST_OWNER, activityId)).toEqual([
+      { activity_id: activityId, n: 2 },
+    ]);
   });
 });

@@ -9,8 +9,8 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Header } from "@/components/header";
 import { countPending } from "@/lib/db";
 import { getLang } from "@/lib/lang";
-import { isStravaConnected, shouldAutoSync, stravaConfigured } from "@/lib/strava";
-import { authConfigured, isAuthenticated } from "@/lib/auth";
+import { isStravaConnected, shouldAutoSync } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -47,13 +47,13 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const lang = await getLang();
-  const pendingCount = await countPending();
-  const connected = await isStravaConnected();
-  const configured = stravaConfigured();
-  const autoSync = await shouldAutoSync();
-  // Auth control state for the header. When auth is unconfigured (dev/e2e) show
-  // nothing; when configured, reflect whether the owner has a valid session.
-  const auth = !authConfigured() ? "disabled" : (await isAuthenticated()) ? "in" : "out";
+  const owner = await requireCurrentUser();
+  // Login and sign-up render through this root layout too. A guest has no
+  // domain context, so never query the activity queue merely to render chrome.
+  const pendingCount = owner ? await countPending(owner) : 0;
+  const connected = owner ? await isStravaConnected(owner) : false;
+  const autoSync = owner ? await shouldAutoSync(owner) : false;
+  const auth = owner ? "in" : "out";
 
   return (
     <html
@@ -69,18 +69,25 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <I18nProvider lang={lang}>
+            <a
+              href="#main-content"
+              className="focus-ring sr-only fixed top-3 left-3 z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm focus:not-sr-only"
+            >
+              Skip to main content
+            </a>
             <Header
               pendingCount={pendingCount}
               connected={connected}
-              configured={configured}
               autoSync={autoSync}
               auth={auth}
             />
-            <main className="flex-1">{children}</main>
+            <main id="main-content" tabIndex={-1} className="flex-1">
+              {children}
+            </main>
             <Toaster />
           </I18nProvider>
         </ThemeProvider>
-        <SpeedInsights />
+        {owner ? <SpeedInsights /> : null}
       </body>
     </html>
   );

@@ -22,9 +22,8 @@ const { setShoeGearAction, setBikeGearAction } = vi.hoisted(() => ({
 vi.mock("@/lib/actions", () => ({
   setShoeGearAction,
   setBikeGearAction,
-  // Other actions imported by settings-forms but unused in this test.
+  // Other action imported by settings-forms but unused in this test.
   createManualActivityAction: vi.fn(),
-  disconnectStravaAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),

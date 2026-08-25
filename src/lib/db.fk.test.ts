@@ -5,7 +5,7 @@ import type { Client } from "@libsql/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Regression guard for G5.5: deleting an activity must cascade to every child
-// table (activity_splits, activity_streams, activity_chat), which
+// table (activity_splits and activity_streams), which
 // only happens when SQLite foreign-key enforcement is on for the connection.
 //
 // The test drives the REAL db.ts client + migrations against an ISOLATED local
@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const dbFile = path.join(os.tmpdir(), `training-hub-fk-${process.pid}-${Date.now()}.db`);
 
 let db: typeof import("./db");
+const TEST_OWNER = "fk-test-owner";
 
 async function childCounts(client: Client, activityId: number) {
   const count = async (table: string): Promise<number> => {
@@ -28,7 +29,6 @@ async function childCounts(client: Client, activityId: number) {
   return {
     splits: await count("activity_splits"),
     streams: await count("activity_streams"),
-    chat: await count("activity_chat"),
   };
 }
 
@@ -38,6 +38,20 @@ beforeAll(async () => {
   process.env.DATABASE_URL = `file:${dbFile}`;
   db = await import("./db");
   await db.ensureMigrated();
+  const now = new Date().toISOString();
+  await db.client.batch(
+    [
+      {
+        sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: ["fk-test-auth", "FK Test", "fk@example.test", 0, now, now],
+      },
+      {
+        sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [TEST_OWNER, "fk-test-auth"],
+      },
+    ],
+    "write"
+  );
 });
 
 afterAll(() => {
@@ -48,13 +62,24 @@ afterAll(() => {
 });
 
 describe("foreign-key cascade enforcement", () => {
+  it("boots a fresh schema without prototype coach persistence", async () => {
+    const tables = await db.client.execute(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'activity_chat'"
+    );
+    const columns = await db.client.execute("SELECT name FROM pragma_table_info('activities')");
+
+    expect(tables.rows).toEqual([]);
+    expect(columns.rows.map((row) => String(row.name))).not.toContain("coach_insight");
+    expect(columns.rows.map((row) => String(row.name))).not.toContain("coach_insight_at");
+  });
+
   it("deleting an activity leaves zero orphaned child rows", async () => {
     const { client } = db;
 
     const inserted = await client.execute({
-      sql: `INSERT INTO activities (name, sport_type, started_at, distance_km, status)
-            VALUES (?, 'Run', ?, ?, 'confirmed')`,
-      args: ["FK cascade test", "2026-01-01T12:00:00Z", 10],
+      sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, status)
+            VALUES (?, ?, 'Run', ?, ?, 'confirmed')`,
+      args: [TEST_OWNER, "FK cascade test", "2026-01-01T12:00:00Z", 10],
     });
     const activityId = Number(inserted.lastInsertRowid);
 
@@ -68,10 +93,6 @@ describe("foreign-key cascade enforcement", () => {
           sql: "INSERT INTO activity_streams (activity_id, json) VALUES (?, ?)",
           args: [activityId, "{}"],
         },
-        {
-          sql: "INSERT INTO activity_chat (activity_id, role, content) VALUES (?, 'user', 'hi')",
-          args: [activityId],
-        },
       ],
       "write"
     );
@@ -79,7 +100,6 @@ describe("foreign-key cascade enforcement", () => {
     expect(await childCounts(client, activityId)).toEqual({
       splits: 1,
       streams: 1,
-      chat: 1,
     });
 
     // No dedicated delete path exists in db.ts, so delete the activity directly.
@@ -88,7 +108,6 @@ describe("foreign-key cascade enforcement", () => {
     expect(await childCounts(client, activityId)).toEqual({
       splits: 0,
       streams: 0,
-      chat: 0,
     });
   });
 });

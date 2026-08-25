@@ -1,4 +1,4 @@
-// Period totals for the /fitness totals table: weekly and monthly volume with
+// Period totals for the Performance page: weekly and monthly volume with
 // the period before it to compare against. Pure — bucketing only, no DB reads and
 // no formatting, so the table component just lays numbers out.
 //
@@ -7,12 +7,12 @@
 // instant `started_at`. The day is read off that stamp with UTC getters, so the
 // key is the athlete's real local day and is identical in every process timezone
 // — the local-stamp-first convention the training log reads days by, and exactly
-// the day key src/lib/insights.ts groups on. Doing this in SQL (strftime) would
+// the day key used consistently across analysis modules. Doing this in SQL (strftime) would
 // group by UTC and drift every period boundary by the athlete's timezone offset.
 //
 // Residual, deliberately out of scope here: dailyLoadSeries and weeklySportLoad
 // in src/lib/fitness.ts still key off `started_at` alone (and with local
-// getters), so as `started_at_local` fills in on synced rows the /fitness weekly
+// getters), so as `started_at_local` fills in on synced rows the Performance weekly
 // load bar can drift from this table by a period boundary. Migrating those
 // rewrites PMC history and is its own task.
 
@@ -22,7 +22,7 @@ import { sportCategory } from "./sports";
 /** Which calendar period the totals table groups by. */
 export type TotalsPeriod = "weeks" | "months";
 
-/** Pill order on /fitness; the first entry is the default. */
+/** Pill order on Performance; the first entry is the default. */
 export const TOTALS_PERIODS: readonly TotalsPeriod[] = ["weeks", "months"];
 
 /** How many periods the table shows. */

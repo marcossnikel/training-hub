@@ -1,6 +1,7 @@
 import { many, sqliteBool } from "./helpers";
 import { sportCategory } from "../sports";
 import type { RunEffort } from "../benchmarks";
+import type { OwnerContext } from "../owner-context";
 
 interface RunEffortRow {
   name: string | null;
@@ -23,13 +24,14 @@ interface RunEffortRow {
  * distance and moving time. `is_race` is decoded to a real boolean at this read
  * seam, and the display date prefers the local wall-clock stamp.
  */
-export async function listRunEfforts(): Promise<RunEffort[]> {
+export async function listRunEfforts(owner: OwnerContext): Promise<RunEffort[]> {
   const rows = await many<RunEffortRow>(
     `SELECT name, sport_type, distance_km, moving_time_s, is_race,
             COALESCE(started_at_local, started_at) AS date
      FROM activities
-     WHERE status = 'confirmed' AND distance_km > 0 AND moving_time_s > 0
-     ORDER BY started_at DESC`
+     WHERE user_id = ? AND status = 'confirmed' AND distance_km > 0 AND moving_time_s > 0
+     ORDER BY started_at DESC`,
+    [owner.userId]
   );
   return rows
     .filter((row) => sportCategory(row.sport_type) === "run")

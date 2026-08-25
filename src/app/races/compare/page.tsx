@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeftIcon, GitCompareIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { RaceCompare, type CompareSide, type RaceOption } from "@/components/race-compare";
@@ -9,6 +10,8 @@ import { analyzeRace, buildBlock } from "@/lib/blocks";
 import type { AthleteThresholds } from "@/lib/fitness";
 import { raceCategory, type RaceCategory } from "@/lib/races";
 import { ensureActivityStreams } from "@/lib/strava";
+import { requireCurrentUser } from "@/lib/auth";
+import type { OwnerContext } from "@/lib/owner-context";
 import type { ActivityWithSplits } from "@/lib/types";
 
 export const metadata = { title: "Compare" };
@@ -45,15 +48,16 @@ function defaultPair(races: ActivityWithSplits[]): [ActivityWithSplits, Activity
 }
 
 async function buildSide(
+  owner: OwnerContext,
   race: ActivityWithSplits,
   weeks: number,
   thresholds: AthleteThresholds
 ): Promise<CompareSide> {
   const raceStartIso = race.started_at ?? race.created_at;
   const blockStartIso = new Date(Date.parse(raceStartIso) - weeks * 7 * DAY_MS).toISOString();
-  const activities = await listBlockActivities(blockStartIso, raceStartIso);
+  const activities = await listBlockActivities(owner, blockStartIso, raceStartIso);
   const block = buildBlock(activities, raceStartIso, weeks, thresholds);
-  const streams = await ensureActivityStreams(race);
+  const streams = await ensureActivityStreams(owner, race);
   const analysis = analyzeRace(race, streams, thresholds);
   return {
     race: {
@@ -70,9 +74,11 @@ async function buildSide(
 }
 
 export default async function RaceComparePage({ searchParams }: PageProps<"/races/compare">) {
+  const owner = await requireCurrentUser();
+  if (!owner) redirect("/login");
   const { t } = await getDict();
   const params = await searchParams;
-  const races = await listRaces();
+  const races = await listRaces(owner);
 
   if (races.length < 2) {
     return (
@@ -99,10 +105,10 @@ export default async function RaceComparePage({ searchParams }: PageProps<"/race
     [raceA, raceB] = defaultPair(races);
   }
 
-  const thresholds = await getAthleteThresholds();
+  const thresholds = await getAthleteThresholds(owner);
   const [sideA, sideB] = await Promise.all([
-    buildSide(raceA, weeks, thresholds),
-    buildSide(raceB, weeks, thresholds),
+    buildSide(owner, raceA, weeks, thresholds),
+    buildSide(owner, raceB, weeks, thresholds),
   ]);
 
   const options: RaceOption[] = races.map((r) => ({
