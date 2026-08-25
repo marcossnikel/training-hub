@@ -32,8 +32,11 @@ the other Performance selection at desktop and mobile widths.
 2. Weeks and Months define bucket granularity; switching preserves the selected
    curve window and other unrelated query state. Curve-window changes preserve
    totals period.
-3. Define year-to-date as the current calendar year in the athlete/application
-   timezone contract. Do not label a rolling 12-month series as “this year.”
+3. Bucket activities by persisted `started_at_local` day with UTC start only as
+   fallback, matching the existing totals convention. Define year-to-date from
+   an explicit `asOfDay` in the effective validated IANA timezone supplied by
+   R19/D-024. Without that timezone, show exact `from`/`through` date bounds and
+   never label a rolling or server-time window as `this year`.
 4. Empty/partial states distinguish no confirmed data from metrics that require
    detail/stream enrichment. Do not show zero for unknown/unprocessed metrics.
 5. Whole-activity bests are labeled as whole-activity estimates, not complete
@@ -80,15 +83,18 @@ schema belong to later tasks.
    preserves the other supported state and canonical defaults.
 4. Repair Weeks/Months responsive UI and partial-data copy. Completion: values,
    labels, focus, and scroll behavior are correct at 1440/390.
-5. Add first-value/YTD summary boundary. Completion: calendar-year facts are
-   deterministic and threshold-dependent cards remain honestly unavailable.
+5. Add the first-value bounded-summary interface. Completion: its result always
+   carries `fromDay`, `throughDay`, and calendar-label eligibility; calendar-YTD
+   is deterministic only with an effective timezone, and threshold-dependent
+   cards remain honestly unavailable.
 
 ## Acceptance
 
 - Imported confirmed history fills recent log, totals, and consistency.
 - Pending items do not affect those surfaces.
 - Weeks/Months and curve-window controls never reset each other.
-- Calendar-year summary matches exact fixture values.
+- Bounded summary matches exact fixture values; YTD renders only for the fixture
+  with a validated timezone, while the unknown-timezone fixture shows dates.
 - Unknown enrichment-dependent cards do not render misleading zero/complete
   states.
 - 1440/390 layouts preserve labels, units, focus, and no page overflow.
@@ -96,7 +102,8 @@ schema belong to later tasks.
 ## Validation
 
 Focused owner-scoped integration tests for imported summaries, totals,
-consistency, YTD boundaries, and query-state mapping. Then iterate `/`,
+consistency, local-day/year boundaries with known/unknown timezone, and query-
+state mapping. Then iterate `/`,
 `/performance`, period/window controls, empty/partial states, keyboard focus,
 and 1440/390 layouts in a real browser using disposable fixture data.
 
@@ -107,6 +114,6 @@ confirmed data remains valid. No deployment or remote provider effect.
 
 ## Stop only if
 
-The application has no accepted timezone boundary for calendar YTD, summary
-queries require unowned data, or correct behavior requires automatic detail/
-stream enrichment outside this task.
+Summary queries require unowned data, an effective timezone cannot be passed as
+an explicit validated input without importing client/server globals, or correct
+behavior requires automatic detail/stream enrichment outside this task.

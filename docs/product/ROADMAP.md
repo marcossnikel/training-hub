@@ -66,8 +66,10 @@ or blank product.
 - Materialize Strava shoes/bikes locally only after source, odometer baseline,
   rename/retirement, reconnect, and disconnect deletion semantics are locked.
 - Fill Training Log, Totals, and Consistency immediately from confirmed summary
-  fields. Treat stream/detail-dependent cards as a separate bounded enrichment
-  stage with honest readiness copy.
+  fields. Relative calendar claims use a validated effective athlete timezone;
+  without one, summary copy names exact date bounds. Treat stream/detail-
+  dependent cards as a separate bounded enrichment stage with honest readiness
+  copy.
 - Preserve both Performance URL controls so changing Weeks/Months does not reset
   the curve window and vice versa.
 
@@ -104,8 +106,9 @@ use a decorative fake progress percentage.
 When enough summary data is ready, show an Activation Summary:
 
 - activity counts by sport/family and date range;
-- year-to-date distance, time, elevation, consistency, and recent frequency
-  where calculable from imported summaries;
+- explicitly bounded distance, time, elevation, consistency, and recent
+  frequency from imported summaries; year-to-date is shown only when an
+  effective athlete timezone is known;
 - imported gear count and mapping state;
 - clear partial-data and enrichment-not-ready boundaries;
 - calculated athlete metrics labeled as estimates;
@@ -125,10 +128,10 @@ the full-stack connection story.
 **Outcome:** calculations use athlete-specific inputs without pretending that
 unknown or inferred values are facts.
 
-Candidate fields include resting heart rate, maximum heart rate, lactate
-threshold heart rate, threshold pace, cycling FTP, measured VO2max, calculated
-VDOT/VO2 estimates, units, observed/effective dates, and notes needed by a
-specific formula.
+Candidate fields include effective IANA timezone, resting heart rate, maximum
+heart rate, lactate threshold heart rate, threshold pace, cycling FTP, measured
+VO2max, calculated VDOT/VO2 estimates, units, observed/effective dates, and notes
+needed by a specific formula.
 
 Every value is nullable and carries provenance such as `athlete_entered`,
 `provider`, `calculated`, or `analyst_hypothesis`, plus calculation version and

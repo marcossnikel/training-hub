@@ -47,10 +47,12 @@ Activation Summary that links into populated product surfaces.
    reveal with established tokens. Reduced motion renders immediate/static state
    with identical text and live-region meaning.
 8. Activation Summary first release is deterministic and summary-derived:
-   imported date range, counts by canonical sport family, calendar-YTD distance,
-   time/elevation where available, recent frequency/consistency, imported gear
-   count/mapping state, whole-activity best labels where eligible, historical
-   confirmed count, and new pending count.
+   imported date range, counts by canonical sport family, explicitly bounded
+   distance/time/elevation, recent frequency/consistency, imported gear count/
+   mapping state, whole-activity best labels where eligible, historical
+   confirmed count, and new pending count. Calendar-YTD wording is used only
+   when R19 supplies a validated effective timezone; otherwise exact dates are
+   part of the label.
 9. Unknown/partial/enrichment-not-ready values are omitted or labeled, never
    zero-filled. Each calculation names its date window/unit and links to the
    populated Training Log, Performance, Gear, or Review evidence surface.
@@ -117,8 +119,9 @@ new analysis or replace R14/R9 state.
 - New connection enters activation exactly once; welcome state is irrelevant.
 - Progress displays only real stages/counters and survives retry/refresh.
 - Skip dismisses UI only; import continues when possible or resumes safely.
-- Completed fixture summary matches exact sport counts, date range, YTD totals,
-  consistency, gear count, and pending count.
+- Completed fixture summary matches exact sport counts, date range, bounded
+  totals, consistency, gear count, and pending count; known/unknown timezone
+  fixtures prove YTD versus exact-date copy.
 - Partial/failed/enrichment-pending states never claim completion or zero.
 - Summary links resolve to correct owner data.
 - Callback/OAuth/session/foreign-owner protections pass.

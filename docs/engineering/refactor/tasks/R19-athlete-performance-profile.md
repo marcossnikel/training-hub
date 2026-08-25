@@ -10,8 +10,8 @@
 
 Every performance calculation can distinguish unknown, athlete-entered,
 provider-sourced, calculated, and analyst-hypothesis values. New accounts never
-inherit Marcos's heart-rate, pace, or FTP numbers, and athletes can skip or edit
-their profile later.
+inherit Marcos's timezone, heart-rate, pace, or FTP values, and athletes can
+skip or edit their profile later.
 
 ## Current truth
 
@@ -31,31 +31,41 @@ their profile later.
 
 1. Remove all founder-specific runtime defaults for athlete data. Absence is
    represented as unknown, never a plausible number.
-2. Initial typed keys are `resting_hr_bpm`, `max_hr_bpm`, `lthr_bpm`,
+2. The profile also stores an effective IANA timezone as a typed non-numeric
+   setting. A validated athlete-entered timezone overrides the connected-
+   provider timezone; without either, relative calendar labels are unavailable.
+3. Initial numeric keys are `resting_hr_bpm`, `max_hr_bpm`, `lthr_bpm`,
    `threshold_pace_sec_per_km`, `cycling_ftp_watts`, and
    `measured_vo2max_ml_kg_min`. Calculated VDOT/VO2 and Critical Speed are
    derived observations, not athlete-entered facts.
-3. Each current parameter stores owner, typed key, numeric value, canonical
+4. Each current parameter stores owner, typed key, numeric value, canonical
    unit, provenance (`athlete_entered`, `provider`, `calculated`, or
    `analyst_hypothesis`), observed/effective time when known, updated time, and
    optional calculation version/evidence reference required by provenance.
-4. An `analyst_hypothesis` cannot become an effective calculation input until
+5. Timezone provenance is `athlete_entered` or `provider`; validate the complete
+   IANA identifier server-side and never trust a browser offset or the process
+   timezone. Treat the provider field as untrusted text, parse and store only a
+   canonical validated IANA identifier, and reject a numeric `utc_offset` as a
+   substitute because it cannot represent daylight-saving rules. Provider
+   timezone is connection-origin data and is removed on true disconnect unless
+   an athlete-entered override exists.
+6. An `analyst_hypothesis` cannot become an effective calculation input until
    the athlete explicitly confirms/edits it; confirmation creates
    `athlete_entered` provenance.
-5. Validation is key/unit-specific and server-side. Browser input cannot choose
+7. Validation is key/unit-specific and server-side. Browser input cannot choose
    owner, calculation version, or trusted provenance.
-6. Existing saved threshold rows migrate as `athlete_entered` or explicit
+8. Existing saved threshold rows migrate as `athlete_entered` or explicit
    `legacy_saved` mapped to athlete-entered; unsaved fallback values do not
    migrate.
-7. Forms are field-independent and skippable. Missing one input does not require
+9. Forms are field-independent and skippable. Missing one input does not require
    inventing the others. UI explains which calculations become available.
-8. Deterministic modules declare required parameters and return a typed
+10. Deterministic modules declare required parameters and return a typed
    unavailable reason when missing/invalid/stale; they do not fall back.
-9. Threshold/parameter changes invalidate or version dependent derived metrics
+11. Threshold/parameter changes invalidate or version dependent derived metrics
    so stale zones are not presented as current.
-10. Easy-HR remains an observation only after the athlete confirms source runs;
+12. Easy-HR remains an observation only after the athlete confirms source runs;
     it is not inferred or prescribed in this task.
-11. Critical Speed requires the athlete to confirm candidate race sources first,
+13. Critical Speed requires the athlete to confirm candidate race sources first,
     then shows dates, points, recency, fit limitation, and an explicit separate
     `Use as threshold pace` action. Two-point R² is never labeled high confidence.
 
@@ -90,12 +100,14 @@ formulas or analyst runtime.
 
 ## Implementation map
 
-1. Inventory every current threshold/default consumer and lock typed parameter/
-   unavailable interfaces. Completion: no hidden fallback caller remains.
+1. Inventory every current threshold/default/calendar consumer and lock typed
+   parameter, timezone, and unavailable interfaces. Completion: no hidden
+   fallback to founder, browser, or process timezone remains.
 2. Add additive schema and migration. Completion: saved values preserve exact
    units/provenance and accounts with no saved row remain empty.
 3. Implement owner-scoped read/upsert/delete/confirm operations and validation.
-   Completion: forged owner/provenance/evidence is rejected.
+   Completion: forged owner/provenance/evidence is rejected and invalid IANA/
+   browser-offset timezone input never becomes effective.
 4. Migrate deterministic consumers to explicit availability. Completion: zones,
    curves, summaries, and forms render correct value or honest missing reason.
 5. Implement profile UI and optional race-confirmation/threshold application.
@@ -105,20 +117,23 @@ formulas or analyst runtime.
 
 ## Acceptance
 
-- New account has no threshold/HR/FTP/VO2 values.
+- New account has no threshold/HR/FTP/VO2 values and no guessed timezone.
 - Existing explicitly saved values migrate exactly with provenance.
 - Each parameter can be saved, edited, cleared, or left unknown independently.
 - Consumers never substitute a founder/default value.
 - Derived/hypothesis values show source/version and require confirmation before
   effective use.
 - Critical Speed flow confirms sources then separately applies the value.
-- Owner isolation, unit validation, stale invalidation, 1440/390, keyboard,
-  focus, and missing-data UI pass.
+- Athlete-entered timezone overrides provider timezone; disconnect removes only
+  provider timezone and exact-date labels replace unavailable relative labels.
+- Owner isolation, unit/timezone validation, stale invalidation, 1440/390,
+  keyboard, focus, and missing-data UI pass.
 
 ## Validation
 
 Focused integration tests for migration, empty account, saved account, per-key
-validation/unit/provenance, forged owner/source, consumer availability,
+validation/unit/provenance, provider-timezone parsing, IANA precedence/
+disconnect, offset-only rejection, forged owner/source, consumer availability,
 invalidation, race-source confirmation, and explicit threshold application.
 Then browser-iterate profile entry/edit/clear/skip, unknown states, candidate
 race flow, and dependent Performance changes at 1440/390.
