@@ -68,10 +68,13 @@ or blank product.
   history and Review assignments cannot double-count; unknown/stale provider
   distance is visible.
 - Fill Training Log, Totals, and Consistency immediately from confirmed summary
-  fields. Relative calendar claims use a validated effective athlete timezone;
-  without one, summary copy names exact date bounds. Treat stream/detail-
-  dependent cards as a separate bounded enrichment stage with honest readiness
-  copy.
+  fields. Consistency is part of connection readiness: the first Performance
+  visit after import already shows the trailing-year heatmap, active-days-per-
+  week, and current streak for the committed coverage. Both minutes and session
+  counts use the same persisted athlete-local activity day. Relative calendar
+  claims use a validated effective athlete timezone; without one, summary copy
+  names exact date bounds. Treat stream/detail-dependent cards as a separate
+  bounded enrichment stage with honest readiness copy.
 - Preserve both Performance URL controls so changing Weeks/Months does not reset
   the curve window and vice versa.
 
@@ -109,8 +112,9 @@ When enough summary data is ready, show an Activation Summary:
 
 - activity counts by sport/family and date range;
 - explicitly bounded distance, time, elevation, consistency, and recent
-  frequency from imported summaries; year-to-date is shown only when an
-  effective athlete timezone is known;
+  frequency from imported summaries; the Consistency link opens an already
+  populated heatmap rather than waiting for enrichment, and year-to-date is
+  shown only when an effective athlete timezone is known;
 - imported gear count and mapping state;
 - clear partial-data and enrichment-not-ready boundaries;
 - calculated athlete metrics labeled as estimates;

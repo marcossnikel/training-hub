@@ -21,6 +21,10 @@ the other Performance selection at desktop and mobile widths.
   links with only `period`, so each control discards the other URL state.
 - `src/lib/totals.ts` already supports monthly buckets; focused totals and
   consistency tests are healthy.
+- `src/lib/consistency.ts` currently derives both minutes and sessions through
+  the Node process timezone, while Totals prefers persisted `started_at_local`.
+  `listSessionStarts` does not return that local stamp, so an evening activity
+  can appear on different days across Totals and Consistency.
 - Initial sync stores summary fields only. VDOT/curves requiring details or
   streams remain sparse until lazy or bounded enrichment runs.
 
@@ -45,11 +49,24 @@ the other Performance selection at desktop and mobile widths.
    zone-dependent modules show `needs athlete input` until R19 supplies data.
 7. Mobile Months layout prioritizes period label, primary totals, units, and
    comparison meaning without horizontal page overflow.
+8. Consistency is ready when the initial import has committed confirmed summary
+   rows; it never waits for activity details, streams, R21 analysis, or post-
+   connect animation. The first Performance load shows the trailing-year
+   heatmap, active-days-per-week, and the existing streak definition (ending
+   today, or yesterday when today has no session).
+9. Minutes and session counts share one pure canonical activity-day rule:
+   `started_at_local` first and UTC start only as fallback. No server/browser
+   process timezone participates. Pending rows remain excluded and enter once
+   after confirmation.
+10. A partial import may calculate Consistency from committed rows, but its UI
+    carries the covered date range/import state. Missing pages never render as
+    a trustworthy zero-history result.
 
 ## May change
 
 - performance URL-state helpers, summary read model, totals/consistency/whole-
   activity presentation and focused tests;
+- the owner-scoped session-start query shape and canonical activity-day helper;
 - Training Log/Performance empty and partial copy;
 - local seeded/provider fixtures used by the browser story.
 
@@ -74,24 +91,40 @@ schema belong to later tasks.
 
 ## Implementation map
 
-1. Add a provider-flow fixture containing confirmed run/ride/strength summaries.
-   Completion: one owner has non-zero deterministic expected totals; another is
-   isolated.
-2. Prove R9-confirmed rows feed log/totals/consistency read models. Completion:
-   focused integration assertions match fixture dates/units/counts.
-3. Centralize query-link construction. Completion: every period/window click
+1. Add a provider-flow fixture containing confirmed run/ride/strength summaries,
+   including an athlete-local evening start that crosses a UTC date boundary.
+   Completion: one owner has non-zero deterministic expected totals and
+   Consistency cells; another is isolated.
+2. Prove R9-confirmed rows feed log/totals/consistency read models immediately.
+   Completion: focused integration assertions match exact fixture dates,
+   minutes, session counts, active-days-per-week, and streak without detail or
+   stream enrichment.
+3. Make minutes and session starts carry the same persisted local-day input and
+   use one pure fallback rule. Completion: the cross-midnight fixture occupies
+   one identical athlete-day bucket in Totals and Consistency, independent of
+   the process timezone.
+4. Centralize query-link construction. Completion: every period/window click
    preserves the other supported state and canonical defaults.
-4. Repair Weeks/Months responsive UI and partial-data copy. Completion: values,
+5. Repair Weeks/Months responsive UI and partial-data copy. Completion: values,
    labels, focus, and scroll behavior are correct at 1440/390.
-5. Add the first-value bounded-summary interface. Completion: its result always
+6. Add the first-value bounded-summary interface. Completion: its result always
    carries `fromDay`, `throughDay`, and calendar-label eligibility; calendar-YTD
    is deterministic only with an effective timezone, and threshold-dependent
    cards remain honestly unavailable.
+7. Prove pending and partial behavior. Completion: pending rows affect no
+   Consistency metric, later confirmation adds the activity once, and partial
+   coverage is visible rather than presented as complete inactivity.
 
 ## Acceptance
 
-- Imported confirmed history fills recent log, totals, and consistency.
-- Pending items do not affect those surfaces.
+- The first `/performance` load after initial connection already contains the
+  exact expected heatmap cells, active-days-per-week, and streak from imported
+  confirmed history; no detail/stream fetch is required.
+- The cross-UTC-midnight fixture contributes its minutes and session count to
+  the same persisted athlete-local day in Totals and Consistency.
+- Pending items do not affect those surfaces; confirming a later item adds it
+  exactly once after refresh.
+- Partial import coverage is named and cannot look like a valid empty history.
 - Weeks/Months and curve-window controls never reset each other.
 - Bounded summary matches exact fixture values; YTD renders only for the fixture
   with a validated timezone, while the unknown-timezone fixture shows dates.
@@ -101,11 +134,13 @@ schema belong to later tasks.
 
 ## Validation
 
-Focused owner-scoped integration tests for imported summaries, totals,
-consistency, local-day/year boundaries with known/unknown timezone, and query-
-state mapping. Then iterate `/`,
-`/performance`, period/window controls, empty/partial states, keyboard focus,
-and 1440/390 layouts in a real browser using disposable fixture data.
+Focused owner-scoped integration tests for the connection-import-to-performance
+path, exact consistency cells/minutes/session counts/streak, pending exclusion
+and later confirmation, partial coverage, local-day/year boundaries with known/
+unknown timezone, totals, and query-state mapping. Then iterate the disposable
+connection story through the first `/performance` load and verify the populated
+Consistency surface, period/window controls, empty/partial states, keyboard
+focus, and 1440/390 layouts in a real browser.
 
 ## Migration, compatibility, and rollback
 

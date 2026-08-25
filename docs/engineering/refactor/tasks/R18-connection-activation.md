@@ -56,6 +56,9 @@ Activation Summary that links into populated product surfaces.
 9. Unknown/partial/enrichment-not-ready values are omitted or labeled, never
    zero-filled. Each calculation names its date window/unit and links to the
    populated Training Log, Performance, Gear, or Review evidence surface.
+   Consistency is summary-ready under R16, not an enrichment-pending metric: its
+   link opens the already populated athlete-local heatmap. Partial import copy
+   preserves the committed coverage boundary.
 10. First release does not infer easy HR or apply threshold pace. It may invite
     the athlete to complete profile values or confirm candidate races later. R21
     may add analyst hypotheses without changing activation completion semantics.
@@ -120,8 +123,9 @@ new analysis or replace R14/R9 state.
 - Progress displays only real stages/counters and survives retry/refresh.
 - Skip dismisses UI only; import continues when possible or resumes safely.
 - Completed fixture summary matches exact sport counts, date range, bounded
-  totals, consistency, gear count, and pending count; known/unknown timezone
-  fixtures prove YTD versus exact-date copy.
+  totals, consistency, gear count, and pending count; its Consistency link opens
+  the exact populated heatmap immediately, and known/unknown timezone fixtures
+  prove YTD versus exact-date copy.
 - Partial/failed/enrichment-pending states never claim completion or zero.
 - Summary links resolve to correct owner data.
 - Callback/OAuth/session/foreign-owner protections pass.
