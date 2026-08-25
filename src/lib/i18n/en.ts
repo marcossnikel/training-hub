@@ -25,6 +25,7 @@ export const en = {
     account: "Account",
     stravaConnected: "Strava connected",
     stravaNotConnected: "Strava not connected",
+    currentEnvironment: "Current environment: {label}",
   },
   authEntry: {
     brand: "TRAINING HUB",

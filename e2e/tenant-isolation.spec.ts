@@ -249,6 +249,7 @@ test("two authenticated browser contexts preserve tenant boundaries", async ({ b
   try {
     expect(ownerA.authSubject).not.toBe(ownerB.authSubject);
     expect(ownerA.ownerId).not.toBe(ownerB.ownerId);
+    await expect(pageB.locator("[data-environment-indicator]")).toHaveCount(0);
     const b = await createBRecords(pageB, ownerB, suffix);
     const forbiddenTransportValues = await seedEncryptedConnection(ownerB, suffix);
 

@@ -17,6 +17,7 @@ import { countPending } from "@/lib/db";
 import { getLang } from "@/lib/lang";
 import { isStravaConnected, shouldAutoSync } from "@/lib/strava";
 import { requireCurrentUser } from "@/lib/auth";
+import { resolveEnvironmentIndicator } from "@/features/access/server";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,9 @@ export default async function RootLayout({
   const pendingCount = owner ? await countPending(owner) : 0;
   const connected = owner ? await isStravaConnected(owner) : false;
   const autoSync = owner ? await shouldAutoSync(owner) : false;
+  // The capability/session check is intentionally server-side and only runs
+  // for an authenticated request; guests never pay a domain access query.
+  const environmentIndicator = owner ? await resolveEnvironmentIndicator() : null;
   const auth = owner ? "in" : "out";
 
   return (
@@ -100,6 +104,7 @@ export default async function RootLayout({
               autoSync={autoSync}
               auth={auth}
               accountEmail={owner?.email}
+              environmentIndicator={environmentIndicator}
             />
             <main
               id="main-content"

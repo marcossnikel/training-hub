@@ -1,6 +1,6 @@
 # R5 — Implement the creator environment indicator
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium
 **Depends on:** R4

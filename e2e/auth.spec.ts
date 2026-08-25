@@ -26,6 +26,7 @@ test.describe("auth", () => {
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
     await expect(page.locator('a[href="/sign-up"]')).toHaveCount(0);
     await expect(page.locator("header")).toHaveCount(0);
+    await expect(page.locator("[data-environment-indicator]")).toHaveCount(0);
     await capture(page, "62-login-default-1440.png");
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -88,6 +89,13 @@ test.describe("auth", () => {
         name: "Your training log, with a little context.",
       })
     ).toBeVisible();
+    await expect(page.locator("[data-environment-indicator]")).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+    await page.reload();
+    await expect(
+      page.locator('[data-app-shell="compact"] [data-environment-indicator]')
+    ).toHaveCount(0);
     const session = (await page.context().cookies()).find((c) => c.name.includes("session_token"));
     expect(session?.httpOnly).toBe(true);
     await page.getByRole("button", { name: "Log out" }).click();

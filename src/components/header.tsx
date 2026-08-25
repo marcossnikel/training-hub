@@ -11,6 +11,8 @@ import { useI18n } from "@/components/i18n-provider";
 import { AutoSync, SyncButton } from "@/components/sync-button";
 import { logoutAction, setLangAction } from "@/lib/actions";
 import type { Lang } from "@/lib/i18n";
+import { EnvironmentIndicator } from "@/components/environment-indicator";
+import type { EnvironmentIndicatorModel } from "@/features/access/environment-indicator";
 
 /**
  * Auth control state passed from the server layout:
@@ -120,10 +122,12 @@ function NavigationLinks({
   pathname,
   pendingCount,
   compact = false,
+  afterEnvironmentIndicator = false,
 }: {
   pathname: string;
   pendingCount: number;
   compact?: boolean;
+  afterEnvironmentIndicator?: boolean;
 }) {
   const { t } = useI18n();
   const currentRef = useRef<HTMLAnchorElement>(null);
@@ -139,7 +143,7 @@ function NavigationLinks({
       className={cn(
         compact
           ? "no-scrollbar flex min-w-0 gap-1 overflow-x-auto px-4 pb-3"
-          : "mt-8 flex flex-col gap-1 px-3"
+          : cn("flex flex-col gap-1 px-3", afterEnvironmentIndicator ? "mt-2" : "mt-8")
       )}
     >
       {NAV.map((item) => {
@@ -180,12 +184,14 @@ export function Header({
   autoSync,
   auth,
   accountEmail,
+  environmentIndicator,
 }: {
   pendingCount: number;
   connected: boolean;
   autoSync: boolean;
   auth: AuthControl;
   accountEmail?: string;
+  environmentIndicator: EnvironmentIndicatorModel | null;
 }) {
   const pathname = usePathname();
   const { t } = useI18n();
@@ -242,9 +248,24 @@ export function Header({
           <p className="mt-2 font-mono text-[0.625rem] font-medium tracking-[0.12em] text-muted-foreground">
             PRIVATE BETA
           </p>
+          {environmentIndicator ? (
+            <div className="mt-2">
+              <EnvironmentIndicator
+                model={environmentIndicator}
+                accessibleName={t.header.currentEnvironment.replace(
+                  "{label}",
+                  environmentIndicator.label
+                )}
+              />
+            </div>
+          ) : null}
         </div>
 
-        <NavigationLinks pathname={pathname} pendingCount={pendingCount} />
+        <NavigationLinks
+          pathname={pathname}
+          pendingCount={pendingCount}
+          afterEnvironmentIndicator={Boolean(environmentIndicator)}
+        />
 
         <div className="mt-auto border-t border-sidebar-border p-4">
           <div className="rounded-xl border border-sidebar-border bg-card p-3">
@@ -290,12 +311,33 @@ export function Header({
         data-app-shell="compact"
       >
         <div className="flex min-h-14 items-center gap-2 px-4 py-2">
-          <Link
-            href="/"
-            className="focus-ring mr-auto shrink-0 rounded-md font-semibold tracking-tight"
-          >
-            Training Hub
-          </Link>
+          {environmentIndicator ? (
+            <div className="mr-auto flex max-h-[38px] max-w-[118px] shrink-0 flex-col items-start">
+              <Link
+                href="/"
+                className="focus-ring rounded-md text-sm leading-4 font-semibold tracking-tight"
+              >
+                Training Hub
+              </Link>
+              <div className="mt-1 leading-none">
+                <EnvironmentIndicator
+                  model={environmentIndicator}
+                  accessibleName={t.header.currentEnvironment.replace(
+                    "{label}",
+                    environmentIndicator.label
+                  )}
+                  compact
+                />
+              </div>
+            </div>
+          ) : (
+            <Link
+              href="/"
+              className="focus-ring mr-auto shrink-0 rounded-md font-semibold tracking-tight"
+            >
+              Training Hub
+            </Link>
+          )}
           <SyncButton connected={connected} size="default" className="size-10 rounded-full px-0" />
           <ThemeToggle compact />
           <AuthButton state={auth} compact />

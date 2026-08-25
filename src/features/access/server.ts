@@ -2,6 +2,8 @@ import "server-only";
 
 import { requireCurrentUser, type CurrentUser } from "@/lib/auth";
 import { client } from "@/lib/db/client";
+import { resolveRuntimeConfiguration } from "@/server/config/runtime";
+import { environmentIndicatorModel, type EnvironmentIndicatorModel } from "./environment-indicator";
 
 export const APPLICATION_ROLES = ["member", "creator"] as const;
 export type ApplicationRole = (typeof APPLICATION_ROLES)[number];
@@ -54,4 +56,15 @@ export function hasCapability(
 export async function requireCreator(): Promise<AccessContext | null> {
   const access = await requireAccess();
   return access?.role === "creator" ? access : null;
+}
+
+/**
+ * Resolves the creator-only display model on the server. Configuration and
+ * role details deliberately remain here; Header receives only this small,
+ * serializable value (or null).
+ */
+export async function resolveEnvironmentIndicator(): Promise<EnvironmentIndicatorModel | null> {
+  const access = await requireAccess();
+  if (!access || !hasCapability(access, "viewOperationalEnvironment")) return null;
+  return environmentIndicatorModel(resolveRuntimeConfiguration(process.env).identity);
 }

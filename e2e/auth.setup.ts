@@ -7,6 +7,14 @@ const STORAGE_STATE = "e2e/.auth/owner.json";
 const PASSWORD = "e2e-test-password";
 const FIXTURE_OWNER = "e2e-fixture-owner";
 
+async function captureEnvironmentIndicator(page: import("@playwright/test").Page, name: string) {
+  if (process.env.CAPTURE_R5_EVIDENCE !== "1") return;
+  const fs = await import("node:fs/promises");
+  const evidenceDir = path.join(process.cwd(), "evidence", "R5");
+  await fs.mkdir(evidenceDir, { recursive: true });
+  await page.screenshot({ path: path.join(evidenceDir, name), fullPage: false });
+}
+
 setup("create and authenticate the E2E athlete", async ({ page }) => {
   await page.goto(await betaSignUpPath("e2e@example.test"));
   await page.getByLabel("Name").fill("E2E Athlete");
@@ -25,6 +33,7 @@ setup("create and authenticate the E2E athlete", async ({ page }) => {
   const session = (await sessionResponse.json()) as { user?: { id?: string } };
   const authSubject = session.user?.id;
   expect(authSubject).toBeTruthy();
+  if (!authSubject) throw new Error("E2E sign-up did not return an auth subject.");
   const database = createClient({
     url: `file:${path.join(process.cwd(), "data", "e2e.db")}`,
     intMode: "number",
@@ -32,10 +41,14 @@ setup("create and authenticate the E2E athlete", async ({ page }) => {
   try {
     await database.batch(
       [
-        { sql: "DELETE FROM users WHERE auth_subject = ?", args: [authSubject!] },
+        { sql: "DELETE FROM users WHERE auth_subject = ?", args: [authSubject] },
         {
           sql: "UPDATE users SET auth_subject = ? WHERE id = ?",
-          args: [authSubject!, FIXTURE_OWNER],
+          args: [authSubject, FIXTURE_OWNER],
+        },
+        {
+          sql: "UPDATE users SET role = 'creator' WHERE id = ?",
+          args: [FIXTURE_OWNER],
         },
       ],
       "write"
@@ -43,5 +56,15 @@ setup("create and authenticate the E2E athlete", async ({ page }) => {
   } finally {
     database.close();
   }
+  await page.reload();
+  await expect(page.locator('[data-environment-indicator="E2E"]')).toHaveCount(2);
+  await captureEnvironmentIndicator(page, "R5-root-creator-e2e-1440.png");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.reload();
+  await expect(
+    page.locator('[data-app-shell="compact"] [data-environment-indicator="E2E"]')
+  ).toHaveCount(1);
+  await captureEnvironmentIndicator(page, "R5-root-creator-e2e-dark-reduced-motion-390.png");
   await page.context().storageState({ path: STORAGE_STATE });
 });

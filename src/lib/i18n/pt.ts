@@ -22,6 +22,7 @@ export const pt: Dict = {
     account: "Conta",
     stravaConnected: "Strava conectado",
     stravaNotConnected: "Strava não conectado",
+    currentEnvironment: "Ambiente atual: {label}",
   },
   authEntry: {
     brand: "TRAINING HUB",
