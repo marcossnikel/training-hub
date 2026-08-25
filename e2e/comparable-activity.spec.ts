@@ -2,13 +2,13 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { createClient } from "@libsql/client";
 import { expect, test, type Page } from "@playwright/test";
+import { COMPARABLE_LOADING_PROOF_HEADER } from "../src/lib/comparable-loading-proof";
 
 const dbUrl = `file:${path.join(process.cwd(), "data", "e2e.db")}`;
 const ownerId = "e2e-fixture-owner";
 
 type ComparableFixture = { sourceId: number; priorId: number; pendingId: number };
 const fixtureActivityIds = new Set<number>();
-const fixtureActivityNames = new Set<string>();
 
 // This one spec writes disposable route fixtures into the same SQLite file as
 // its browser reads. Keep those writes serial so a proof failure cannot be
@@ -78,33 +78,8 @@ async function addFixture(): Promise<ComparableFixture> {
   }
 }
 
-async function addLoadingVolume(): Promise<void> {
-  const name = `Comparable loading volume ${crypto.randomUUID()}`;
-  const db = createClient({ url: dbUrl, intMode: "number" });
-  try {
-    // 250k rows still completed before React exposed the route boundary on a
-    // warm production run. 300k is the smallest measured reliable workload.
-    for (let start = 0; start < 300_000; start += 1_000) {
-      await retryLocked(() =>
-        db.batch(
-          Array.from({ length: 1_000 }, () => ({
-            sql: `INSERT INTO activities
-              (user_id, name, sport_type, started_at, distance_km, moving_time_s, status)
-              VALUES (?, ?, 'Run', ?, ?, ?, 'confirmed')`,
-            args: [ownerId, name, isoBefore(3), 10, 3_000],
-          })),
-          "write"
-        )
-      );
-    }
-    fixtureActivityNames.add(name);
-  } finally {
-    db.close();
-  }
-}
-
 test.afterEach(async () => {
-  if (fixtureActivityIds.size === 0 && fixtureActivityNames.size === 0) return;
+  if (fixtureActivityIds.size === 0) return;
   const db = createClient({ url: dbUrl, intMode: "number" });
   try {
     await retryLocked(() =>
@@ -114,10 +89,6 @@ test.afterEach(async () => {
             sql: "DELETE FROM activities WHERE id = ?",
             args: [id],
           })),
-          ...[...fixtureActivityNames].map((name) => ({
-            sql: "DELETE FROM activities WHERE name = ?",
-            args: [name],
-          })),
         ],
         "write"
       )
@@ -125,7 +96,6 @@ test.afterEach(async () => {
   } finally {
     db.close();
     fixtureActivityIds.clear();
-    fixtureActivityNames.clear();
   }
 });
 
@@ -312,9 +282,6 @@ test("a confirmed source enters one evidence-linked comparable prior activity", 
 test("client navigation exposes loading feedback and production streams the route skeleton", async ({
   page,
 }) => {
-  test.slow();
-  await addLoadingVolume();
-
   // Next prefetches only in production. The ordinary dev-server project proves
   // the Link-specific pending feedback; the production command scopes the live
   // assertion to the route-only marker in <main>, which neither the Link portal
@@ -345,16 +312,60 @@ test("client navigation exposes loading feedback and production streams the rout
     if (prefetchedRouteShell) {
       await prefetchedRouteShell;
     }
+    const proofId = crypto.randomUUID();
+    if (routeBoundary) {
+      await page.setExtraHTTPHeaders({ [COMPARABLE_LOADING_PROOF_HEADER]: proofId });
+    } else {
+      const inertEndpoint = await page.request.post(`/api/e2e/comparable-loading/${proofId}`);
+      expect(inertEndpoint.status()).toBe(404);
+    }
     await observeComparableLoading(page, loadingScope, routeBoundary);
+    const routeRequest = page.waitForRequest((request) => {
+      const requestHeaders = request.headers();
+      return (
+        new URL(request.url()).pathname === `/activity/${fixture.sourceId}/compare` &&
+        requestHeaders.rsc === "1" &&
+        requestHeaders["next-router-prefetch"] !== "1"
+      );
+    });
     const navigation = entry.click();
-    await expect
-      .poll(() => readComparableRouteLoading(page))
-      .toEqual({
-        ariaBusy: "true",
-        routeBoundary: routeBoundary ?? null,
-        skeletonCount: 7,
-      });
-    await capture(page, `37-comparable-prior-activity-loading-${width}.png`);
+    let releaseStatus: number | undefined;
+    let pendingAfterReleaseStatus: number | undefined;
+    try {
+      if (routeBoundary) {
+        await expect
+          .poll(async () => {
+            const pending = await page.request.get(`/api/e2e/comparable-loading/${proofId}`);
+            return pending.status();
+          })
+          .toBe(204);
+      }
+      await expect
+        .poll(() => readComparableRouteLoading(page))
+        .toEqual({
+          ariaBusy: "true",
+          routeBoundary: routeBoundary ?? null,
+          skeletonCount: 7,
+        });
+      await capture(page, `37-comparable-prior-activity-loading-${width}.png`);
+    } finally {
+      if (routeBoundary) {
+        const release = await page.request.post(`/api/e2e/comparable-loading/${proofId}`);
+        releaseStatus = release.status();
+        const pendingAfterRelease = await page.request.get(
+          `/api/e2e/comparable-loading/${proofId}`
+        );
+        pendingAfterReleaseStatus = pendingAfterRelease.status();
+        await page.setExtraHTTPHeaders({});
+      }
+    }
+    if (routeBoundary) {
+      expect(releaseStatus).toBe(204);
+      expect(pendingAfterReleaseStatus).toBe(409);
+    }
+    expect((await routeRequest).headers()[COMPARABLE_LOADING_PROOF_HEADER]).toBe(
+      routeBoundary ? proofId : undefined
+    );
     await navigation;
     await expect(
       page.getByRole("heading", { level: 1, name: "Comparable prior activity" })
