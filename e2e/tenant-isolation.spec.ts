@@ -126,6 +126,10 @@ async function createBRecords(page: Page, owner: BrowserOwner, suffix: string): 
   await manualShoe.press("Enter");
   await page.getByRole("option", { name: shoeName }).click();
   await expect(manualShoe).toContainText(shoeName);
+  const selectedShoeId = Number(
+    await manualShoe.locator("xpath=ancestor::form").locator("select").inputValue()
+  );
+  expect(selectedShoeId).toBeGreaterThan(0);
   await manualDate.fill("2026-08-15");
   // Native date inputs can tab through browser-managed day/month/year segments;
   // stay on the real keyboard path until the next actual form control is focused.
@@ -136,11 +140,12 @@ async function createBRecords(page: Page, owner: BrowserOwner, suffix: string): 
   await expect(manualShoe).toBeFocused();
   await tabTo(page, addEntry);
   await expect(addEntry).toBeFocused();
-  await expectSuccessfulManualActivityAction(
-    page,
-    () => addEntry.press("Enter"),
-    `Added 12.3 km to ${shoeName}`
-  );
+  await expectSuccessfulManualActivityAction(page, () => addEntry.press("Enter"), {
+    date: "2026-08-15",
+    km: 12.34,
+    shoe: { id: selectedShoeId, name: shoeName },
+    successMessage: `Added 12.3 km to ${shoeName}`,
+  });
   await expect(manualKm).toHaveValue("");
 
   const database = createClient({

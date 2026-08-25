@@ -100,12 +100,21 @@ async function signUpAndCreateOwnerOnlyActivity(
     await manualShoe.press("Enter");
     await page.getByRole("option", { name: shoeName }).click();
     await expect(manualShoe).toContainText(shoeName);
+    const selectedShoeId = Number(
+      await manualShoe.locator("xpath=ancestor::form").locator("select").inputValue()
+    );
+    expect(selectedShoeId).toBeGreaterThan(0);
     await manualDate.fill("2026-08-15");
     await manualKm.fill("12.58");
     await expectSuccessfulManualActivityAction(
       page,
       () => page.getByRole("button", { name: "Add entry" }).click(),
-      `Added 12.6 km to ${shoeName}`
+      {
+        date: "2026-08-15",
+        km: 12.58,
+        shoe: { id: selectedShoeId, name: shoeName },
+        successMessage: `Added 12.6 km to ${shoeName}`,
+      }
     );
     await expect(manualKm).toHaveValue("");
 
