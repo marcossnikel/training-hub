@@ -1,8 +1,8 @@
 # R5 — Implement the creator environment indicator
 
 **Status:** draft
-**Risk:** medium
-**Recommended builder:** Terra medium
+**Delivery class:** full stack
+**Risk/model:** medium — Terra medium
 **Depends on:** R4
 **Unlocks:** creator operational context for R7
 
@@ -71,14 +71,25 @@ and mobile-authenticated branches. No environment value is currently passed.
 
 ## Required automated proof
 
-- mapping tests for local/e2e/preview/production;
-- creator/member/guest render tests;
-- tenant isolation and auth tests;
+- one `src/features/access/environment-indicator.integration.test.ts` composes
+  the R2 environment resolver, R3 capability, real session/current-user
+  resolution, and server display model against disposable SQLite;
+- exact mapping for local/e2e/preview/production and unknown fail-closed;
+- creator receives only `{ label, tone }`; member, guest, and revoked session
+  receive `null` before Header serialization;
+- response/markup canaries contain no hostname, database URL, raw environment,
+  role internals, or creator marker for member/guest;
+- existing owner isolation remains unchanged.
 
 ```sh
-npm run verify:fast
+npx vitest run src/features/access/access.integration.test.ts src/features/access/environment-indicator.integration.test.ts
 npx playwright test e2e/auth.spec.ts e2e/tenant-isolation.spec.ts
 ```
+
+Do not run the full repository gate. Make the integration boundary green first,
+then start the disposable app and iterate the actual authenticated shell in the
+browser until the focused Playwright specs and direct viewport inspection match
+R4.
 
 ## Required manual or visual proof
 
@@ -99,10 +110,14 @@ data remains harmless. No deployment in this task.
 
 ## Stop conditions
 
-- R4 lacks explicit frame approval;
-- role/environment must be client-derived;
-- mobile placement hides an existing control; or
-- member/guest absence cannot be asserted before serialization.
+- R4 lacks explicit Marcos approval or an exact state/placement contract;
+- an accepted role/environment security decision would need to change; or
+- proof requires a live deployment, shared database, or production credential.
+
+Server composition, serialization leakage, responsive placement, hidden
+controls, auth fixtures, browser states, and all other recoverable local defects
+are owned and fixed by the builder within this task. Role/environment remain
+server-derived.
 
 ## Completion criteria
 
@@ -111,3 +126,4 @@ data remains harmless. No deployment in this task.
 - No interactivity or secret/config leakage exists.
 - Auth/tenant/shell tests pass.
 - Existing Header capabilities remain present.
+- Both named focused commands pass with disposable data and real-browser proof.
