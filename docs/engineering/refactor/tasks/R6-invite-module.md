@@ -1,8 +1,8 @@
 # R6 — Deepen beta invitation management
 
 **Status:** draft
-**Risk:** high
-**Recommended builder:** Terra high
+**Delivery class:** API/backend
+**Risk/model:** high — Terra high
 **Depends on:** R3 and R2M
 **Unlocks:** R7
 
@@ -103,8 +103,10 @@ revocation requires the plaintext token; there is no safe summary list.
 
 ## Required automated proof
 
-- existing invite tests preserved at the new interface;
-- migration fresh/current/legacy coverage;
+- existing `src/lib/beta-invites.test.ts` behavior preserved at the new
+  interface;
+- one new `src/features/invites/invites.integration.test.ts` suite owns fresh/
+  current/legacy migration coverage and the creator-facing module boundary;
 - creator success and member/guest denial before DB calls;
 - immediate issue result returns exact normalized email, persisted expiry, and
   URL while every later read omits URL/token;
@@ -114,15 +116,27 @@ revocation requires the plaintext token; there is no safe summary list.
 - concurrent redemption and failed-account rollback.
 
 ```sh
-npm run verify:fast
-npx playwright test e2e/beta-invite.spec.ts
+npx vitest run src/lib/beta-invites.test.ts src/features/invites/invites.integration.test.ts
 ```
 
-## Required manual or visual proof
+This API/backend task does not run Playwright, browser validation, or a full
+repository gate. R7 owns the creator browser story; R8 owns the invited
+registration browser journey. The integration suite must exercise the real
+disposable SQLite/auth transaction boundary rather than replace persistence and
+authorization with mocks.
 
-Use local CLI adapter once against disposable DB, capture only redacted success
-metadata in evidence, and verify one link can register once. Never store the
-printed URL in repository evidence. No UI proof.
+## Required integration scenarios
+
+1. Create a disposable creator and member through the same local identity/
+   owner boundary used by the application.
+2. Creator issues an invite, receives the plaintext URL exactly once, and later
+   list serialization contains only the redacted summary.
+3. The bound email redeems once inside the auth transaction; concurrent replay
+   has one success and failed account creation leaves the invite usable.
+4. A second creator in the same deployment can revoke by opaque invite ID;
+   member, guest, and a foreign disposable database cannot observe or mutate it.
+5. Log/response capture proves token, digest, and canary secret absence. Do not
+   write the usable URL into snapshots, Markdown, or committed fixtures.
 
 ## Migration, rollout, and rollback
 
@@ -146,4 +160,5 @@ drop invitation data. Legacy `issued_by` expires in R13 after R7 proof.
 - Creator/member/guest authorization is proven.
 - Summary and logs are token-secret free.
 - CLI contains composition only and has an explicit expiry.
+- The named focused Vitest command passes without browser or remote resources.
 - no remote environment was touched.
