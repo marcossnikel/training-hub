@@ -155,46 +155,57 @@ async function clearHeaderTooltip(page: Page): Promise<void> {
 
 type ComparableLoadingObservation = {
   ariaBusy: string | null;
+  routeBoundary: string | null;
   skeletonCount: number;
 };
 
-async function observeComparableLoading(page: Page, scope: "body" | "main"): Promise<void> {
-  await page.evaluate((rootSelector) => {
-    type ObservationWindow = Window & {
-      __comparableRouteLoading?: {
-        ariaBusy: string | null;
-        skeletonCount: number;
+async function observeComparableLoading(
+  page: Page,
+  scope: "body" | "main",
+  requiredRouteBoundary?: string
+): Promise<void> {
+  await page.evaluate(
+    ({ rootSelector, routeBoundary }) => {
+      type ObservationWindow = Window & {
+        __comparableRouteLoading?: {
+          ariaBusy: string | null;
+          routeBoundary: string | null;
+          skeletonCount: number;
+        };
+        __comparableRouteLoadingObserver?: MutationObserver;
       };
-      __comparableRouteLoadingObserver?: MutationObserver;
-    };
 
-    const observationWindow = window as ObservationWindow;
-    observationWindow.__comparableRouteLoadingObserver?.disconnect();
-    delete observationWindow.__comparableRouteLoading;
+      const observationWindow = window as ObservationWindow;
+      observationWindow.__comparableRouteLoadingObserver?.disconnect();
+      delete observationWindow.__comparableRouteLoading;
 
-    const root = document.querySelector(rootSelector);
-    if (!root) throw new Error(`Comparable loading proof requires ${rootSelector}`);
+      const root = document.querySelector(rootSelector);
+      if (!root) throw new Error(`Comparable loading proof requires ${rootSelector}`);
+      const loadingSelector = routeBoundary
+        ? `[data-route-loading-boundary="${routeBoundary}"][aria-label="Loading comparable prior activity"]`
+        : '[aria-label="Loading comparable prior activity"]';
 
-    const recordLoading = (node: Node) => {
-      if (!(node instanceof Element)) return;
-      const loading = node.matches('[aria-label="Loading comparable prior activity"]')
-        ? node
-        : node.querySelector('[aria-label="Loading comparable prior activity"]');
-      if (!loading) return;
-      observationWindow.__comparableRouteLoading = {
-        ariaBusy: loading.getAttribute("aria-busy"),
-        skeletonCount: loading.querySelectorAll('[data-slot="skeleton"]').length,
+      const recordLoading = (node: Node) => {
+        if (!(node instanceof Element)) return;
+        const loading = node.matches(loadingSelector) ? node : node.querySelector(loadingSelector);
+        if (!loading) return;
+        observationWindow.__comparableRouteLoading = {
+          ariaBusy: loading.getAttribute("aria-busy"),
+          routeBoundary: loading.getAttribute("data-route-loading-boundary"),
+          skeletonCount: loading.querySelectorAll('[data-slot="skeleton"]').length,
+        };
       };
-    };
 
-    const observer = new MutationObserver((records) => {
-      for (const record of records) {
-        for (const node of record.addedNodes) recordLoading(node);
-      }
-    });
-    observer.observe(root, { childList: true, subtree: true });
-    observationWindow.__comparableRouteLoadingObserver = observer;
-  }, scope);
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) recordLoading(node);
+        }
+      });
+      observer.observe(root, { childList: true, subtree: true });
+      observationWindow.__comparableRouteLoadingObserver = observer;
+    },
+    { rootSelector: scope, routeBoundary: requiredRouteBoundary }
+  );
 }
 
 async function readComparableRouteLoading(
@@ -306,8 +317,11 @@ test("client navigation exposes loading feedback and production streams the rout
 
   // Next prefetches only in production. The ordinary dev-server project proves
   // the Link-specific pending feedback; the production command scopes the live
-  // assertion to <main>, excluding that portal and proving the real route boundary.
-  const loadingScope = process.env.E2E_PRODUCTION === "1" ? "main" : "body";
+  // assertion to the route-only marker in <main>, which neither the Link portal
+  // nor page.tsx's inner Suspense fallback can render.
+  const routeBoundary =
+    process.env.E2E_PRODUCTION === "1" ? "comparable-prior-activity" : undefined;
+  const loadingScope = routeBoundary ? "main" : "body";
 
   for (const [width, height] of [
     [1440, 1000],
@@ -331,12 +345,13 @@ test("client navigation exposes loading feedback and production streams the rout
     if (prefetchedRouteShell) {
       await prefetchedRouteShell;
     }
-    await observeComparableLoading(page, loadingScope);
+    await observeComparableLoading(page, loadingScope, routeBoundary);
     const navigation = entry.click();
     await expect
       .poll(() => readComparableRouteLoading(page))
       .toEqual({
         ariaBusy: "true",
+        routeBoundary: routeBoundary ?? null,
         skeletonCount: 7,
       });
     await capture(page, `37-comparable-prior-activity-loading-${width}.png`);

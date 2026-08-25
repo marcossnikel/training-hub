@@ -19,9 +19,14 @@
 - Keep the existing `useLinkStatus` feedback for development and prefetch-pending
   navigation.
 - In the production lane, wait for the real partial-prefetch response, install a
-  `MutationObserver` on `main` before activation, and record the exact real boundary:
-  `aria-busy="true"` and seven skeleton primitives. The final comparable result is
-  still required at 1440x1000 and 390x844.
+  `MutationObserver` on `main` before activation, and require the inert
+  `data-route-loading-boundary="comparable-prior-activity"` marker emitted only by
+  `loading.tsx`, plus `aria-busy="true"` and seven skeleton primitives. The Link
+  portal and `page.tsx` inner fallback use the unmarked skeleton and cannot satisfy
+  this proof. The final comparable result is still required at 1440x1000 and
+  390x844.
+- Force `--retries=0` in the production package script so CI cannot turn a failed
+  first attempt into a passing required gate.
 - Use 300,000 disposable confirmed activities. Production trials at 200,000 and
   250,000 were still sub-threshold; 300,000 was the smallest measured reliable
   workload. Cleanup remains owner-scoped and disposable.
@@ -30,14 +35,19 @@
 
 ## Verification
 
-- Focused production repeat, one worker: 8 passed in 1.0m (setup, invite
-  dependencies, and five consecutive focused executions; both viewports per
-  execution).
-- Comparable project: 8 passed in 22.3s.
+- Repaired focused production repeat under `CI=1`, one worker, and
+  `--retries=0`: 8 passed in 58.2s (setup, invite dependencies, and five
+  consecutive focused executions; both viewports per execution).
+- Repaired comparable project under `CI=1` and `--retries=0`: 8 passed in 21.7s.
 - Normal full Playwright order, three consecutive clean runs: 50 passed in 47.6s;
   50 passed in 48.2s; 50 passed in 51.0s as part of `npm run verify`.
-- `npm run verify`: passed, including 72 unit files / 708 tests, the 50-test normal
-  Playwright run, and the production comparable-loading lane (4 passed in 20.1s).
+- `CI=1 npm run verify`: passed, including 72 unit files / 709 tests, the 50-test
+  normal Playwright run (46.8s), and the explicit-zero-retry production
+  comparable-loading lane (4 passed in 19.5s).
+- Focused route/page fallback unit proof: 2 passed, including the route-only marker
+  and unmarked page-local fallback.
+- Post-run disposable database audit: zero comparable fixture rows remained and the
+  intentionally altered `moving_time_s` schema column was restored.
 - `npm run typecheck`, `npm run lint`, `npm run format:check`, and
   `git diff --check`: passed.
 

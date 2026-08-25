@@ -1,11 +1,12 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Static, hierarchy-preserving route fallback without fabricated activity values. */
-export function ComparableActivitySkeleton() {
+export function ComparableActivitySkeleton({ routeBoundary = false }: { routeBoundary?: boolean }) {
   return (
     <div
       aria-busy="true"
       aria-label="Loading comparable prior activity"
+      data-route-loading-boundary={routeBoundary ? "comparable-prior-activity" : undefined}
       className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6"
     >
       <Skeleton className="h-4 w-36" />

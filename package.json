@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:comparable-loading": "E2E_PRODUCTION=1 playwright test e2e/comparable-activity.spec.ts --project=comparable-activity --grep \"client navigation exposes loading feedback and production streams the route skeleton\"",
+    "test:e2e:comparable-loading": "E2E_PRODUCTION=1 playwright test e2e/comparable-activity.spec.ts --project=comparable-activity --grep \"client navigation exposes loading feedback and production streams the route skeleton\" --retries=0",
     "check:env": "node scripts/check-environment-boundary.mjs",
     "check:retired-strava-config": "node scripts/check-retired-strava-config.mjs",
     "db:reset": "node scripts/reset-local-db.mjs --confirm-reset-disposable-data",
