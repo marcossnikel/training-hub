@@ -122,14 +122,23 @@ new product decision.
 
 ## Validation
 
-Focused integration tests with disposable SQLite and loopback provider: schema
-upgrade, idempotent upsert, placeholder, rename/retirement, provider-distance
-increase/decrease/unknown/stale, origin-aware mileage reads, Review match, two-
-owner collision, reauthorization, disconnect, and reconnect.
-When made ready, name exact test files and command. Then iterate `/gear`, Review,
-and disconnect in a real browser at 1440/390: imported/manual origin, provider
-odometer with observation/stale label, unknown distance without zero, local
-manual mileage, automatic match, and post-disconnect manual survival.
+Add `src/features/gear/strava-gear.integration.test.ts` using disposable SQLite
+plus the loopback provider. It owns schema upgrade, idempotent upsert,
+placeholder, rename/retirement, provider-distance increase/decrease/unknown/
+stale, source-separated mileage reads, Review match, two-owner collision,
+reauthorization, disconnect, reconnect, and R14 committed-count parity.
+
+```sh
+npx vitest run src/features/gear/strava-gear.integration.test.ts
+npx playwright test e2e/byo-connection.spec.ts e2e/gear.spec.ts e2e/review.spec.ts
+```
+
+Do not run the full repository gate. Make the focused integration suite green
+first, then start the disposable loopback-provider app and iterate connection,
+`/gear`, Review, and disconnect at 1440/390 until the focused Playwright specs
+and direct inspection pass: imported/manual origin, exact provider odometer and
+observation/stale label, unknown distance without zero, local manual mileage,
+automatic match, and post-disconnect manual survival.
 
 ## Migration, compatibility, and rollback
 
@@ -142,6 +151,17 @@ authorized.
 
 ## Stop only if
 
-The provider distance unit/nullability cannot be characterized from the local
-contract/fixture, the provider cannot distinguish gear kinds/IDs, existing
-manual rows cannot be safely defaulted, or validation requires real/shared data.
+The provider distance unit/nullability or kind/ID contract remains genuinely
+unavailable after inspecting installed/local provider documentation and needs
+external clarification; Marcos changes D-017/D-025 gear lifecycle; or proof
+requires real Strava, a shared database, remote migration, or deployment.
+
+Schema/default migration, origin arithmetic, placeholders, provider refresh,
+matching, disconnect cleanup, fixtures, responsive UI, and all other
+recoverable local findings are owned and fixed by the builder within this task.
+
+## Finish
+
+Both named focused commands pass with disposable data and real-browser proof,
+R15 is marked done in the roadmap, and the complete attributable change is one
+local-main commit with no push, migration execution, or deployment.
