@@ -91,7 +91,7 @@ export function ManualActivityForm({ shoes }: { shoes: GearOption[] }) {
   const { t } = useI18n();
   const [date, setDate] = useState(() => localDateInputValue());
   const [km, setKm] = useState("");
-  const [shoeId, setShoeId] = useState<string | undefined>(undefined);
+  const [shoeId, setShoeId] = useState("");
   const [pending, startTransition] = useTransition();
 
   function submit(event: React.FormEvent) {
@@ -172,7 +172,10 @@ export function ManualActivityForm({ shoes }: { shoes: GearOption[] }) {
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? (
-          <Loader2Icon className="animate-spin" data-icon="inline-start" />
+          <Loader2Icon
+            className="animate-spin motion-reduce:animate-none"
+            data-icon="inline-start"
+          />
         ) : (
           <PlusIcon data-icon="inline-start" />
         )}
