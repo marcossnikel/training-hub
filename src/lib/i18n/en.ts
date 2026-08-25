@@ -11,6 +11,7 @@ export const en = {
     races: "Races",
     review: "Review",
     gear: "Gear",
+    creatorTools: "Creator tools",
     shoes: "Shoes",
     bikes: "Bikes",
     settings: "Settings",

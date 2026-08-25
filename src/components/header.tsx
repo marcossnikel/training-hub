@@ -58,6 +58,8 @@ const NAV = [
   { href: "/settings", key: "settings" },
 ] as const;
 
+const CREATOR_NAV = { href: "/admin/invites", key: "creatorTools" } as const;
+
 function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
   const { t } = useI18n();
@@ -123,11 +125,13 @@ function NavigationLinks({
   pendingCount,
   compact = false,
   afterEnvironmentIndicator = false,
+  creator = false,
 }: {
   pathname: string;
   pendingCount: number;
   compact?: boolean;
   afterEnvironmentIndicator?: boolean;
+  creator?: boolean;
 }) {
   const { t } = useI18n();
   const currentRef = useRef<HTMLAnchorElement>(null);
@@ -146,7 +150,7 @@ function NavigationLinks({
           : cn("flex flex-col gap-1 px-3", afterEnvironmentIndicator ? "mt-2" : "mt-8")
       )}
     >
-      {NAV.map((item) => {
+      {[...NAV, ...(creator ? [CREATOR_NAV] : [])].map((item) => {
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         return (
           <Link
@@ -185,6 +189,7 @@ export function Header({
   auth,
   accountEmail,
   environmentIndicator,
+  creator = false,
 }: {
   pendingCount: number;
   connected: boolean;
@@ -192,6 +197,7 @@ export function Header({
   auth: AuthControl;
   accountEmail?: string;
   environmentIndicator: EnvironmentIndicatorModel | null;
+  creator?: boolean;
 }) {
   const pathname = usePathname();
   const { t } = useI18n();
@@ -265,6 +271,7 @@ export function Header({
           pathname={pathname}
           pendingCount={pendingCount}
           afterEnvironmentIndicator={Boolean(environmentIndicator)}
+          creator={creator}
         />
 
         <div className="mt-auto border-t border-sidebar-border p-4">
@@ -361,7 +368,12 @@ export function Header({
             <LangToggle compact />
           </span>
         </div>
-        <NavigationLinks pathname={pathname} pendingCount={pendingCount} compact />
+        <NavigationLinks
+          pathname={pathname}
+          pendingCount={pendingCount}
+          compact
+          creator={creator}
+        />
       </header>
     </>
   );

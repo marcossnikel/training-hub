@@ -8,6 +8,7 @@ export const pt: Dict = {
     races: "Provas",
     review: "Revisão",
     gear: "Equip.",
+    creatorTools: "Ferramentas do criador",
     shoes: "Tênis",
     bikes: "Bikes",
     settings: "Ajustes",

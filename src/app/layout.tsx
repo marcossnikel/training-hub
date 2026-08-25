@@ -17,7 +17,7 @@ import { countPending } from "@/lib/db";
 import { getLang } from "@/lib/lang";
 import { isStravaConnected, shouldAutoSync } from "@/lib/strava";
 import { requireCurrentUser } from "@/lib/auth";
-import { resolveEnvironmentIndicator } from "@/features/access/server";
+import { requireCreator, resolveEnvironmentIndicator } from "@/features/access/server";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +76,7 @@ export default async function RootLayout({
   // The capability/session check is intentionally server-side and only runs
   // for an authenticated request; guests never pay a domain access query.
   const environmentIndicator = owner ? await resolveEnvironmentIndicator() : null;
+  const creator = owner ? Boolean(await requireCreator()) : false;
   const auth = owner ? "in" : "out";
 
   return (
@@ -105,6 +106,7 @@ export default async function RootLayout({
               auth={auth}
               accountEmail={owner?.email}
               environmentIndicator={environmentIndicator}
+              creator={creator}
             />
             <main
               id="main-content"

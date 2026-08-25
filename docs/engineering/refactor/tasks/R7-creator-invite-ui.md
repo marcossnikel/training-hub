@@ -1,6 +1,6 @@
 # R7 — Add creator invitation management UI
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** high — Terra medium
 **Depends on:** R5 and R6

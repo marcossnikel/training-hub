@@ -252,7 +252,11 @@ export function assertBetaInviteIssuanceTarget(env: InviteEnvironment = process.
   if (target !== "local" && target !== "preview" && target !== "production") {
     throw new Error("TRAINING_HUB_INVITE_TARGET must explicitly be local, preview, or production.");
   }
-  if (mode !== target) {
+  // Disposable browser verification retains the visible E2E runtime identity,
+  // while using the same loopback-only constraints as the local adapter.
+  const e2eLocalAdapter =
+    mode === "e2e" && target === "local" && env.TRAINING_HUB_DISPOSABLE_DATA === "1";
+  if (mode !== target && !e2eLocalAdapter) {
     throw new Error("Invitation issuance target must match TRAINING_HUB_ENV.");
   }
   if (target !== "production" && env.TRAINING_HUB_DISPOSABLE_DATA !== "1") {
