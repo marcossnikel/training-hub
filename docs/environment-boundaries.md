@@ -25,6 +25,30 @@ a preview is disposable staging, never a read-only view of production.
 | `preview` / staging | Dedicated remote database whose host includes `preview` or `staging` | Test mode only | Preview-only values, separate Blob store and Strava app | Only after #20 is unblocked |
 | `production` | Dedicated production database | Live mode only after explicit approval | Production-only Vercel values | Explicitly authorized human operations |
 
+## Canonical variable catalog
+
+The executable catalog in `src/server/config/catalog.ts` is the source of
+truth. `.env.example` supplies blank placeholders for every deployable value;
+this list records their owner rather than their values.
+
+| Variable | Owner | Secret |
+| --- | --- | --- |
+| `TRAINING_HUB_ENV`, `VERCEL_ENV`, `STRIPE_MODE` | runtime boundary | no |
+| `DATABASE_URL`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | database target | token only |
+| `TRAINING_HUB_TURSO_DATABASE_URL`, `TRAINING_HUB_TURSO_AUTH_TOKEN`, `ALLOW_REMOTE_DB` | database target/operator scripts | token only |
+| `TRAINING_HUB_PRODUCTION_APPROVED` | production approval | no |
+| `STRAVA_CONNECTION_ENCRYPTION_KEY`, `TRAINING_HUB_PUBLIC_ORIGIN` | Strava credentials and callback | key only |
+| `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | authentication | secret only |
+| `BLOB_READ_WRITE_TOKEN`, `BLOB_STORE_ID` | storage | token only |
+| `BETA_INVITE_REGISTRATION_ENABLED`, `TRAINING_HUB_PRODUCTION_INVITES_ENABLED` | invite registration | no |
+| `TRAINING_HUB_INVITE_PRODUCTION_ORIGIN`, `TRAINING_HUB_INVITE_PREVIEW_ORIGIN`, `TRAINING_HUB_INVITE_TARGET`, `TRAINING_HUB_DISPOSABLE_DATA` | invite CLI | no |
+| `TRAINING_HUB_OWNER_ID` | one-off owner-scoped scripts | no |
+| `TRAINING_HUB_INSIGHT_FEEDBACK_ENABLED` | insight-feedback beta path | no |
+
+Test harness controls (`E2E_*`, `TRAINING_HUB_E2E`, and the loopback Strava
+provider origin) are composed only by Playwright and never copied into an
+operator environment file.
+
 ## Executable guard
 
 Run the guard directly, the fast ordinary-edit gate, or the release/milestone gate:

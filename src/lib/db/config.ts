@@ -1,20 +1,21 @@
-export type DatabaseEnvironment = Record<string, string | undefined>;
+import {
+  resolveDatabaseUrl as resolveRuntimeDatabaseUrl,
+  resolveTursoAuthToken as resolveRuntimeTursoAuthToken,
+  resolveTursoDatabaseUrl as resolveRuntimeTursoDatabaseUrl,
+  type Environment,
+} from "@/server/config/runtime";
 
-const LOCAL_DATABASE_URL = "file:data/app.db";
+export type DatabaseEnvironment = Environment;
 
-/**
- * Vercel Marketplace integrations may override their conventional TURSO_*
- * variables for a deployment. Training Hub's explicit variables let an
- * operator pin production to one stable Turso database when required.
- */
+/** Compatibility surface for existing pure database callers. */
 export function resolveTursoDatabaseUrl(env: DatabaseEnvironment = process.env): string {
-  return env.TRAINING_HUB_TURSO_DATABASE_URL || env.TURSO_DATABASE_URL || "";
+  return resolveRuntimeTursoDatabaseUrl(env);
 }
 
 export function resolveTursoAuthToken(env: DatabaseEnvironment = process.env): string | undefined {
-  return env.TRAINING_HUB_TURSO_AUTH_TOKEN || env.TURSO_AUTH_TOKEN || undefined;
+  return resolveRuntimeTursoAuthToken(env);
 }
 
 export function resolveDatabaseUrl(env: DatabaseEnvironment = process.env): string {
-  return resolveTursoDatabaseUrl(env) || env.DATABASE_URL || LOCAL_DATABASE_URL;
+  return resolveRuntimeDatabaseUrl(env);
 }

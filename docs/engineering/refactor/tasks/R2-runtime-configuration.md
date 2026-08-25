@@ -1,6 +1,6 @@
 # R2 — Make runtime configuration explicit and testable
 
-**Status:** queued
+**Status:** done
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high
 **Depends on:** R1
@@ -15,7 +15,7 @@ command that explains the active local/E2E/preview/production boundary.
 ## Required context
 
 - `.env.example`, `docs/environment-boundaries.md`
-- `scripts/check-environment-boundary.mjs`, reset/seed/backfill guards
+- `scripts/check-environment-boundary.ts`, reset/seed/backfill guards
 - `src/lib/db/client.ts`, auth, invite, Strava BYO, storage config readers
 - `playwright.config.ts`, Vercel/Next runtime guidance from installed docs
 

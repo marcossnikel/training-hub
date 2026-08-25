@@ -16,7 +16,7 @@ disposable E2E resources.
 ## Required context
 
 - `package.json`, `playwright.config.ts`, `vitest.config.ts`
-- `scripts/check-environment-boundary.mjs`, `scripts/e2e-strava-provider.mjs`
+- `scripts/check-environment-boundary.ts`, `scripts/e2e-strava-provider.mjs`
 - `e2e/auth.setup.ts`, `e2e/auth.spec.ts`, `e2e/private-beta-landing.spec.ts`
 - `docs/environment-boundaries.md`
 - Next.js build/start and Playwright guidance from installed packages

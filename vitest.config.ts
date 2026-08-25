@@ -15,6 +15,11 @@ export default defineConfig({
       // imports resolve in tests. String "@" only matches "@/..." requests,
       // never scoped packages.
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Next resolves this marker to an empty module for the server graph and
+      // an error module for Client Components. Vitest executes the server graph.
+      "server-only": fileURLToPath(
+        new URL("./node_modules/next/dist/compiled/server-only/empty.js", import.meta.url)
+      ),
     },
   },
 });
