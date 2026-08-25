@@ -49,7 +49,7 @@ export async function ComparableActivityContent({ id }: { id: string }) {
     reference && insightFeedbackEnabled() ? await getInsightFeedback(owner, reference) : null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-5 lg:py-12">
       <ComparableActivityView
         source={source}
         result={result}

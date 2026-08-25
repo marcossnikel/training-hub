@@ -20,11 +20,11 @@ export function GearCollection({
   retired: { label: string; cards: React.ReactNode } | null;
 }) {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+    <section className="mt-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl font-bold">{title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{summary}</p>
+          <h2 className="text-2xl font-semibold tracking-[-0.025em]">{title}</h2>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">{summary}</p>
         </div>
         {addTrigger}
       </div>
@@ -40,14 +40,12 @@ export function GearCollection({
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{active}</div>
           {retired ? (
             <section className="mt-10">
-              <h2 className="font-display text-lg font-semibold text-muted-foreground">
-                {retired.label}
-              </h2>
+              <h3 className="text-lg font-semibold text-muted-foreground">{retired.label}</h3>
               <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{retired.cards}</div>
             </section>
           ) : null}
         </>
       )}
-    </div>
+    </section>
   );
 }

@@ -123,11 +123,14 @@ export function InsightFeedback({
     <section
       aria-busy={pending}
       aria-labelledby="insight-feedback-heading"
-      className="mt-6 border-t pt-5"
+      className="mt-4 rounded-xl bg-muted p-4"
     >
-      <h2 id="insight-feedback-heading" className="text-sm font-semibold">
-        Was this useful?
-      </h2>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 id="insight-feedback-heading" className="text-sm font-semibold">
+          Was this useful?
+        </h2>
+        <span className="font-mono text-xs text-muted-foreground">Private feedback only</span>
+      </div>
       <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Was this useful?">
         {(
           [

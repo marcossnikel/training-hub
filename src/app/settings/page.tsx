@@ -32,6 +32,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   if (!owner) redirect("/login");
   const params = await searchParams;
   const { lang, t } = await getDict();
+  const ts = t.settingsPage;
   const connected = await isStravaConnected(owner);
   const connectionStatus = await getStravaConnectionStatus(owner);
   const callbackOrigin = resolveSettingsByoOrigin(await headers());
@@ -50,11 +51,34 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const callbackResult = typeof params.strava === "string" ? params.strava : null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="font-display text-4xl font-bold">{t.settingsPage.title}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{t.settingsPage.subtitle}</p>
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:py-10">
+      <header className="max-w-3xl">
+        <p className="font-mono text-xs text-muted-foreground uppercase">{ts.title}</p>
+        <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-[2.5rem] sm:leading-[2.75rem]">
+          {ts.headline}
+        </h1>
+        <p className="mt-3 text-base leading-7 text-muted-foreground">{ts.intro}</p>
+      </header>
 
-      <div className="mt-6 space-y-6">
+      <nav aria-label={ts.title} className="mt-6 flex flex-wrap gap-2">
+        {[
+          ["#profile", ts.profile],
+          ["#connection", ts.connection],
+          ["#training-preferences", ts.trainingPreferences],
+          ["#gear-and-corrections", ts.gearAndCorrections],
+          ["#data-and-privacy", ts.dataTitle],
+        ].map(([href, label]) => (
+          <a
+            key={href}
+            href={href}
+            className="focus-ring inline-flex min-h-10 items-center rounded-full border bg-card px-3 text-xs font-medium transition-colors hover:border-primary hover:text-primary motion-reduce:transition-none"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      <div className="mt-8 max-w-3xl space-y-6">
         {callbackResult === "connected" ? (
           <Alert className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
             <CheckCircle2Icon />
@@ -107,7 +131,39 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </Alert>
         ) : null}
 
-        <Card>
+        <Card id="profile" className="scroll-mt-6 rounded-2xl">
+          <CardHeader>
+            <CardTitle className="text-2xl tracking-[-0.025em]">{ts.profile}</CardTitle>
+            <CardDescription className="max-w-2xl leading-6">{ts.profileBody}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="divide-y divide-border/70">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 py-3 first:pt-0">
+                <dt className="text-sm font-medium">{ts.accountEmail}</dt>
+                <dd className="font-mono text-xs text-muted-foreground">{owner.email}</dd>
+              </div>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
+                <dt className="text-sm font-medium">{ts.sourceName}</dt>
+                <dd className="font-mono text-xs text-muted-foreground">
+                  {athleteName ?? ts.notConnected}
+                </dd>
+              </div>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 pt-3">
+                <dt className="text-sm font-medium">{ts.language}</dt>
+                <dd className="font-mono text-xs uppercase text-muted-foreground">{lang}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card
+          id="connection"
+          className={
+            connected && connectionStatus === "connected"
+              ? "scroll-mt-6 rounded-2xl bg-[var(--th-status-positive-surface)]"
+              : "scroll-mt-6 rounded-2xl"
+          }
+        >
           <CardHeader>
             <CardTitle>{t.settingsPage.strava}</CardTitle>
             <CardDescription>{t.settingsPage.stravaBody}</CardDescription>
@@ -204,7 +260,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="training-preferences" className="scroll-mt-6 rounded-2xl">
           <CardHeader>
             <CardTitle>{t.settingsPage.goals.title}</CardTitle>
             <CardDescription>{t.settingsPage.goals.body}</CardDescription>
@@ -214,7 +270,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl">
           <CardHeader>
             <CardTitle>{t.fitness.thresholds.title}</CardTitle>
             <CardDescription>{t.fitness.thresholds.body}</CardDescription>
@@ -225,7 +281,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </Card>
 
         {connected ? (
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle>{t.settingsPage.gearMatching}</CardTitle>
               <CardDescription>{t.settingsPage.gearMatchingBody}</CardDescription>
@@ -247,7 +303,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         ) : null}
 
         {connected ? (
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle>{t.settingsPage.bikeMatching}</CardTitle>
               <CardDescription>{t.settingsPage.bikeMatchingBody}</CardDescription>
@@ -268,7 +324,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </Card>
         ) : null}
 
-        <Card>
+        <Card id="gear-and-corrections" className="scroll-mt-6 rounded-2xl">
           <CardHeader>
             <CardTitle>{t.settingsPage.manual}</CardTitle>
             <CardDescription>{t.settingsPage.manualBody}</CardDescription>
@@ -279,6 +335,24 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             ) : (
               <p className="text-sm text-muted-foreground">{t.settingsPage.addShoeFirst}</p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card
+          id="data-and-privacy"
+          className="scroll-mt-6 rounded-2xl bg-[var(--th-status-caution-surface)]"
+        >
+          <CardHeader>
+            <CardTitle className="text-2xl tracking-[-0.025em]">{ts.dataTitle}</CardTitle>
+            <CardDescription className="max-w-2xl leading-6">{ts.dataBody}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a
+              href="#connection"
+              className="focus-ring inline-flex min-h-10 items-center rounded-full border bg-card px-4 text-sm font-medium transition-colors hover:border-primary hover:text-primary motion-reduce:transition-none"
+            >
+              {ts.reviewDataControl}
+            </a>
           </CardContent>
         </Card>
       </div>

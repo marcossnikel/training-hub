@@ -64,6 +64,84 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Training Hub's semantic visual foundation is shared by authenticated,
+   auth-entry, and public product surfaces. */
+.th-foundation {
+  --th-surface-canvas: #fbfaf7;
+  --th-surface-raised: #ffffff;
+  --th-surface-inset: #f4f2ec;
+  --th-content-primary: #171815;
+  --th-content-secondary: #484c45;
+  --th-content-muted: #6a7068;
+  --th-border-subtle: #e4e3dc;
+  --th-border-strong: #d4d3ca;
+  --th-action-primary: #b6532a;
+  --th-action-on-primary: #ffffff;
+  --th-focus-ring: #b6532a;
+  --th-status-positive-surface: #e2f0e9;
+  --th-status-caution-surface: #f8edcf;
+  --th-status-negative-surface: #f9e1de;
+  --th-status-info-surface: #e2eaf8;
+
+  --background: var(--th-surface-canvas);
+  --foreground: var(--th-content-primary);
+  --card: var(--th-surface-raised);
+  --card-foreground: var(--th-content-primary);
+  --popover: var(--th-surface-raised);
+  --popover-foreground: var(--th-content-primary);
+  --primary: var(--th-action-primary);
+  --primary-foreground: var(--th-action-on-primary);
+  --secondary: var(--th-surface-inset);
+  --secondary-foreground: var(--th-content-secondary);
+  --muted: var(--th-surface-inset);
+  --muted-foreground: var(--th-content-muted);
+  --accent: var(--th-surface-inset);
+  --accent-foreground: var(--th-content-primary);
+  --border: var(--th-border-subtle);
+  --input: var(--th-border-strong);
+  --ring: var(--th-focus-ring);
+  --sidebar: var(--th-surface-inset);
+  --sidebar-foreground: var(--th-content-primary);
+  --sidebar-primary: var(--th-action-primary);
+  --sidebar-primary-foreground: var(--th-action-on-primary);
+  --sidebar-accent: var(--th-surface-raised);
+  --sidebar-accent-foreground: var(--th-content-primary);
+  --sidebar-border: var(--th-border-subtle);
+  --sidebar-ring: var(--th-focus-ring);
+  --font-sans: var(--font-instrument-sans);
+  --font-display: var(--font-instrument-sans);
+  --font-heading: var(--font-instrument-sans);
+  --radius: 0.625rem;
+
+  color: var(--foreground);
+  font-family: var(--font-instrument-sans), sans-serif;
+}
+
+/* Existing route components already express semantic typography through these
+   utilities. Remap those roles inside the foundation scope instead of
+   rewriting each domain page; the public landing remains on its current type. */
+.th-foundation :where(.font-sans, .font-display, .font-heading) {
+  font-family: var(--font-instrument-sans), sans-serif;
+}
+
+.dark .th-foundation {
+  --th-surface-canvas: #14150f;
+  --th-surface-raised: #1d1f18;
+  --th-surface-inset: #25271f;
+  --th-content-primary: #f6f5ef;
+  --th-content-secondary: #c5c8bf;
+  --th-content-muted: #a2a89f;
+  --th-border-subtle: #383b32;
+  --th-border-strong: #4c5045;
+  --th-action-primary: #e1845b;
+  --th-action-on-primary: #171815;
+  --th-focus-ring: #e1845b;
+  --th-status-positive-surface: #18352a;
+  --th-status-caution-surface: #3d3219;
+  --th-status-negative-surface: #3f2421;
+  --th-status-info-surface: #202f46;
+}
+
 :root {
   /* Semantic state scale: these communicate STATE, never style. Each -fg is
      text, each -bg the translucent fill it pairs with. Light and dark are
@@ -224,6 +302,10 @@
   @apply outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50;
 }
 
+@utility font-narrative {
+  font-family: var(--font-instrument-serif), serif;
+}
+
 @layer components {
   /* For a scroll container where the overflow is the mechanism, not something
      the user needs an affordance for — the header nav, which becomes a
@@ -238,6 +320,17 @@
   .kbd {
     @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-3xs font-medium text-muted-foreground;
   }
+
+  .th-foundation :where(a[href], button, input, select, textarea, summary) {
+    transition-duration: 150ms;
+  }
+}
+
+/* Keep this treatment unlayered so it wins over the shared `focus-ring`
+   utility's outline reset while retaining that utility's border/ring fallback. */
+.th-foundation :where(a[href], button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--th-focus-ring);
+  outline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------------------

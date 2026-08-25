@@ -34,7 +34,7 @@ import {
   fmtTime,
   localStartedAt,
 } from "@/lib/format";
-import { fill, splitErrorText } from "@/lib/i18n";
+import { fill, fillStr, splitErrorText } from "@/lib/i18n";
 import { isRunSport, validateSplits } from "@/lib/validate";
 import { BikeSelect } from "@/components/bike-select";
 import { isRideSport } from "@/lib/cycling";
@@ -133,14 +133,16 @@ export function ReviewFlow({
   if (!current || !form) {
     const freshArrivals = serverItems.filter((a) => !handledIds.has(a.id));
     return (
-      <ReviewSummaryScreen
-        summary={summary}
-        freshArrivalsCount={freshArrivals.length}
-        onReviewMore={() => {
-          setQueue(freshArrivals);
-          setIndex(0);
-        }}
-      />
+      <div className="mt-6">
+        <ReviewSummaryScreen
+          summary={summary}
+          freshArrivalsCount={freshArrivals.length}
+          onReviewMore={() => {
+            setQueue(freshArrivals);
+            setIndex(0);
+          }}
+        />
+      </div>
     );
   }
 
@@ -154,10 +156,10 @@ export function ReviewFlow({
   const activeShoes = shoes.filter((s) => !s.retired);
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between gap-4">
+    <div className="mt-6">
+      <div className="mb-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-sm tabular-nums text-muted-foreground">
+          <span className="font-mono text-xs tabular-nums text-muted-foreground uppercase">
             {summary.count + index + 1} {t.review.of} {sessionTotal}
           </span>
           {sessionTotal <= 30 ? (
@@ -200,7 +202,10 @@ export function ReviewFlow({
         </div>
       </div>
 
-      <Card key={current.id} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <Card
+        key={current.id}
+        className="animate-in rounded-2xl border bg-card shadow-none ring-0 fade-in duration-150"
+      >
         <CardContent className="space-y-5">
           <div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -215,6 +220,11 @@ export function ReviewFlow({
             <h2 className="mt-1.5 font-display text-2xl font-semibold tracking-tight">
               {current.name ?? t.log.untitled}
             </h2>
+            <p className="mt-2 max-w-xl text-base leading-6 text-muted-foreground">
+              {fillStr(t.review.importedQuestion, {
+                sport: (current.sport_type || t.words.activity).toLowerCase(),
+              })}
+            </p>
           </div>
 
           <div className="grid grid-cols-3 gap-x-4 gap-y-3 sm:grid-cols-5">
@@ -225,7 +235,13 @@ export function ReviewFlow({
             <Stat label={t.review.elevation} value={fmtElev(current.elevation_gain_m)} />
           </div>
 
+          <p className="max-w-xl font-mono text-xs leading-[1.5] text-muted-foreground">
+            {t.review.confirmationEvidence}
+          </p>
+
           <Separator />
+
+          <p className="text-base font-medium">{t.review.details}</p>
 
           {ride ? (
             <div className="space-y-2">
@@ -303,7 +319,7 @@ export function ReviewFlow({
           <div className="space-y-2">
             <Button
               size="lg"
-              className="w-full"
+              className="h-10 w-full rounded-full px-4 sm:w-auto"
               onClick={confirmCurrent}
               disabled={pending || !!validationMessage || (run && activeShoes.length === 0)}
             >

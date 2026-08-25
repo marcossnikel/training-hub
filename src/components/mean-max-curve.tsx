@@ -292,7 +292,7 @@ export function MeanMaxCurve({
 
         {hoverPoint !== null && hoverX !== null ? (
           <div
-            className="pointer-events-none absolute top-1 z-10 max-w-[240px] rounded-lg border bg-card/95 px-2.5 py-2 text-xs shadow-md backdrop-blur"
+            className="pointer-events-none absolute top-1 z-10 max-w-[240px] rounded-lg border bg-card px-2.5 py-2 text-xs shadow-md"
             style={{
               left: `${(hoverX / VBW) * 100}%`,
               transform: `translateX(${hoverX > VBW / 2 ? "-100%" : "0"}) translateX(${hoverX > VBW / 2 ? "-8px" : "8px"})`,

@@ -3,17 +3,14 @@ import {
   CableIcon,
   ChevronRightIcon,
   FootprintsIcon,
-  MedalIcon,
   RefreshCwIcon,
   SearchXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
-import { FeelingBadge } from "@/components/feeling-badge";
 import { FilterPill } from "@/components/filter-pill";
 import { ReviewBanner } from "@/components/review-banner";
-import { SportIcon } from "@/components/sport-icon";
 import { countPending, listConfirmedActivities } from "@/lib/db";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected } from "@/lib/strava";
@@ -100,80 +97,47 @@ function ActivityRow({ activity, lang, t }: { activity: ActivityWithSplits; lang
     metrics && metrics.avgPower != null ? fmtPower(metrics.avgPower) : null,
     activity.moving_time_s ? fmtDuration(activity.moving_time_s) : null,
   ].filter((part) => part && part !== "–");
-  const shoeSplits = activity.splits.filter((s) => s.shoe_name);
 
   return (
     <li>
       <Link
         href={`/activity/${activity.id}`}
-        className="group/row -mx-2 grid grid-cols-[74px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/50 lg:grid-cols-[74px_minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_92px_minmax(0,0.85fr)]"
+        className="group/row -mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-3 transition-colors hover:bg-accent/70"
       >
-        <span className="font-mono text-xs whitespace-nowrap tabular-nums text-muted-foreground">
-          {fmtDate(localStartedAt(activity), lang)}
-        </span>
-
         <span className="min-w-0">
-          <span className="flex items-center gap-1.5">
-            <SportIcon sport={activity.sport_type} className="shrink-0" />
-            {activity.is_race ? (
-              <MedalIcon className="size-3.5 shrink-0 text-primary" aria-label={t.detail.race} />
-            ) : null}
-            <span className="truncate text-sm font-medium transition-colors group-hover/row:text-primary">
-              {activity.name ?? t.log.untitled}
-            </span>
+          <span className="block truncate text-base font-medium transition-colors group-hover/row:text-primary">
+            {activity.name ?? t.log.untitled}
           </span>
-          <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-muted-foreground">
-            {statParts.join(" · ") || activity.sport_type}
+          <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-muted-foreground uppercase">
+            {fmtDate(localStartedAt(activity), lang)} · {t.detail.confirmed}
+            {activity.is_race ? ` · ${t.detail.race}` : ""}
           </span>
         </span>
-
-        <span className="hidden min-w-0 truncate text-xs text-muted-foreground italic lg:block">
-          {activity.workout_notes ?? ""}
-        </span>
-
-        <span className="hidden min-w-0 truncate text-xs text-muted-foreground italic lg:block">
-          {activity.health_notes ?? ""}
-        </span>
-
-        <span className="justify-self-start">
-          {activity.feeling ? (
-            <FeelingBadge feeling={activity.feeling} label={t.feelings[activity.feeling]} />
-          ) : (
-            <span aria-hidden className="text-xs text-muted-foreground/40">
-              –
-            </span>
-          )}
-        </span>
-
-        <span className="hidden min-w-0 flex-wrap items-center gap-1 lg:flex">
-          {ride && activity.bike_name ? (
-            <span
-              className="max-w-full truncate rounded-full border bg-card px-2 py-0.5 text-2xs text-muted-foreground"
-              title={activity.bike_name}
-            >
-              {activity.bike_name}
-            </span>
-          ) : shoeSplits.length === 0 ? (
-            <span aria-hidden className="text-xs text-muted-foreground/40">
-              –
-            </span>
-          ) : (
-            shoeSplits.map((split) => (
-              <span
-                key={split.id}
-                className="max-w-full truncate rounded-full border bg-card px-2 py-0.5 text-2xs text-muted-foreground"
-                title={`${split.shoe_name} · ${fmtKm(split.km)}`}
-              >
-                {split.shoe_name}
-                {shoeSplits.length > 1 ? (
-                  <span className="font-mono tabular-nums"> {fmtKm(split.km, 0)}</span>
-                ) : null}
-              </span>
-            ))
-          )}
+        <span className="max-w-[45%] shrink-0 text-right text-sm text-muted-foreground sm:text-base">
+          {statParts.join(" · ") || activity.sport_type}
         </span>
       </Link>
     </li>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  provenance,
+}: {
+  label: string;
+  value: string;
+  provenance: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-2xl border bg-card p-4">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-2 text-[1.75rem] leading-8 font-semibold tracking-[-0.03em] text-foreground">
+        {value}
+      </p>
+      <p className="mt-2 font-mono text-xs leading-4 text-muted-foreground">{provenance}</p>
+    </div>
   );
 }
 
@@ -233,36 +197,44 @@ async function TrainingLogPage({
   const filterLabel = filter === "all" ? null : t.sports[filter].toLowerCase();
   const oldest = visible[visible.length - 1];
   const oldestDate = oldest ? (localStartedAt(oldest) ?? oldest.created_at) : null;
+  const now = new Date();
+  const weekStart = mondayOf(now).getTime();
+  const thisWeek = activities.filter((activity) => {
+    const startedAt = localStartedAt(activity) ?? activity.created_at;
+    const timestamp = new Date(startedAt).getTime();
+    return Number.isFinite(timestamp) && timestamp >= weekStart && timestamp <= now.getTime();
+  });
+  const thisWeekSeconds = thisWeek.reduce(
+    (total, activity) => total + Math.max(0, activity.moving_time_s ?? 0),
+    0
+  );
+  const longestThisWeek = thisWeek.reduce<ActivityWithSplits | null>((longest, activity) => {
+    if (!longest) return activity;
+    return (activity.moving_time_s ?? 0) > (longest.moving_time_s ?? 0) ? activity : longest;
+  }, null);
+  const longestStartedAt = longestThisWeek
+    ? (localStartedAt(longestThisWeek) ?? longestThisWeek.created_at)
+    : null;
+  const longestDay = longestStartedAt
+    ? new Intl.DateTimeFormat(lang === "pt" ? "pt-BR" : "en", { weekday: "long" }).format(
+        new Date(longestStartedAt)
+      )
+    : t.log.confirmedWindow;
+  const sessionLabel = `${thisWeek.length} ${thisWeek.length === 1 ? t.words.session : t.words.sessions}`;
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-4xl font-bold">{t.log.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {visible.length === 0 ? (
-              t.log.empty
-            ) : (
-              <>
-                {visible.length} {filterLabel ?? t.words.confirmed}{" "}
-                {visible.length === 1 ? t.words.activity : t.words.activities}
-                {oldestDate ? (
-                  <>
-                    {" "}
-                    {t.words.since} {fmtDateWithYear(oldestDate, lang)}
-                  </>
-                ) : null}
-                {totalKm > 0 ? (
-                  <>
-                    <span aria-hidden> · </span>
-                    <span className="font-mono tabular-nums">{fmtKm(totalKm, 0)}</span>
-                  </>
-                ) : null}
-              </>
-            )}
-          </p>
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-[760px] px-4 py-10 sm:px-5 lg:py-12">
+      <header>
+        <p className="font-mono text-xs font-medium tracking-normal text-muted-foreground uppercase">
+          {t.log.title}
+        </p>
+        <h1 className="mt-4 max-w-[700px] text-4xl leading-[1.1] font-semibold tracking-[-0.035em] text-foreground sm:text-[2.5rem]">
+          {t.log.headline}
+        </h1>
+        <p className="mt-3 max-w-[720px] text-base leading-6 text-muted-foreground">
+          {t.log.description}
+        </p>
+      </header>
 
       {params.strava === "connected" ? (
         <Alert className="mt-5 border-emerald-500/30 text-emerald-800 dark:text-emerald-200">
@@ -279,6 +251,30 @@ async function TrainingLogPage({
         <div className="mt-5">
           <ReviewBanner count={pending} />
         </div>
+      ) : null}
+
+      {activities.length > 0 ? (
+        <section aria-label={t.log.thisWeek} className="mt-6 grid gap-3 sm:grid-cols-3">
+          <MetricCard
+            label={t.log.thisWeek}
+            value={sessionLabel}
+            provenance={t.log.confirmedWindow}
+          />
+          <MetricCard
+            label={t.log.movingTime}
+            value={thisWeekSeconds > 0 ? fmtHoursMin(thisWeekSeconds) : "—"}
+            provenance={t.log.priorFourWeeks}
+          />
+          <MetricCard
+            label={t.log.longSession}
+            value={
+              longestThisWeek?.moving_time_s
+                ? fmtDuration(longestThisWeek.moving_time_s)
+                : t.log.noLongSession
+            }
+            provenance={longestDay}
+          />
+        </section>
       ) : null}
 
       {activities.length > 0 && availableCategories.length > 1 ? (
@@ -349,10 +345,25 @@ async function TrainingLogPage({
         </div>
       ) : (
         <div className="mt-6 space-y-4">
+          <p className="font-mono text-xs text-muted-foreground">
+            {visible.length} {filterLabel ?? t.words.confirmed}{" "}
+            {visible.length === 1 ? t.words.activity : t.words.activities}
+            {oldestDate ? (
+              <>
+                {" "}
+                {t.words.since} {fmtDateWithYear(oldestDate, lang)}
+              </>
+            ) : null}
+            {totalKm > 0 ? ` · ${fmtKm(totalKm, 0)}` : ""}
+          </p>
           {weeks.map((week, index) => (
-            <details key={week.key} open={index < 4} className="group">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 border-b pb-2 select-none [&::-webkit-details-marker]:hidden">
-                <h2 className="flex items-center gap-1.5 font-display text-base font-medium">
+            <details
+              key={week.key}
+              open={index < 4}
+              className="group rounded-2xl border bg-card p-4"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="flex min-w-0 items-center gap-1.5 text-base font-medium">
                   <ChevronRightIcon
                     aria-hidden
                     className="size-3.5 shrink-0 text-muted-foreground/70 transition-transform group-open:rotate-90"
@@ -363,7 +374,7 @@ async function TrainingLogPage({
                   {weekSummary(week, t)}
                 </span>
               </summary>
-              <ul className="mt-1.5 mb-4 divide-y divide-border/50">
+              <ul className="mt-3 divide-y divide-border/70 border-t pt-1">
                 {week.items.map((activity) => (
                   <ActivityRow key={activity.id} activity={activity} lang={lang} t={t} />
                 ))}
@@ -379,6 +390,11 @@ async function TrainingLogPage({
               </Button>
             </div>
           ) : null}
+          <div className="pt-1">
+            <Button asChild className="h-10 rounded-full px-4">
+              <Link href="/weekly-brief">{t.log.openWeeklyBrief}</Link>
+            </Button>
+          </div>
         </div>
       )}
     </div>

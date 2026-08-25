@@ -28,9 +28,11 @@ function announce(result: SyncActionResult, manual: boolean, t: Dict) {
 export function SyncButton({
   connected,
   size = "sm",
+  className,
 }: {
   connected: boolean;
   size?: "sm" | "default";
+  className?: string;
 }) {
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
@@ -42,7 +44,13 @@ export function SyncButton({
   }
 
   const button = (
-    <Button variant="outline" size={size} onClick={run} disabled={!connected || pending}>
+    <Button
+      variant="outline"
+      size={size}
+      className={className}
+      onClick={run}
+      disabled={!connected || pending}
+    >
       <RefreshCwIcon className={pending ? "animate-spin" : undefined} />
       {/* Icon-only on a phone, where the header cannot afford the label. sr-only
           rather than hidden so the button keeps its accessible name. */}

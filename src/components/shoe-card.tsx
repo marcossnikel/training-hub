@@ -57,7 +57,7 @@ export function ShoeCard({
       badge={
         <span
           className={cn(
-            "absolute top-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-card/90 px-2 py-0.5 text-xs font-medium shadow-xs backdrop-blur",
+            "absolute top-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-card px-2 py-0.5 text-xs font-medium shadow-xs",
             meta.className
           )}
         >

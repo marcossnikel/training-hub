@@ -2,7 +2,7 @@ import type { Dict } from "./en";
 
 export const pt: Dict = {
   nav: {
-    log: "Diário",
+    log: "Diário de treinos",
     weeklyBrief: "Resumo semanal",
     performance: "Desempenho",
     races: "Provas",
@@ -17,6 +17,53 @@ export const pt: Dict = {
     syncing: "Sincronizando",
     connectFirst: "Conecte o Strava nos Ajustes primeiro",
     toggleTheme: "Alternar tema",
+    darkTheme: "Tema escuro",
+    language: "Idioma",
+    account: "Conta",
+    stravaConnected: "Strava conectado",
+    stravaNotConnected: "Strava não conectado",
+  },
+  authEntry: {
+    brand: "TRAINING HUB",
+    privateBeta: "ACESSO AO BETA PRIVADO",
+    invitedStep: "BETA POR CONVITE · ETAPA 1 DE 4",
+    signInNarrativeTitle: "Um lugar tranquilo para perceber padrões.",
+    signInNarrativeBody:
+      "Você conhece seus treinos. O Training Hub aproxima os registros relevantes sem fingir que orienta seu treino.",
+    signUpNarrativeTitle: "Comece pelo seu próprio histórico.",
+    signUpNarrativeBody:
+      "Uma conta privada dá a você o controle dos seus dados de treino, da conexão com o Strava e das decisões de acesso.",
+    boundaryTitle: "Um beta privado e pequeno",
+    boundaryBody:
+      "Seus dados de treino ficam privados na sua conta. A conexão usa seu próprio aplicativo de desenvolvedor do Strava.",
+    signInTitle: "Boas-vindas de volta.",
+    signInDescription: "Use o e-mail e a senha da sua conta do Training Hub.",
+    signInInviteBoundary:
+      "Chegando agora? Você precisa de um convite para criar uma conta do beta privado.",
+    signUpTitle: "Crie sua conta do beta privado.",
+    signUpDescription:
+      "Seu convite está vinculado a este e-mail. Mantenha sua senha e seu convite privados.",
+    unavailableTitle: "Beta privado",
+    unavailableDescription:
+      "Este beta funciona somente por convite. Use o link privado de cadastro recebido no convite.",
+    invitation: "Convite",
+    invitationReady: "Convite privado pronto",
+    invitationHint: "Este convite é privado e de uso único.",
+    name: "Nome",
+    email: "E-mail",
+    emailPlaceholder: "voce@exemplo.com",
+    inviteEmailHint: "O e-mail do convite e o da conta precisam ser iguais.",
+    password: "Senha",
+    passwordMinimum: "8 ou mais caracteres",
+    passwordReuse: "Use uma senha que você não reutiliza.",
+    signIn: "Entrar",
+    createAccount: "Criar conta",
+    signingIn: "Entrando…",
+    creatingAccount: "Criando conta…",
+    signInError: "Não foi possível entrar com esses dados.",
+    signUpError: "Não foi possível criar essa conta. Tente outro e-mail ou entre.",
+    alreadyHaveAccount: "Já tem uma conta?",
+    signInInstead: "Entre por aqui",
   },
   sports: {
     run: "Corrida",
@@ -126,6 +173,16 @@ export const pt: Dict = {
   log: {
     showOlder: "Ver {n} mais antigas",
     title: "Diário de treinos",
+    headline: "Seu diário de treinos, com um pouco de contexto.",
+    description:
+      "Primeiro, um registro claro. Depois, uma única pergunta baseada em evidências que vale abrir.",
+    thisWeek: "Esta semana",
+    movingTime: "Tempo em movimento",
+    longSession: "Sessão mais longa",
+    confirmedWindow: "confirmadas",
+    priorFourWeeks: "semana atual · 4 semanas anteriores no Resumo semanal",
+    noLongSession: "Nenhuma sessão ainda",
+    openWeeklyBrief: "Abrir o resumo desta semana",
     empty: "Nada confirmado ainda.",
     all: "Tudo",
     emptyQueueTitle: "Seu diário começa na fila de revisão",
@@ -151,6 +208,13 @@ export const pt: Dict = {
     dismiss: "Dispensar",
   },
   review: {
+    headline: "Torne sua a atividade importada.",
+    description:
+      "Confirme os poucos fatos que mudam o contexto de uma comparação futura. Não há pressão para classificar tudo.",
+    importedQuestion: "O Strava importou isto como {sport}. Está certo?",
+    details: "Contexto da atividade",
+    confirmationEvidence:
+      "Somente atividades confirmadas são usadas no Resumo semanal e em Atividade anterior comparável.",
     caughtUp: "Tudo em dia",
     confirmedSummary: "Você confirmou {n} {noun}",
     covering: "somando {km}",
@@ -297,6 +361,15 @@ export const pt: Dict = {
   },
   comparableActivity: {
     title: "Atividade anterior comparável",
+    headline: "Uma sessão anterior com formato parecido.",
+    intro:
+      "Esta é uma comparação factual de atividades confirmadas — não uma avaliação nem uma pontuação de desempenho.",
+    evidenceEyebrow: "Evidência, não uma nota",
+    traceTitle: "Volte às fontes.",
+    traceBody: "Toda comparação mantém visíveis as atividades de origem e os limites usados.",
+    sourceActivities: "Atividades de origem",
+    viewCurrent: "Ver atividade atual",
+    whyThisOne: "Por que esta?",
     matchExplanation:
       "Uma atividade anterior de {sportFamily} atendeu aos critérios de distância e tempo em movimento.",
     noMatchTitle: "Nenhuma atividade anterior confiável",
@@ -309,6 +382,10 @@ export const pt: Dict = {
     openPrior: "Abrir atividade anterior #{id}",
     distance: "Distância",
     movingTime: "Tempo em movimento",
+    pace: "Ritmo",
+    confirmedMetric: "atividade confirmada",
+    recordedDuration: "duração registrada",
+    derivedMetric: "valor factual derivado",
     source: "Atual",
     prior: "Anterior",
     delta: "Diferença em relação à atual",
@@ -400,6 +477,14 @@ export const pt: Dict = {
     rides: "{n} pedais",
     lifetime: "Distância total · novos pedais contam a partir daqui",
   },
+  gearPage: {
+    eyebrow: "Equipamentos",
+    headline: "Saiba o que seus equipamentos já carregaram.",
+    intro:
+      "Quilometragem é um registro, não uma prescrição. Você decide quando aposentar um tênis ou uma bike.",
+    evidenceNote:
+      "A quilometragem vem da atribuição em atividades confirmadas e de correções manuais.",
+  },
   bikeDialog: {
     editTitle: "Editar {name}",
     addTitle: "Adicionar bike",
@@ -421,6 +506,11 @@ export const pt: Dict = {
   },
   racesPage: {
     title: "Provas",
+    eyebrow: "Provas",
+    headline: "Dê a cada prova um registro verdadeiro.",
+    intro:
+      "O contexto da prova organiza seu próprio histórico. Ele não prescreve um plano nem afirma um resultado.",
+    recordNote: "Somente atividades de prova confirmadas · cada linha volta ao registro de origem",
     subtitle: "{n} provas · sua {distance} mais rápida é {pace}",
     subtitlePlain: "{n} provas registradas",
     empty: "Nenhuma prova marcada ainda.",
@@ -483,6 +573,12 @@ export const pt: Dict = {
   },
   performance: {
     title: "Desempenho",
+    eyebrow: "Desempenho",
+    headline: "Padrões, com as evidências anexadas.",
+    intro:
+      "Use o histórico confirmado para ver o que mudou. Cada estimativa informa sua janela, fonte e limite.",
+    methodNote:
+      "Nenhum estado de recuperação é inferido aqui. Estimativas ficam separadas dos registros de origem e nunca são aplicadas automaticamente.",
     subtitle:
       "Melhores tempos, estimativa de limiar e previsões de prova a partir do seu histórico.",
     empty: "Nenhuma corrida para analisar ainda",
@@ -626,6 +722,22 @@ export const pt: Dict = {
   },
   settingsPage: {
     title: "Ajustes",
+    headline: "Sua conta, conexão e dados.",
+    intro:
+      "Cada controle informa o que muda, o que permanece e quando uma conexão externa está envolvida.",
+    profile: "Perfil",
+    profileBody:
+      "Identidade da conta e contexto de exibição. Esses valores não alteram os dados das atividades de origem.",
+    accountEmail: "E-mail da conta",
+    sourceName: "Nome no perfil do Strava",
+    language: "Idioma",
+    connection: "Conexão",
+    trainingPreferences: "Preferências de treino",
+    gearAndCorrections: "Equipamentos e correções",
+    dataTitle: "Dados e privacidade",
+    dataBody:
+      "Desconectar remove a conexão com o Strava e os registros importados. Atividades manuais, metas, diário, limiares e equipamentos inseridos manualmente permanecem.",
+    reviewDataControl: "Revisar controles da conexão",
     subtitle: "Conexão com o Strava, vínculo de equipamentos e correções manuais.",
     connectedAlert: "Strava conectado",
     connectedAlertBody:

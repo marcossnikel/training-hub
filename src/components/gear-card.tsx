@@ -47,7 +47,7 @@ export function GearCard({
       <div
         className={cn(
           "relative flex h-44 items-center justify-center overflow-hidden border-b",
-          photo ? "bg-white" : "bg-gradient-to-br from-accent via-muted to-background",
+          photo ? "bg-white" : "bg-muted",
           retired && "grayscale"
         )}
       >

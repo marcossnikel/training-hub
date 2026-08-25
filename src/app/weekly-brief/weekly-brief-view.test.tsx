@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { WeeklyBriefView } from "./weekly-brief-view";
 import { buildWeeklyBrief } from "@/lib/weekly-brief";
 
@@ -26,6 +26,7 @@ describe("WeeklyBriefView", () => {
       })),
     });
     render(<WeeklyBriefView result={result} />);
+    fireEvent.click(screen.getByText("Review the 4 source activities"));
     expect(screen.getByRole("heading", { name: "Evidence" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Current-week evidence" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Baseline evidence" })).toBeTruthy();
@@ -37,7 +38,7 @@ describe("WeeklyBriefView", () => {
     expect(
       screen.getByText("Baseline has activity in 3 of the previous 4 completed weeks.")
     ).toBeTruthy();
-    expect(screen.getByText("How this comparison is calculated")).toBeTruthy();
+    expect(screen.getByText("Method, not a verdict")).toBeTruthy();
   });
 
   it("renders the exact no-insight exit without an invented observation", () => {

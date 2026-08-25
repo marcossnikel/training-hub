@@ -5,7 +5,7 @@ import type { CurveBucketKey } from "../curves";
 
 export const en = {
   nav: {
-    log: "Log",
+    log: "Training log",
     weeklyBrief: "Weekly brief",
     performance: "Performance",
     races: "Races",
@@ -20,6 +20,52 @@ export const en = {
     syncing: "Syncing",
     connectFirst: "Connect Strava in Settings first",
     toggleTheme: "Toggle theme",
+    darkTheme: "Dark theme",
+    language: "Language",
+    account: "Account",
+    stravaConnected: "Strava connected",
+    stravaNotConnected: "Strava not connected",
+  },
+  authEntry: {
+    brand: "TRAINING HUB",
+    privateBeta: "PRIVATE BETA ACCESS",
+    invitedStep: "INVITED BETA · STEP 1 OF 4",
+    signInNarrativeTitle: "The quiet place to notice patterns.",
+    signInNarrativeBody:
+      "You know your sessions. Training Hub helps put the relevant ones next to each other—without pretending to coach you.",
+    signUpNarrativeTitle: "Start with your own record.",
+    signUpNarrativeBody:
+      "A private account gives you control of your training data, Strava connection, and access decisions.",
+    boundaryTitle: "A small private beta",
+    boundaryBody:
+      "Your training data stays private to your account. Connection uses your own Strava developer app.",
+    signInTitle: "Welcome back.",
+    signInDescription: "Use the email and password for your Training Hub account.",
+    signInInviteBoundary: "New here? You’ll need an invitation to create a private beta account.",
+    signUpTitle: "Create your private beta account.",
+    signUpDescription:
+      "Your invitation is tied to this email. Keep your password and invitation private.",
+    unavailableTitle: "Private beta",
+    unavailableDescription:
+      "This beta is invitation-only. Use the private registration link from your invitation.",
+    invitation: "Invitation",
+    invitationReady: "Private invitation ready",
+    invitationHint: "This invitation is private and single-use.",
+    name: "Name",
+    email: "Email",
+    emailPlaceholder: "you@example.com",
+    inviteEmailHint: "The invitation and account email must match.",
+    password: "Password",
+    passwordMinimum: "8+ characters",
+    passwordReuse: "Use a password you do not reuse.",
+    signIn: "Sign in",
+    createAccount: "Create account",
+    signingIn: "Signing in…",
+    creatingAccount: "Creating account…",
+    signInError: "We couldn't sign you in with those details.",
+    signUpError: "We couldn't create that account. Try another email or sign in.",
+    alreadyHaveAccount: "Already have an account?",
+    signInInstead: "Sign in instead",
   },
   sports: {
     run: "Run",
@@ -131,6 +177,15 @@ export const en = {
   log: {
     showOlder: "Show {n} older",
     title: "Training log",
+    headline: "Your training log, with a little context.",
+    description: "A clear record first. Then a single evidence-backed question worth opening.",
+    thisWeek: "This week",
+    movingTime: "Moving time",
+    longSession: "Long session",
+    confirmedWindow: "confirmed",
+    priorFourWeeks: "current week · prior 4 weeks available in Weekly Brief",
+    noLongSession: "No session yet",
+    openWeeklyBrief: "Open this week's brief",
     empty: "Nothing confirmed yet.",
     all: "All",
     emptyQueueTitle: "Your log starts in the review queue",
@@ -156,6 +211,13 @@ export const en = {
     dismiss: "Dismiss",
   },
   review: {
+    headline: "Make imported activity yours.",
+    description:
+      "Confirm the few facts that change the context of a future comparison. There is no pressure to classify everything.",
+    importedQuestion: "Strava imported this as {sport}. Does this look right?",
+    details: "Activity context",
+    confirmationEvidence:
+      "Confirmed activities are the only ones used for Weekly Brief and Comparable Prior Activity.",
     caughtUp: "All caught up",
     confirmedSummary: "You confirmed {n} {noun}",
     covering: "covering {km}",
@@ -301,6 +363,15 @@ export const en = {
   },
   comparableActivity: {
     title: "Comparable prior activity",
+    headline: "A prior session with a similar shape.",
+    intro:
+      "This is a factual comparison of confirmed activities—not a verdict or a performance score.",
+    evidenceEyebrow: "Evidence, not a score",
+    traceTitle: "Trace it back.",
+    traceBody: "Every comparison keeps the source activities and matching limits visible.",
+    sourceActivities: "Source activities",
+    viewCurrent: "View current activity",
+    whyThisOne: "Why this one?",
     matchExplanation: "A prior {sportFamily} activity met the distance and moving-time criteria.",
     noMatchTitle: "No reliable prior match",
     noMatchBody: "There isn’t a prior activity that meets the current comparison criteria.",
@@ -312,6 +383,10 @@ export const en = {
     openPrior: "Open prior activity #{id}",
     distance: "Distance",
     movingTime: "Moving time",
+    pace: "Pace",
+    confirmedMetric: "confirmed activity",
+    recordedDuration: "recorded duration",
+    derivedMetric: "derived factual value",
     source: "Current",
     prior: "Prior",
     delta: "Difference from current",
@@ -403,6 +478,12 @@ export const en = {
     rides: "{n} rides",
     lifetime: "Lifetime distance · new rides count from here",
   },
+  gearPage: {
+    eyebrow: "Gear",
+    headline: "Know what your gear has carried.",
+    intro: "Mileage is a record, not a prescription. You decide when a shoe or bike is retired.",
+    evidenceNote: "Mileage comes from confirmed activity assignment and manual corrections.",
+  },
   bikeDialog: {
     editTitle: "Edit {name}",
     addTitle: "Add a bike",
@@ -424,6 +505,11 @@ export const en = {
   },
   racesPage: {
     title: "Races",
+    eyebrow: "Races",
+    headline: "Give each race a truthful record.",
+    intro:
+      "Race context organises your own history. It does not prescribe a plan or claim a result.",
+    recordNote: "Confirmed race activities only · each row links back to its source record",
     subtitle: "{n} races · your fastest {distance} is {pace}",
     subtitlePlain: "{n} races logged",
     empty: "No races marked yet.",
@@ -486,6 +572,12 @@ export const en = {
   },
   performance: {
     title: "Performance",
+    eyebrow: "Performance",
+    headline: "Patterns, with their evidence attached.",
+    intro:
+      "Use confirmed history to see what has changed. Every estimate names its window, source, and limit.",
+    methodNote:
+      "No recovery state is inferred here. Estimates remain separate from source records and are never applied automatically.",
     subtitle: "Best efforts, a threshold estimate and race predictions from your run history.",
     empty: "No runs to analyze yet",
     emptyBody: "Confirm some runs and your best efforts and race predictions build here.",
@@ -630,6 +722,22 @@ export const en = {
   },
   settingsPage: {
     title: "Settings",
+    headline: "Your account, connection, and data.",
+    intro:
+      "Every control names what it changes, what stays, and when an external connection is involved.",
+    profile: "Profile",
+    profileBody:
+      "Account identity and display context. These values do not change source activity data.",
+    accountEmail: "Account email",
+    sourceName: "Strava profile name",
+    language: "Language",
+    connection: "Connection",
+    trainingPreferences: "Training preferences",
+    gearAndCorrections: "Gear and corrections",
+    dataTitle: "Data & privacy",
+    dataBody:
+      "Disconnecting removes the Strava connection and imported records. Manual activities, goals, journal, thresholds, and manually entered gear stay.",
+    reviewDataControl: "Review connection controls",
     subtitle: "Strava connection, gear matching and manual corrections.",
     connectedAlert: "Strava connected",
     connectedAlertBody:

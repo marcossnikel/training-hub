@@ -1,193 +1,197 @@
-const faqs = [
+const loopSteps = [
   {
-    question: "What is Training Hub?",
-    answer:
-      "A personal training-intelligence product for examining patterns in your own activity history. Observations link back to their evidence.",
+    number: "01",
+    title: "Bring your own connection",
+    body: "Use your own Strava developer app. Credentials are encrypted and never rendered back.",
   },
   {
-    question: "Who is this beta for?",
-    answer:
-      "Self-coached runners and cyclists who already record activities in Strava and are comfortable connecting an app they create themselves.",
+    number: "02",
+    title: "Confirm the record",
+    body: "Review the imported facts that determine whether an activity can support evidence.",
   },
   {
-    question: "How does the Strava connection work?",
-    answer:
-      "Each invited athlete uses credentials for their own Strava developer app. Training Hub does not use a shared or founder app by default. This beta path does not resolve Strava commercial or API-policy requirements.",
-  },
-  {
-    question: "Does it replace a coach or provide medical guidance?",
-    answer:
-      "No. It does not prescribe training, assess readiness, diagnose health, or provide medical guidance.",
-  },
-  {
-    question: "Can I create an account from this page?",
-    answer:
-      "No. This is a private, invitation-only beta. A valid invitation provides its own private registration link.",
-  },
-  {
-    question: "What will it cost?",
-    answer:
-      "A single monthly beta plan around US$5 is planned when the product loop and billing are ready. This page does not take payment or promise an availability date.",
+    number: "03",
+    title: "Open the context",
+    body: "See a completed week or comparable session with sources, windows, and limitations.",
   },
 ] as const;
 
-function LandingSection({
-  title,
-  children,
-}: Readonly<{
-  title: string;
-  children: React.ReactNode;
-}>) {
+const faqs = [
+  {
+    question: "Why my own Strava app?",
+    answer:
+      "The private beta uses athlete-owned credentials rather than a shared founder connection.",
+  },
+  {
+    question: "What does Training Hub do?",
+    answer: "It surfaces evidence-linked patterns across your own confirmed activity history.",
+  },
+  {
+    question: "How should I read an observation?",
+    answer:
+      "As factual context with a visible method and limit. Your source activities remain the record.",
+  },
+  {
+    question: "How does beta access work?",
+    answer:
+      "Access is invitation-only. Sign in if you already have an account; a valid invitation carries its own private registration link.",
+  },
+] as const;
+
+function EvidencePreview() {
   return (
-    <section aria-labelledby={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}>
-      <h2
-        id={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}
-        className="font-display text-3xl font-semibold tracking-tight sm:text-4xl"
-      >
-        {title}
+    <aside
+      aria-label="Illustrative weekly evidence"
+      className="rounded-2xl border bg-muted p-5 sm:p-6"
+    >
+      <p className="font-mono text-xs text-muted-foreground uppercase">
+        A completed week · illustrative example
+      </p>
+      <h2 className="mt-4 text-2xl font-semibold tracking-[-0.025em]">
+        A change worth placing in context.
       </h2>
-      <div className="mt-4 max-w-2xl space-y-3 text-base leading-7 text-muted-foreground sm:text-lg">
-        {children}
-      </div>
-    </section>
+      <p className="mt-4 text-base font-medium">Easy moving time rose 18%.</p>
+      <p className="mt-2 text-base leading-6 text-muted-foreground">
+        Three completed weeks are compared with the prior four-week median. Confirmed activities
+        only.
+      </p>
+
+      <dl className="mt-5 divide-y divide-border/70">
+        <div className="flex items-end justify-between gap-4 py-3 first:pt-0">
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">Moving time</dt>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              03–23 Aug 2026 · prior 4-week median
+            </p>
+          </div>
+          <dd className="text-[1.75rem] leading-8 font-semibold tracking-[-0.035em] tabular-nums">
+            +18%
+          </dd>
+        </div>
+        <div className="flex items-end justify-between gap-4 py-3">
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">Consistency</dt>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">weeks with 3+ sessions</p>
+          </div>
+          <dd className="text-[1.75rem] leading-8 font-semibold tracking-[-0.035em] tabular-nums">
+            3 / 4
+          </dd>
+        </div>
+      </dl>
+
+      <p className="mt-4 rounded-lg bg-[var(--th-status-caution-surface)] p-3 text-sm leading-6">
+        An observation, not an instruction or score.
+      </p>
+      <p className="mt-4 font-mono text-xs leading-5 text-muted-foreground">
+        Example source: 12 confirmed activities · no heart-rate or stream data
+      </p>
+    </aside>
   );
 }
 
 /** Guest-only root content. It intentionally has no request, data, or tracking work. */
 export function PrivateBetaLanding() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
-      <div className="lg:grid lg:grid-cols-[minmax(0,42rem)_minmax(12rem,1fr)] lg:gap-x-20">
-        <div>
-          <section aria-labelledby="landing-title" className="max-w-2xl">
-            <p className="text-sm font-medium text-muted-foreground">
-              Personal training intelligence
-            </p>
-            <h1
-              id="landing-title"
-              className="mt-4 font-display text-5xl font-semibold tracking-tight text-balance sm:text-6xl"
-            >
-              Understand the patterns in your own training history.
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
-              Training Hub links its weekly training brief and comparable prior-activity
-              observations to the activities, dates, metrics, and comparison window behind them.
-            </p>
+    <div className="th-foundation bg-background text-foreground">
+      <section className="mx-auto grid w-full max-w-7xl gap-12 px-6 py-12 sm:py-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(24rem,0.95fr)] lg:gap-16 lg:px-12 lg:py-20">
+        <div className="max-w-2xl">
+          <p className="font-mono text-xs text-muted-foreground uppercase">
+            Private beta · evidence-first training intelligence
+          </p>
+          <h1 className="font-narrative mt-6 text-[3.25rem] leading-[1.02] font-normal tracking-[-0.035em] text-balance sm:text-6xl sm:leading-[1.02]">
+            See the part of your training history you cannot see alone.
+          </h1>
+          <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground">
+            Training Hub places evidence-linked patterns across your confirmed activity history
+            beside their sources, dates, windows, metrics, and limits.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
             <a
               href="#beta-access"
-              className="focus-ring mt-8 inline-flex min-h-11 items-center rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/80 motion-reduce:transition-none"
+              className="focus-ring inline-flex min-h-11 items-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 motion-reduce:transition-none"
             >
               How beta access works
             </a>
-          </section>
-
-          <div className="mt-16 space-y-16 sm:mt-20 sm:space-y-20">
-            <LandingSection title="Evidence before advice">
-              <p>
-                The point is a specific observation you can inspect, not a score, prescription, or
-                generic summary.
-              </p>
-              <p>
-                When the history is incomplete or the comparison is weak, the limitation belongs
-                beside the observation.
-              </p>
-              <p className="border-l-2 border-border pl-4 text-sm leading-6">
-                <span className="font-medium text-foreground">Illustrative.</span> A comparison can
-                point back to the activity dates, distance, moving time, and comparison window used.
-              </p>
-            </LandingSection>
-
-            <LandingSection title="Built for self-coached runners and cyclists">
-              <p>
-                Use your own activity history to review what changed, what is comparable, and where
-                the evidence is incomplete.
-              </p>
-              <p>
-                It is not coaching, a training-plan generator, medical or readiness guidance, or a
-                social feed.
-              </p>
-            </LandingSection>
-
-            <LandingSection title="A transparent beta connection">
-              <p>
-                During this beta, you connect a Strava app that you create and control. Training Hub
-                never falls back to the founder&apos;s Strava credentials.
-              </p>
-              <p>
-                Using your own app is a beta connection path. It does not settle Strava&apos;s
-                commercial or API-policy requirements.
-              </p>
-              <p>
-                Your account has its own connection. Disconnecting removes the local connection
-                material and Strava-imported and derived data for that connection.
-              </p>
-            </LandingSection>
-
-            <LandingSection title="A small paid beta, when it is ready">
-              <p>
-                One monthly beta plan is planned at around US$5. There is no checkout or payment
-                collection on this page.
-              </p>
-            </LandingSection>
-
-            <LandingSection title="Private beta">
-              <div
-                id="beta-access"
-                tabIndex={-1}
-                className="scroll-mt-8 rounded-lg border border-border bg-muted/30 p-5 sm:p-6"
-              >
-                <p>
-                  Training Hub is currently invitation-only. An invitation includes the private
-                  registration link for that beta account.
-                </p>
-                <p>This page does not collect access requests or create accounts.</p>
-              </div>
-            </LandingSection>
-
-            <section aria-labelledby="questions-heading">
-              <h2
-                id="questions-heading"
-                className="font-display text-3xl font-semibold tracking-tight sm:text-4xl"
-              >
-                Questions, answered plainly
-              </h2>
-              <div className="mt-6 divide-y divide-border border-y border-border">
-                {faqs.map((faq) => (
-                  <section
-                    key={faq.question}
-                    className="py-5"
-                    aria-labelledby={`${faq.question.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}-faq`}
-                  >
-                    <h3
-                      id={`${faq.question.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}-faq`}
-                      className="text-base font-semibold"
-                    >
-                      {faq.question}
-                    </h3>
-                    <p className="mt-2 max-w-2xl text-base leading-7 text-muted-foreground">
-                      {faq.answer}
-                    </p>
-                  </section>
-                ))}
-              </div>
-            </section>
+            <a
+              href="/login"
+              className="focus-ring hidden min-h-11 items-center rounded-full border bg-card px-4 text-sm font-medium transition-colors hover:border-primary hover:text-primary motion-reduce:transition-none sm:inline-flex"
+            >
+              Sign in
+            </a>
           </div>
+          <p className="mt-6 max-w-xl font-mono text-xs leading-5 text-muted-foreground">
+            Private beta uses your own Strava developer app. It does not resolve Strava platform or
+            commercial-policy requirements.
+          </p>
         </div>
 
-        <aside
-          className="mt-12 hidden border-l border-border pl-8 lg:mt-2 lg:block"
-          aria-label="Beta boundary"
-        >
-          <p className="text-sm font-medium text-foreground">Private beta</p>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Invitation-only access keeps the first cohort deliberate while each athlete connects
-            their own Strava app.
-          </p>
-        </aside>
-      </div>
+        <EvidencePreview />
+      </section>
 
-      <footer className="mt-16 border-t border-border pt-6 text-sm text-muted-foreground sm:mt-20">
-        Training Hub is a working product name.
+      <section className="bg-muted">
+        <div className="mx-auto grid w-full max-w-7xl gap-4 px-6 py-8 sm:grid-cols-[18rem_minmax(0,1fr)] sm:gap-10 lg:px-12">
+          <h2 className="text-2xl font-semibold tracking-[-0.025em]">
+            More than a log.
+            <br />
+            Still your decision.
+          </h2>
+          <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+            The product earns attention by showing a small number of explainable patterns: a changed
+            week, a comparable prior session, or a gap in the record that changes how to read it.
+          </p>
+        </div>
+      </section>
+
+      <section
+        id="beta-access"
+        tabIndex={-1}
+        aria-labelledby="beta-loop-title"
+        className="mx-auto w-full max-w-7xl scroll-mt-6 px-6 py-14 sm:py-16 lg:px-12"
+      >
+        <p className="font-mono text-xs text-muted-foreground uppercase">The beta loop</p>
+        <h2
+          id="beta-loop-title"
+          className="mt-4 max-w-2xl text-4xl font-semibold tracking-[-0.04em] sm:text-[2.5rem] sm:leading-[2.75rem]"
+        >
+          A deliberate path to a useful first observation.
+        </h2>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {loopSteps.map((step) => (
+            <article key={step.number} className="rounded-2xl border bg-card p-5 sm:p-6">
+              <p className="font-mono text-xs text-muted-foreground">{step.number}</p>
+              <h3 className="mt-4 text-xl font-semibold tracking-[-0.02em]">{step.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{step.body}</p>
+            </article>
+          ))}
+        </div>
+        <div className="mt-6 rounded-2xl border bg-muted p-5 sm:p-6">
+          <h3 className="font-medium">Invitation-only access</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+            An invitation includes the private registration link for that account. This page does
+            not collect access requests or create accounts.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="questions-heading" className="bg-muted">
+        <div className="mx-auto grid w-full max-w-7xl gap-8 px-6 py-14 sm:py-16 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-10 lg:px-12">
+          <h2 id="questions-heading" className="text-4xl font-semibold tracking-[-0.04em]">
+            The important questions first.
+          </h2>
+          <div className="space-y-3">
+            {faqs.map((faq) => (
+              <article key={faq.question} className="rounded-2xl border bg-card p-5">
+                <h3 className="font-medium">{faq.question}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{faq.answer}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <footer className="mx-auto flex min-h-24 w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-6 font-mono text-xs lg:px-12">
+        <span>TRAINING HUB · PRIVATE BETA</span>
+        <span className="text-muted-foreground">Evidence before advice.</span>
       </footer>
     </div>
   );
