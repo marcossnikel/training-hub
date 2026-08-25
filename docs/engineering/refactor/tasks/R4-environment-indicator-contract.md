@@ -1,6 +1,6 @@
 # R4 — Select the creator environment-indicator contract
 
-**Status:** queued
+**Status:** done
 **Delivery class:** documentation/plan
 **Risk/model:** medium — Sol high
 **Depends on:** R3
@@ -11,6 +11,8 @@
 One selected desktop/mobile visual and interaction contract tells an
 implementation model exactly how the creator-only current-environment indicator
 looks and behaves.
+
+Selected contract: [Creator environment indicator](../../../design/ENVIRONMENT_INDICATOR.md).
 
 ## Required context
 
