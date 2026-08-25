@@ -3,7 +3,7 @@
 **Status:** draft
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
-**Depends on:** R9, R14, R15, R16, and R17 done
+**Depends on:** R9, R14, R15, and R16 done
 **Unlocks:** R19 and later R21 integration
 
 ## Outcome
@@ -23,12 +23,15 @@ Activation Summary that links into populated product surfaces.
 - Summary totals/consistency can use activity summaries after R9/R16; rich
   stream/detail metrics may still be incomplete.
 - Welcome onboarding is a separate event under D-019/R17.
+- Connection activation must work from Settings or any other authorized
+  connection entry even if R17 has not shipped, was skipped, or was completed.
 
 ## Locked decisions
 
 1. Activation is keyed to the owner and connection lifecycle, not global user
    onboarding. Reauthorization of the same retained connection does not replay;
    true disconnect plus new connection creates a new eligible activation.
+   Welcome eligibility/state is never read to decide this.
 2. Callback redirects to one owner-safe activation route after authorization and
    job creation. The route never accepts an owner ID, token, stage, or result
    from query parameters.
@@ -120,6 +123,8 @@ new analysis or replace R14/R9 state.
 ## Acceptance
 
 - New connection enters activation exactly once; welcome state is irrelevant.
+- The same connection story succeeds with welcome absent, skipped, and
+  completed; none of those states changes activation eligibility or results.
 - Progress displays only real stages/counters and survives retry/refresh.
 - Skip dismisses UI only; import continues when possible or resumes safely.
 - Completed fixture summary matches exact sport counts, date range, bounded

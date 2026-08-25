@@ -4,7 +4,7 @@
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium
 **Depends on:** R2M and R8 done
-**Unlocks:** R18
+**Unlocks:** no post-connection task; it may ship independently of R18
 
 ## Outcome
 
@@ -27,7 +27,8 @@ the same event.
 ## Locked decisions
 
 1. Welcome onboarding and post-connection activation are separate persisted
-   events. Welcome completion/skip never implies Strava connection or value.
+   events. Welcome completion/skip never implies Strava connection or value,
+   and R17 creates no prerequisite state that R18 needs in order to run.
 2. Audience includes all accounts existing at release and all future accounts.
 3. Use a dedicated route-level, resumable experience, not a tooltip tour over
    unrelated pages. Suggested route: `/onboarding/welcome`; final route must be
@@ -38,7 +39,8 @@ the same event.
    They do not remove a persistent, non-blocking `Continue Strava setup` entry
    from the empty connected-data state.
 6. `Connect Strava` hands off to the existing Settings/BYO setup with a safe
-   return/continuation key. The welcome flow does not collect secrets itself.
+   return/continuation key. The welcome flow does not collect secrets itself,
+   and the same connection entry remains usable when R18 ships before R17.
 7. Completion/skip is server-persisted, owner-scoped, versioned, and idempotent.
    Client storage is not authority.
 8. Framer Motion may provide restrained transition/continuity only. Content and

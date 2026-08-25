@@ -58,7 +58,10 @@ R0
      └─ R10
 
 R17 depends on R2M and R8 and may be delivered before Strava connection.
-R18 depends on R9, R14, R15, R16, and R17.
+R18 depends on R9, R14, R15, and R16, but not R17. The two experiences may be
+delivered in either order because eligibility, persistence, skip/completion,
+and replay semantics are independent. If both exist, R17 hands off to the same
+connection entry that already works without welcome state.
 R11 follows R9/R14 so it deepens proven boundaries rather than guessing them.
 R12 follows R16 and R19. R13 closes only after the changed product slices.
 ```
