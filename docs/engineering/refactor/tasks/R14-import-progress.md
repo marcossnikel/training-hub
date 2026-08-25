@@ -133,12 +133,21 @@ service, deployment change, or new provider contract is outside this task.
 
 ## Validation
 
-Focused integration tests against disposable SQLite and the loopback Strava
-double: transition table, lease race, page failure/retry, restart/resume,
-replayed-page counter stability, job-outcome versus committed-snapshot parity,
-owner isolation, redaction canaries, and callback composition. Name exact test
-files/commands when converting this packet to `ready`; do not use browser proof
-or the full repository gate for this API task.
+Add `src/features/strava/import-progress.test.ts` for the pure transition/
+counter contract and `src/features/strava/import-progress.integration.test.ts`
+for disposable SQLite plus loopback Strava. The integration suite covers lease
+race, page failure/retry, restart/resume, replayed-page counter stability,
+job-outcome versus committed-snapshot parity, owner isolation, redaction
+canaries, callback composition, and status/advance request boundaries.
+
+```sh
+npx vitest run src/features/strava/import-progress.test.ts src/features/strava/import-progress.integration.test.ts src/app/api/strava/callback/route.test.ts
+```
+
+This API/backend task does not run Playwright, browser validation, manual job
+advancement, or the full repository gate. The loopback provider exposes
+deterministic pages, an injected page failure, and request counts so the suite
+can prove resume and deduplication without a real connection.
 
 ## Migration, compatibility, and rollback
 
@@ -152,3 +161,12 @@ The installed Next/runtime cannot safely expose a bounded resumable step without
 a deployment-level service choice; provider pagination requires an unavailable
 cursor contract; schema design conflicts with accepted R9 state; or proof needs
 real provider/shared resources.
+
+All local transition, lease, transaction, counter, redaction, callback, fixture,
+and test failures are owned and fixed by the builder within this task.
+
+## Finish
+
+The named focused Vitest command passes, no browser or remote resource was used,
+R14 is marked done in the roadmap, and the complete attributable change is one
+local-main commit with no push or deployment.
