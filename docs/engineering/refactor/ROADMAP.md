@@ -42,7 +42,7 @@ implementation stream.
 
 | ID | Status | Risk | Outcome | Packet |
 | --- | --- | --- | --- | --- |
-| R0 | planned | medium | Restore one trustworthy quality baseline around the in-progress lint migration | [R0](tasks/R0-tooling-baseline.md) |
+| R0 | blocked | medium | Restore one trustworthy quality baseline around the in-progress lint migration | [R0](tasks/R0-tooling-baseline.md) |
 | R1 | planned | medium | Add an affordable inner loop and an explicit local production-mode smoke | [R1](tasks/R1-developer-loop.md) |
 | R2 | planned | high | Centralize validated runtime semantics without weakening environment isolation | [R2](tasks/R2-runtime-configuration.md) |
 | R2M | planned | high | Replace the exact-version schema gate with explicit additive migrations | [R2M](tasks/R2M-additive-migrations.md) |
