@@ -34,12 +34,12 @@ export function clearGearFromOthers(
 ): InStatement {
   if (exceptId === undefined) {
     return {
-      sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id = ?`,
+      sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE user_id = ? AND origin = 'manual' AND strava_gear_id = ?`,
       args: [userId, gearId],
     };
   }
   return {
-    sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id = ? AND id != ?`,
+    sql: `UPDATE ${table} SET strava_gear_id = NULL WHERE user_id = ? AND origin = 'manual' AND strava_gear_id = ? AND id != ?`,
     args: [userId, gearId, exceptId],
   };
 }

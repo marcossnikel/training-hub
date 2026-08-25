@@ -137,6 +137,8 @@ export const pt: Dict = {
     invalidId: "Identificador de item inválido.",
     invalidBaseline: "Os km de base devem ser zero ou mais.",
     invalidRetirement: "Os km de aposentadoria devem ser maiores que zero.",
+    providerManagedGear:
+      "Este equipamento é gerenciado pelo Strava. Atualize no Strava e sincronize.",
     invalidRpe: "O RPE deve ficar entre 1 e 10.",
     invalidFeeling: "Sensação desconhecida.",
     invalidDate: "Escolha uma data válida.",
@@ -441,6 +443,11 @@ export const pt: Dict = {
     unretire: "Reativar",
     kmLeft: "{km} restantes",
     kmOver: "+{km} acima",
+    providerOdometer: "Odômetro do Strava",
+    providerReference: "Referência do odômetro Strava",
+    odometerUnknown: "Odômetro desconhecido",
+    providerObserved: "Observado em {date}",
+    providerStale: "valor do provedor desatualizado",
   },
   shoeDialog: {
     editTitle: "Editar {name}",
@@ -456,7 +463,7 @@ export const pt: Dict = {
     keepPhoto: "Deixe vazio para manter a foto atual.",
     gear: "Equipamento Strava",
     notLinked: "Não vinculado",
-    gearUnavailable: "Não foi possível carregar seus equipamentos do Strava agora.",
+    gearUnavailable: "Os equipamentos do Strava são importados automaticamente ao sincronizar.",
     gearConnectHint:
       "Conecte o Strava nos Ajustes para vincular este tênis ao equipamento e casar as corridas automaticamente.",
     save: "Salvar alterações",
@@ -478,6 +485,11 @@ export const pt: Dict = {
     indoorOutdoor: "{indoor} indoor · {outdoor} outdoor",
     rides: "{n} pedais",
     lifetime: "Distância total · novos pedais contam a partir daqui",
+    providerOdometer: "Odômetro do Strava",
+    providerReference: "Referência do odômetro Strava",
+    odometerUnknown: "Odômetro desconhecido",
+    providerObserved: "Observado em {date}",
+    providerStale: "valor do provedor desatualizado",
   },
   gearPage: {
     eyebrow: "Equipamentos",
@@ -500,7 +512,7 @@ export const pt: Dict = {
     keepPhoto: "Deixe vazio para manter a foto atual.",
     gear: "Equipamento Strava",
     notLinked: "Não vinculado",
-    gearUnavailable: "Não foi possível carregar seus equipamentos do Strava agora.",
+    gearUnavailable: "Os equipamentos do Strava são importados automaticamente ao sincronizar.",
     gearConnectHint:
       "Conecte o Strava nos Ajustes para vincular esta bike ao equipamento e casar os pedais automaticamente.",
     save: "Salvar alterações",
@@ -760,15 +772,15 @@ export const pt: Dict = {
     neverSynced: "Nunca sincronizado. Aperte Sincronizar para puxar suas atividades.",
     reconnect: "Reconectar",
     gearScopeHint:
-      "O vínculo de equipamentos precisa da permissão de perfil do Strava. Use Reconectar acima para concedê-la, e seus tênis e bikes aparecem aqui.",
+      "A sincronização materializa tênis e bikes do Strava aqui. Atividades importadas novas casam automaticamente com essas linhas locais.",
     notConnected: "Não conectado",
     notConnectedBody: "Autorize com o escopo activity:read_all para sincronizar seu histórico.",
     connect: "Conectar Strava",
     baselineNote:
       "As bases dos tênis foram definidas em {date}. Atividades sincronizadas anteriores a essa data aparecem no diário como histórico, mas não somam km, porque as bases já as incluem.",
-    gearMatching: "Vínculo de equipamentos",
+    gearMatching: "Equipamentos Strava",
     gearMatchingBody:
-      "Vincule cada tênis ao equipamento do Strava para as atividades sincronizadas escolherem o tênis certo sozinhas.",
+      "Equipamentos de origem Strava mantêm o próprio odômetro do provedor. Equipamentos manuais mantêm a própria quilometragem local.",
     gearLoadFailed:
       "Não foi possível carregar seus equipamentos do Strava agora. Tente mais tarde.",
     noStravaShoes: "Nenhum tênis encontrado no seu perfil do Strava.",

@@ -181,6 +181,25 @@ test("the authenticated callback reaches a real owner-bound mock exchange and in
   ).toBeVisible();
   await captureEvidence(page, "32-recent-training-first-value-1440.png");
 
+  await page.goto("/gear");
+  await expect(page.getByText("E2E Nimbus", { exact: true })).toBeVisible();
+  await expect(page.getByText("Strava odometer", { exact: true })).toBeVisible();
+  await expect(page.getByText("120.0 km", { exact: true })).toBeVisible();
+  await page.goto("/gear?tab=bikes");
+  await expect(page.getByText("E2E Road", { exact: true })).toBeVisible();
+  await expect(page.getByText("2400.0 km", { exact: true })).toBeVisible();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sync", exact: true }).click();
+  await expect(page.getByText("1 new activity to review", { exact: true })).toBeVisible();
+  await page.goto("/review");
+  // The seed owns the first three pending cards; the post-import provider
+  // activity is newest and therefore follows them in the Review queue.
+  for (let index = 0; index < 3; index += 1)
+    await page.getByRole("button", { name: "Next activity" }).click();
+  await expect(page.getByRole("heading", { name: "E2E new Nimbus run" })).toBeVisible();
+  await expect(page.getByText("E2E Nimbus", { exact: true })).toBeVisible();
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const syncButtons = page.getByRole("button", { name: "Sync", exact: true });

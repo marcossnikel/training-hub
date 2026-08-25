@@ -4,7 +4,7 @@ import { CableIcon, CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SyncButton } from "@/components/sync-button";
-import { GearMatcher, ManualActivityForm } from "@/components/settings-forms";
+import { ManualActivityForm } from "@/components/settings-forms";
 import { ByoConnectionForm } from "@/components/byo-connection-form";
 import { StravaConnectionControls } from "@/components/strava-connection-controls";
 import { ThresholdsForm } from "@/components/thresholds-form";
@@ -20,7 +20,6 @@ import {
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected } from "@/features/strava/server/connection";
-import { loadStravaGear } from "@/features/strava/server/enrichment";
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { requireCurrentUser } from "@/lib/auth";
@@ -41,9 +40,6 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const athleteName = await getMeta(owner, "athlete_name");
   const lastSync = await getMeta(owner, "last_sync_at");
   const baselineDate = await getMeta(owner, "baseline_date");
-  const allGear = connected ? await loadStravaGear(owner) : null;
-  const gear = allGear?.shoes ?? null;
-  const bikeGear = allGear?.bikes ?? null;
   const shoes = await listShoes(owner);
   const bikes = await listBikes(owner);
   const thresholds = await getAthleteThresholds(owner);
@@ -287,40 +283,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
               <CardTitle>{t.settingsPage.gearMatching}</CardTitle>
               <CardDescription>{t.settingsPage.gearMatchingBody}</CardDescription>
             </CardHeader>
-            <CardContent>
-              {gear && gear.length > 0 ? (
-                <GearMatcher
-                  kind="shoe"
-                  items={shoes.map((s) => ({ ...toGearOption(s), gearId: s.strava_gear_id }))}
-                  gear={gear}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {gear === null ? t.settingsPage.gearLoadFailed : t.settingsPage.gearScopeHint}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {connected ? (
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>{t.settingsPage.bikeMatching}</CardTitle>
-              <CardDescription>{t.settingsPage.bikeMatchingBody}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {bikeGear && bikeGear.length > 0 ? (
-                <GearMatcher
-                  kind="bike"
-                  items={bikes.map((b) => ({ ...toGearOption(b), gearId: b.strava_gear_id }))}
-                  gear={bikeGear}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {bikeGear === null ? t.settingsPage.gearLoadFailed : t.settingsPage.gearScopeHint}
-                </p>
-              )}
+            <CardContent className="text-sm text-muted-foreground">
+              {t.settingsPage.gearScopeHint}
             </CardContent>
           </Card>
         ) : null}

@@ -48,10 +48,38 @@ const server = createServer(async (req, res) => {
     return reply(res, failed ? 503 : 200, {});
   }
   if (req.method === "GET" && url.pathname === "/api/v3/athlete/activities") {
-    return reply(res, 200, []);
+    // Initial history is confirmed against the connection cutoff; the later
+    // `after` request supplies one pending run to prove local gear matching.
+    if (url.searchParams.has("after")) {
+      return reply(res, 200, [
+        {
+          id: 9_002,
+          name: "E2E new Nimbus run",
+          sport_type: "Run",
+          start_date: "2099-01-02T12:00:00Z",
+          distance: 5_000,
+          moving_time: 1_500,
+          gear_id: "e2e-shoe",
+        },
+      ]);
+    }
+    return reply(res, 200, [
+      {
+        id: 9_001,
+        name: "E2E Nimbus history",
+        sport_type: "Run",
+        start_date: "2025-01-02T12:00:00Z",
+        distance: 5_000,
+        moving_time: 1_500,
+        gear_id: "e2e-shoe",
+      },
+    ]);
   }
   if (req.method === "GET" && url.pathname === "/api/v3/athlete") {
-    return reply(res, 200, { shoes: [], bikes: [] });
+    return reply(res, 200, {
+      shoes: [{ id: "e2e-shoe", name: "E2E Nimbus", distance: 120_000, retired: false }],
+      bikes: [{ id: "e2e-bike", name: "E2E Road", distance: 2_400_000, retired: false }],
+    });
   }
   return reply(res, 404, { message: "not found" });
 });

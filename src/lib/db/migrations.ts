@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 29;
+export const OWNER_SCHEMA_VERSION = 30;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -385,6 +385,58 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
       "CREATE INDEX IF NOT EXISTS idx_strava_import_jobs_owner_updated ON strava_import_jobs(user_id, updated_at DESC)",
       "CREATE INDEX IF NOT EXISTS idx_strava_import_outcomes_job_family ON strava_import_job_outcomes(job_id, sport_family)",
     ],
+  },
+  {
+    // D-025: a provider lifetime odometer is a source snapshot, never a
+    // baseline or a delta to combine with locally confirmed assignments.
+    version: 30,
+    statements: [],
+    statementsFor: async (target) => {
+      const gearColumns = async (table: "shoes" | "bikes") => {
+        const result = await target.execute(`SELECT name FROM pragma_table_info('${table}')`);
+        return new Set(result.rows.map((row) => String(row.name)));
+      };
+      const [shoeColumns, bikeColumns, jobColumns] = await Promise.all([
+        gearColumns("shoes"),
+        gearColumns("bikes"),
+        target.execute("SELECT name FROM pragma_table_info('strava_import_jobs')"),
+      ]);
+      const statements: InStatement[] = [];
+      for (const [table, columns] of [
+        ["shoes", shoeColumns],
+        ["bikes", bikeColumns],
+      ] as const) {
+        if (!columns.has("origin"))
+          statements.push({
+            sql: `ALTER TABLE ${table} ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual' CHECK (origin IN ('manual', 'strava'))`,
+            args: [],
+          });
+        if (!columns.has("provider_distance_m"))
+          statements.push({
+            sql: `ALTER TABLE ${table} ADD COLUMN provider_distance_m REAL`,
+            args: [],
+          });
+        if (!columns.has("provider_observed_at"))
+          statements.push({
+            sql: `ALTER TABLE ${table} ADD COLUMN provider_observed_at TEXT`,
+            args: [],
+          });
+        if (!columns.has("provider_last_seen_at"))
+          statements.push({
+            sql: `ALTER TABLE ${table} ADD COLUMN provider_last_seen_at TEXT`,
+            args: [],
+          });
+      }
+      const jobNames = new Set(jobColumns.rows.map((row) => String(row.name)));
+      for (const column of ["gear_created", "gear_updated", "gear_placeholders"] as const) {
+        if (!jobNames.has(column))
+          statements.push({
+            sql: `ALTER TABLE strava_import_jobs ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0 CHECK (${column} >= 0)`,
+            args: [],
+          });
+      }
+      return statements;
+    },
   },
 ];
 

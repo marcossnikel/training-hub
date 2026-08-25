@@ -57,6 +57,7 @@ export async function saveShoeAction(formData: FormData): Promise<ActionResult> 
     if (id) {
       const existing = await getShoe(owner, id);
       if (!existing) return { ok: false, error: t.errors.shoeNotFound };
+      if (existing.origin === "strava") return { ok: false, error: t.errors.providerManagedGear };
       await updateShoe(owner, id, fields, photoPath);
       if (photoPath && existing.photo_path && existing.photo_path !== photoPath) {
         const orphan = existing.photo_path;
@@ -82,7 +83,9 @@ export async function setShoeRetiredAction(id: number, retired: boolean): Promis
   const owner = await requireCurrentUser();
   if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getShoe(owner, id))) return { ok: false, error: t.errors.shoeNotFound };
+    const existing = await getShoe(owner, id);
+    if (!existing) return { ok: false, error: t.errors.shoeNotFound };
+    if (existing.origin === "strava") return { ok: false, error: t.errors.providerManagedGear };
     await setShoeRetired(owner, id, retired);
     refreshAll();
     return { ok: true };
@@ -98,7 +101,9 @@ export async function setShoeGearAction(
   const owner = await requireCurrentUser();
   if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getShoe(owner, shoeId))) return { ok: false, error: t.errors.shoeNotFound };
+    const existing = await getShoe(owner, shoeId);
+    if (!existing) return { ok: false, error: t.errors.shoeNotFound };
+    if (existing.origin === "strava") return { ok: false, error: t.errors.providerManagedGear };
     await setShoeGear(owner, shoeId, gearId);
     refreshAll();
     return { ok: true };
@@ -138,6 +143,7 @@ export async function saveBikeAction(formData: FormData): Promise<ActionResult> 
     if (id) {
       const existing = await getBike(owner, id);
       if (!existing) return { ok: false, error: t.errors.bikeNotFound };
+      if (existing.origin === "strava") return { ok: false, error: t.errors.providerManagedGear };
       await updateBike(owner, id, fields, photoPath);
       if (photoPath && existing.photo_path && existing.photo_path !== photoPath) {
         const orphan = existing.photo_path;
@@ -163,7 +169,9 @@ export async function setBikeRetiredAction(id: number, retired: boolean): Promis
   const owner = await requireCurrentUser();
   if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getBike(owner, id))) return { ok: false, error: t.errors.bikeNotFound };
+    const existing = await getBike(owner, id);
+    if (!existing) return { ok: false, error: t.errors.bikeNotFound };
+    if (existing.origin === "strava") return { ok: false, error: t.errors.providerManagedGear };
     await setBikeRetired(owner, id, retired);
     refreshAll();
     return { ok: true };
@@ -179,7 +187,9 @@ export async function setBikeGearAction(
   const owner = await requireCurrentUser();
   if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!(await getBike(owner, bikeId))) return { ok: false, error: t.errors.bikeNotFound };
+    const existing = await getBike(owner, bikeId);
+    if (!existing) return { ok: false, error: t.errors.bikeNotFound };
+    if (existing.origin === "strava") return { ok: false, error: t.errors.providerManagedGear };
     await setBikeGear(owner, bikeId, gearId);
     refreshAll();
     return { ok: true };

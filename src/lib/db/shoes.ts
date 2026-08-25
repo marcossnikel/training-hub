@@ -4,12 +4,12 @@ import type { ShoeWithMileage } from "../types";
 import type { OwnerContext } from "../owner-context";
 
 const SHOE_SELECT = `
-SELECT s.*, s.initial_km + COALESCE((
+SELECT s.*, CASE WHEN s.origin = 'strava' THEN s.provider_distance_m / 1000.0 ELSE s.initial_km + COALESCE((
   SELECT SUM(sp.km)
   FROM activity_splits sp
   JOIN activities a ON a.id = sp.activity_id
   WHERE sp.shoe_id = s.id AND a.status = 'confirmed' AND a.user_id = s.user_id
-), 0) AS current_km
+), 0) END AS current_km
 FROM shoes s
 `;
 

@@ -1,6 +1,6 @@
 # R15 — Materialize Strava gear with explicit lifecycle
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
 **Depends on:** R2M and R9 done

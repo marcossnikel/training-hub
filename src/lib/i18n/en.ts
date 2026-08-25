@@ -141,6 +141,7 @@ export const en = {
     invalidId: "Invalid item id.",
     invalidBaseline: "Baseline km must be zero or more.",
     invalidRetirement: "Retirement km must be greater than zero.",
+    providerManagedGear: "This gear is managed by Strava. Update it in Strava, then sync.",
     invalidRpe: "RPE must be between 1 and 10.",
     invalidFeeling: "Unknown feeling value.",
     invalidDate: "Pick a valid date.",
@@ -442,6 +443,11 @@ export const en = {
     unretire: "Unretire",
     kmLeft: "{km} left",
     kmOver: "+{km} over",
+    providerOdometer: "Strava odometer",
+    providerReference: "Strava odometer reference",
+    odometerUnknown: "Odometer unknown",
+    providerObserved: "Observed {date}",
+    providerStale: "stale provider value",
   },
   shoeDialog: {
     editTitle: "Edit {name}",
@@ -457,7 +463,7 @@ export const en = {
     keepPhoto: "Leave empty to keep the current photo.",
     gear: "Strava gear",
     notLinked: "Not linked",
-    gearUnavailable: "Could not load your gear list from Strava right now.",
+    gearUnavailable: "Strava gear is imported automatically when you sync.",
     gearConnectHint:
       "Connect Strava in Settings to link this shoe to its gear, so synced runs match it automatically.",
     save: "Save changes",
@@ -479,6 +485,11 @@ export const en = {
     indoorOutdoor: "{indoor} indoor · {outdoor} outdoor",
     rides: "{n} rides",
     lifetime: "Lifetime distance · new rides count from here",
+    providerOdometer: "Strava odometer",
+    providerReference: "Strava odometer reference",
+    odometerUnknown: "Odometer unknown",
+    providerObserved: "Observed {date}",
+    providerStale: "stale provider value",
   },
   gearPage: {
     eyebrow: "Gear",
@@ -499,7 +510,7 @@ export const en = {
     keepPhoto: "Leave empty to keep the current photo.",
     gear: "Strava gear",
     notLinked: "Not linked",
-    gearUnavailable: "Could not load your gear list from Strava right now.",
+    gearUnavailable: "Strava gear is imported automatically when you sync.",
     gearConnectHint:
       "Connect Strava in Settings to link this bike to its gear, so synced rides match it automatically.",
     save: "Save changes",
@@ -760,15 +771,15 @@ export const en = {
     neverSynced: "Never synced. Press Sync to pull your activities.",
     reconnect: "Reconnect",
     gearScopeHint:
-      "Gear matching needs Strava's profile permission. Use Reconnect above to grant it, then your shoes and bikes appear here.",
+      "Sync materializes shoes and bikes from Strava here. New imported activities match those local rows automatically.",
     notConnected: "Not connected",
     notConnectedBody: "Authorize with the activity:read_all scope to sync your training history.",
     connect: "Connect Strava",
     baselineNote:
       "Shoe baselines were set on {date}. Synced activities from before that date show up in the log as history but add no shoe mileage, because the baselines already include them.",
-    gearMatching: "Gear matching",
+    gearMatching: "Strava gear",
     gearMatchingBody:
-      "Link each shoe to its Strava gear so synced activities pick the right shoe automatically.",
+      "Strava-origin gear keeps its own provider odometer. Manual gear keeps its own local mileage.",
     gearLoadFailed: "Could not load your gear list from Strava right now. Try again later.",
     noStravaShoes: "No shoes found on your Strava profile.",
     bikeMatching: "Bike matching",

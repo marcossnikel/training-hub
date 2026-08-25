@@ -10,7 +10,7 @@ import type { OwnerContext } from "../owner-context";
 // exactly (SUM over zero rows was NULL → 0; COUNT(*) was 0).
 const BIKE_SELECT = `
 SELECT b.*,
-  b.initial_km + COALESCE(m.total, 0) AS current_km,
+  CASE WHEN b.origin = 'strava' THEN b.provider_distance_m / 1000.0 ELSE b.initial_km + COALESCE(m.total, 0) END AS current_km,
   COALESCE(m.indoor, 0) AS indoor_km,
   COALESCE(m.outdoor, 0) AS outdoor_km,
   COALESCE(m.rides, 0) AS ride_count

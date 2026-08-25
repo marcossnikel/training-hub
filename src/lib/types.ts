@@ -14,6 +14,11 @@ export interface Gear {
   strava_gear_id: string | null;
   photo_path: string | null;
   initial_km: number;
+  origin: "manual" | "strava";
+  /** The provider's raw lifetime-distance unit: metres, never accumulated locally. */
+  provider_distance_m: number | null;
+  provider_observed_at: string | null;
+  provider_last_seen_at: string | null;
   retired_at: string | null;
   created_at: string;
 }
@@ -32,7 +37,7 @@ export interface Shoe extends Gear {
 }
 
 export interface ShoeWithMileage extends Shoe {
-  current_km: number;
+  current_km: number | null;
 }
 
 export interface Activity {
@@ -111,7 +116,7 @@ export type GoalInput = Omit<Goal, "id" | "created_at">;
 export type Bike = Gear;
 
 export interface BikeWithMileage extends Bike {
-  current_km: number;
+  current_km: number | null;
   indoor_km: number;
   outdoor_km: number;
   ride_count: number;

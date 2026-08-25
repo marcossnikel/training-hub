@@ -474,8 +474,8 @@ export async function prepareStravaReconnect(owner: OwnerContext): Promise<boole
  * Deletion is intentionally a single write transaction. Activity children
  * cascade through their foreign keys (splits, streams, best efforts, metrics,
  * and curve points); manually entered activities have `strava_id IS NULL` and
- * are never selected. Gear rows are preserved but their provider mapping is
- * cleared, so a future connection cannot inherit a stale Strava gear link.
+ * are never selected. Strava-origin gear belongs to this graph and is deleted;
+ * manual gear survives with only provider-derived references cleared.
  */
 export async function deleteOwnerStravaData(owner: OwnerContext): Promise<DeletedStravaData> {
   await ensureMigrated();
@@ -500,14 +500,34 @@ export async function deleteOwnerStravaData(owner: OwnerContext): Promise<Delete
       sql: "DELETE FROM user_meta WHERE user_id = ? AND key IN ('athlete_name', 'last_sync_at')",
       args: [owner.userId],
     });
+    // A manually entered activity may have been assigned imported gear. Keep
+    // the manual activity but clear that now-deleted relationship first.
     await transaction.execute({
-      sql: "UPDATE shoes SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id IS NOT NULL",
+      sql: `UPDATE activity_splits SET shoe_id = NULL
+            WHERE shoe_id IN (SELECT id FROM shoes WHERE user_id = ? AND origin = 'strava')`,
       args: [owner.userId],
     });
     await transaction.execute({
-      sql: "UPDATE bikes SET strava_gear_id = NULL WHERE user_id = ? AND strava_gear_id IS NOT NULL",
+      sql: `UPDATE activities SET bike_id = NULL
+            WHERE user_id = ? AND bike_id IN (SELECT id FROM bikes WHERE user_id = ? AND origin = 'strava')`,
+      args: [owner.userId, owner.userId],
+    });
+    await transaction.execute({
+      sql: "DELETE FROM shoes WHERE user_id = ? AND origin = 'strava'",
       args: [owner.userId],
     });
+    await transaction.execute({
+      sql: "DELETE FROM bikes WHERE user_id = ? AND origin = 'strava'",
+      args: [owner.userId],
+    });
+    for (const table of ["shoes", "bikes"] as const)
+      await transaction.execute({
+        sql: `UPDATE ${table}
+              SET strava_gear_id = NULL, provider_distance_m = NULL,
+                  provider_observed_at = NULL, provider_last_seen_at = NULL
+              WHERE user_id = ? AND origin = 'manual'`,
+        args: [owner.userId],
+      });
     await transaction.execute({
       sql: "DELETE FROM activities WHERE user_id = ? AND strava_id IS NOT NULL",
       args: [owner.userId],

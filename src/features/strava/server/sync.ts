@@ -14,8 +14,14 @@ import {
   latestSyncedStartEpoch,
   leaseInitialStravaImportJob,
   recordInitialStravaImportOutcome,
+  recordInitialStravaGearMaterialization,
   setMeta,
 } from "@/lib/db";
+import {
+  materializeStravaActivityGearReference,
+  materializeStravaGearSnapshot,
+  type GearMaterializationCounts,
+} from "@/features/gear/server/strava-materialization";
 import { isRideSport } from "@/lib/cycling";
 import { round2 } from "@/lib/format";
 import type { OwnerContext } from "@/lib/owner-context";
@@ -32,6 +38,36 @@ export interface SyncResult {
   historicalConfirmed: number;
   pendingNew: number;
   pendingTotal: number;
+  gear: GearMaterializationCounts;
+}
+
+const noGearChanges = (): GearMaterializationCounts => ({
+  created: 0,
+  updated: 0,
+  placeholders: 0,
+});
+
+function addGearChanges(
+  current: GearMaterializationCounts,
+  next: GearMaterializationCounts
+): GearMaterializationCounts {
+  return {
+    created: current.created + next.created,
+    updated: current.updated + next.updated,
+    placeholders: current.placeholders + next.placeholders,
+  };
+}
+
+async function materializeActivityGearReference(
+  owner: OwnerContext,
+  activity: ProviderActivity
+): Promise<GearMaterializationCounts> {
+  if (!activity.gearId) return noGearChanges();
+  if (isRideSport(activity.sportType ?? undefined))
+    return materializeStravaActivityGearReference(owner, "bike", activity.gearId);
+  if (isRunSport(activity.sportType ?? undefined))
+    return materializeStravaActivityGearReference(owner, "shoe", activity.gearId);
+  return noGearChanges();
 }
 
 export interface InitialImportStepResult {
@@ -167,12 +203,30 @@ export async function advanceInitialStravaImport(
     const state = await getStravaSyncState(owner);
     if (!state || state.initialSyncCompletedAt !== null)
       throw new Error("Strava initial import is unavailable.");
+    const accessToken = await getStravaAccessToken(owner, provider);
+    const gearChanges = await materializeStravaGearSnapshot(
+      owner,
+      await provider.getAthleteGear({ accessToken })
+    );
+    await recordInitialStravaGearMaterialization(
+      owner,
+      leased.job.id,
+      leased.leaseToken,
+      gearChanges
+    );
     const batch = await provider.listActivities({
-      accessToken: await getStravaAccessToken(owner, provider),
+      accessToken,
       page: leased.job.nextPage,
       perPage: 100,
     });
-    for (const activity of batch)
+    for (const activity of batch) {
+      const referenceChanges = await materializeActivityGearReference(owner, activity);
+      await recordInitialStravaGearMaterialization(
+        owner,
+        leased.job.id,
+        leased.leaseToken,
+        referenceChanges
+      );
       await importOneInitialActivity(
         owner,
         leased.job,
@@ -180,6 +234,7 @@ export async function advanceInitialStravaImport(
         state.reviewAfter,
         activity
       );
+    }
     const terminal = batch.length < 100;
     if (
       !(await commitInitialStravaImportPage(
@@ -224,6 +279,11 @@ export async function syncStravaActivities(
       historicalConfirmed: counters?.historical_confirmed_created ?? 0,
       pendingNew: counters?.new_pending_created ?? 0,
       pendingTotal: stepped.status?.snapshot.pending ?? (await countPending(owner)),
+      gear: {
+        created: stepped.status?.job.gearCreated ?? 0,
+        updated: stepped.status?.job.gearUpdated ?? 0,
+        placeholders: stepped.status?.job.gearPlaceholders ?? 0,
+      },
     };
   }
   const afterEpoch = await latestSyncedStartEpoch(owner);
@@ -231,6 +291,10 @@ export async function syncStravaActivities(
   let historicalConfirmed = 0;
   let pendingNew = 0;
   const accessToken = await getStravaAccessToken(owner, provider);
+  let gear = await materializeStravaGearSnapshot(
+    owner,
+    await provider.getAthleteGear({ accessToken })
+  );
   for (let page = 1; page <= 1_000; page++) {
     const batch = await provider.listActivities({
       accessToken,
@@ -244,6 +308,7 @@ export async function syncStravaActivities(
         logger.warn("strava.sync.skipInvalidActivity", { reason: "missing_id" });
         continue;
       }
+      gear = addGearChanges(gear, await materializeActivityGearReference(owner, activity));
       const classified = await classifyNewActivity(owner, activity, state.reviewAfter);
       if (!classified) {
         logger.warn("strava.sync.skipInvalidActivity", { reason: "invalid_start" });
@@ -259,7 +324,13 @@ export async function syncStravaActivities(
     if (batch.length < 100) break;
   }
   await setMeta(owner, "last_sync_at", new Date().toISOString());
-  return { imported, historicalConfirmed, pendingNew, pendingTotal: await countPending(owner) };
+  return {
+    imported,
+    historicalConfirmed,
+    pendingNew,
+    pendingTotal: await countPending(owner),
+    gear,
+  };
 }
 
 export async function shouldAutoSync(owner: OwnerContext): Promise<boolean> {

@@ -7,7 +7,6 @@ import { BikeCard } from "@/components/bike-card";
 import { listBikes, listShoes } from "@/lib/db";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected } from "@/features/strava/server/connection";
-import { loadStravaBikes, loadStravaShoes } from "@/features/strava/server/enrichment";
 import { fmtKm } from "@/lib/format";
 import { requireCurrentUser } from "@/lib/auth";
 import type { BikeWithMileage, ShoeWithMileage } from "@/lib/types";
@@ -21,15 +20,13 @@ export async function ShoesSection() {
   const { t } = await getDict();
   const shoes = await listShoes(owner);
   const connected = await isStravaConnected(owner);
-  const gear = await loadStravaShoes(owner);
-  const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));
 
   const active = shoes.filter((s) => !s.retired_at);
   const retired = shoes.filter((s) => s.retired_at);
-  const totalKm = shoes.reduce((acc, s) => acc + s.current_km, 0);
+  const totalKm = shoes.reduce((acc, s) => acc + (s.current_km ?? 0), 0);
 
   const addTrigger = (
-    <GearDialog kind="shoe" gearOptions={gear} connected={connected}>
+    <GearDialog kind="shoe" gearOptions={null} connected={connected}>
       <Button>
         <PlusIcon data-icon="inline-start" /> {t.shoesPage.addShoe}
       </Button>
@@ -40,8 +37,8 @@ export async function ShoesSection() {
     <ShoeCard
       key={shoe.id}
       shoe={shoe}
-      gearOptions={gear}
-      gearName={shoe.strava_gear_id ? (gearNameById.get(shoe.strava_gear_id) ?? null) : null}
+      gearOptions={null}
+      gearName={null}
       connected={connected}
       t={t}
     />
@@ -89,15 +86,13 @@ export async function BikesSection() {
   const { t } = await getDict();
   const bikes = await listBikes(owner);
   const connected = await isStravaConnected(owner);
-  const gear = await loadStravaBikes(owner);
-  const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));
 
   const active = bikes.filter((b) => !b.retired_at);
   const retired = bikes.filter((b) => b.retired_at);
-  const totalKm = bikes.reduce((acc, b) => acc + b.current_km, 0);
+  const totalKm = bikes.reduce((acc, b) => acc + (b.current_km ?? 0), 0);
 
   const addTrigger = (
-    <GearDialog kind="bike" gearOptions={gear} connected={connected}>
+    <GearDialog kind="bike" gearOptions={null} connected={connected}>
       <Button>
         <PlusIcon data-icon="inline-start" /> {t.bikesPage.addBike}
       </Button>
@@ -108,8 +103,8 @@ export async function BikesSection() {
     <BikeCard
       key={bike.id}
       bike={bike}
-      gearOptions={gear}
-      gearName={bike.strava_gear_id ? (gearNameById.get(bike.strava_gear_id) ?? null) : null}
+      gearOptions={null}
+      gearName={null}
       connected={connected}
       t={t}
     />

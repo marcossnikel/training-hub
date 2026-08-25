@@ -21,6 +21,9 @@ export interface StravaImportJob {
   completedAt: string | null;
   retryCount: number;
   errorCategory: ImportErrorCategory | null;
+  gearCreated: number;
+  gearUpdated: number;
+  gearPlaceholders: number;
 }
 
 export interface StravaImportSnapshot {
@@ -50,6 +53,9 @@ interface JobRow {
   completed_at: string | null;
   retry_count: number;
   error_category: ImportErrorCategory | null;
+  gear_created: number;
+  gear_updated: number;
+  gear_placeholders: number;
 }
 
 function decodeJob(row: JobRow): StravaImportJob {
@@ -64,11 +70,14 @@ function decodeJob(row: JobRow): StravaImportJob {
     completedAt: row.completed_at,
     retryCount: Number(row.retry_count),
     errorCategory: row.error_category,
+    gearCreated: Number(row.gear_created),
+    gearUpdated: Number(row.gear_updated),
+    gearPlaceholders: Number(row.gear_placeholders),
   };
 }
 
 const JOB_COLUMNS = `id, connection_id, status, stage, next_page, started_at,
-  updated_at, completed_at, retry_count, error_category`;
+  updated_at, completed_at, retry_count, error_category, gear_created, gear_updated, gear_placeholders`;
 
 async function connectedInitialConnection(owner: OwnerContext): Promise<{ id: string } | null> {
   return one<{ id: string }>(
@@ -111,7 +120,8 @@ export async function getInitialStravaImportJob(
 ): Promise<StravaImportJob | null> {
   const row = await one<JobRow>(
     `SELECT j.id, j.connection_id, j.status, j.stage, j.next_page, j.started_at,
-            j.updated_at, j.completed_at, j.retry_count, j.error_category
+            j.updated_at, j.completed_at, j.retry_count, j.error_category,
+            j.gear_created, j.gear_updated, j.gear_placeholders
      FROM strava_import_jobs j
      JOIN strava_connections c ON c.id = j.connection_id
      WHERE j.user_id = ? AND c.user_id = ? AND c.status = 'connected'
@@ -163,6 +173,30 @@ export async function recordInitialStravaImportOutcome(
     args: [jobId, providerActivityId, outcome, family, now, jobId, owner.userId, leaseToken],
   });
   return result.rowsAffected > 0;
+}
+
+/** Records only aggregate, committed local materialization effects — never provider payload. */
+export async function recordInitialStravaGearMaterialization(
+  owner: OwnerContext,
+  jobId: string,
+  leaseToken: string,
+  counts: { created: number; updated: number; placeholders: number }
+): Promise<void> {
+  await client.execute({
+    sql: `UPDATE strava_import_jobs
+          SET gear_created = gear_created + ?, gear_updated = gear_updated + ?,
+              gear_placeholders = gear_placeholders + ?, stage = 'materializing_gear', updated_at = ?
+          WHERE id = ? AND user_id = ? AND lease_token = ? AND status = 'running'`,
+    args: [
+      counts.created,
+      counts.updated,
+      counts.placeholders,
+      new Date().toISOString(),
+      jobId,
+      owner.userId,
+      leaseToken,
+    ],
+  });
 }
 
 export async function commitInitialStravaImportPage(

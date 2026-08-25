@@ -37,8 +37,8 @@ export function GearCard({
   gearLabel: string;
   contentClassName?: string;
   children: React.ReactNode;
-  editTrigger: React.ReactNode;
-  retireButton: React.ReactNode;
+  editTrigger?: React.ReactNode;
+  retireButton?: React.ReactNode;
 }) {
   const photo = photoSrc(photoPath);
 
@@ -88,10 +88,12 @@ export function GearCard({
           </p>
         ) : null}
 
-        <div className="flex items-center justify-between border-t pt-3">
-          {editTrigger}
-          {retireButton}
-        </div>
+        {editTrigger || retireButton ? (
+          <div className="flex items-center justify-between border-t pt-3">
+            {editTrigger}
+            {retireButton}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

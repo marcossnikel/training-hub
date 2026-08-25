@@ -4,7 +4,7 @@ import type { ShoeWithMileage, WearStatus } from "@/lib/types";
 export function wearStatus(shoe: ShoeWithMileage): WearStatus {
   if (shoe.retired_at) return "retired";
   const cap = shoe.retirement_km ?? 700;
-  const ratio = cap > 0 ? shoe.current_km / cap : 0;
+  const ratio = cap > 0 ? (shoe.current_km ?? 0) / cap : 0;
   if (ratio >= 0.9) return "critical";
   if (ratio >= 0.7) return "worn";
   return "fresh";
