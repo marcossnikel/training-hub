@@ -478,6 +478,12 @@ export const en = {
     rides: "{n} rides",
     lifetime: "Lifetime distance · new rides count from here",
   },
+  gearPage: {
+    eyebrow: "Gear",
+    headline: "Know what your gear has carried.",
+    intro: "Mileage is a record, not a prescription. You decide when a shoe or bike is retired.",
+    evidenceNote: "Mileage comes from confirmed activity assignment and manual corrections.",
+  },
   bikeDialog: {
     editTitle: "Edit {name}",
     addTitle: "Add a bike",
@@ -499,6 +505,11 @@ export const en = {
   },
   racesPage: {
     title: "Races",
+    eyebrow: "Races",
+    headline: "Give each race a truthful record.",
+    intro:
+      "Race context organises your own history. It does not prescribe a plan or claim a result.",
+    recordNote: "Confirmed race activities only · each row links back to its source record",
     subtitle: "{n} races · your fastest {distance} is {pace}",
     subtitlePlain: "{n} races logged",
     empty: "No races marked yet.",
@@ -561,6 +572,12 @@ export const en = {
   },
   performance: {
     title: "Performance",
+    eyebrow: "Performance",
+    headline: "Patterns, with their evidence attached.",
+    intro:
+      "Use confirmed history to see what has changed. Every estimate names its window, source, and limit.",
+    methodNote:
+      "No recovery state is inferred here. Estimates remain separate from source records and are never applied automatically.",
     subtitle: "Best efforts, a threshold estimate and race predictions from your run history.",
     empty: "No runs to analyze yet",
     emptyBody: "Confirm some runs and your best efforts and race predictions build here.",
@@ -705,6 +722,22 @@ export const en = {
   },
   settingsPage: {
     title: "Settings",
+    headline: "Your account, connection, and data.",
+    intro:
+      "Every control names what it changes, what stays, and when an external connection is involved.",
+    profile: "Profile",
+    profileBody:
+      "Account identity and display context. These values do not change source activity data.",
+    accountEmail: "Account email",
+    sourceName: "Strava profile name",
+    language: "Language",
+    connection: "Connection",
+    trainingPreferences: "Training preferences",
+    gearAndCorrections: "Gear and corrections",
+    dataTitle: "Data & privacy",
+    dataBody:
+      "Disconnecting removes the Strava connection and imported records. Manual activities, goals, journal, thresholds, and manually entered gear stay.",
+    reviewDataControl: "Review connection controls",
     subtitle: "Strava connection, gear matching and manual corrections.",
     connectedAlert: "Strava connected",
     connectedAlertBody:

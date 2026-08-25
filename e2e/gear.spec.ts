@@ -46,14 +46,20 @@ async function addGear(
 test("shoes page shows a seeded baseline shoe", async ({ page }) => {
   await page.goto("/shoes");
 
-  await expect(page.getByRole("heading", { level: 1, name: "Shoes" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Know what your gear has carried." })
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Shoes" })).toBeVisible();
   await expect(page.getByText("ASICS Superblast 3")).toBeVisible();
 });
 
 test("bikes page shows a seeded baseline bike", async ({ page }) => {
   await page.goto("/bikes");
 
-  await expect(page.getByRole("heading", { level: 1, name: "Bikes" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Know what your gear has carried." })
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Bikes" })).toBeVisible();
   await expect(page.getByText("TSW TR10 Speed Bike")).toBeVisible();
 });
 

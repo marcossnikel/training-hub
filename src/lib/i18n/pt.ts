@@ -477,6 +477,14 @@ export const pt: Dict = {
     rides: "{n} pedais",
     lifetime: "Distância total · novos pedais contam a partir daqui",
   },
+  gearPage: {
+    eyebrow: "Equipamentos",
+    headline: "Saiba o que seus equipamentos já carregaram.",
+    intro:
+      "Quilometragem é um registro, não uma prescrição. Você decide quando aposentar um tênis ou uma bike.",
+    evidenceNote:
+      "A quilometragem vem da atribuição em atividades confirmadas e de correções manuais.",
+  },
   bikeDialog: {
     editTitle: "Editar {name}",
     addTitle: "Adicionar bike",
@@ -498,6 +506,11 @@ export const pt: Dict = {
   },
   racesPage: {
     title: "Provas",
+    eyebrow: "Provas",
+    headline: "Dê a cada prova um registro verdadeiro.",
+    intro:
+      "O contexto da prova organiza seu próprio histórico. Ele não prescreve um plano nem afirma um resultado.",
+    recordNote: "Somente atividades de prova confirmadas · cada linha volta ao registro de origem",
     subtitle: "{n} provas · sua {distance} mais rápida é {pace}",
     subtitlePlain: "{n} provas registradas",
     empty: "Nenhuma prova marcada ainda.",
@@ -560,6 +573,12 @@ export const pt: Dict = {
   },
   performance: {
     title: "Desempenho",
+    eyebrow: "Desempenho",
+    headline: "Padrões, com as evidências anexadas.",
+    intro:
+      "Use o histórico confirmado para ver o que mudou. Cada estimativa informa sua janela, fonte e limite.",
+    methodNote:
+      "Nenhum estado de recuperação é inferido aqui. Estimativas ficam separadas dos registros de origem e nunca são aplicadas automaticamente.",
     subtitle:
       "Melhores tempos, estimativa de limiar e previsões de prova a partir do seu histórico.",
     empty: "Nenhuma corrida para analisar ainda",
@@ -703,6 +722,22 @@ export const pt: Dict = {
   },
   settingsPage: {
     title: "Ajustes",
+    headline: "Sua conta, conexão e dados.",
+    intro:
+      "Cada controle informa o que muda, o que permanece e quando uma conexão externa está envolvida.",
+    profile: "Perfil",
+    profileBody:
+      "Identidade da conta e contexto de exibição. Esses valores não alteram os dados das atividades de origem.",
+    accountEmail: "E-mail da conta",
+    sourceName: "Nome no perfil do Strava",
+    language: "Idioma",
+    connection: "Conexão",
+    trainingPreferences: "Preferências de treino",
+    gearAndCorrections: "Equipamentos e correções",
+    dataTitle: "Dados e privacidade",
+    dataBody:
+      "Desconectar remove a conexão com o Strava e os registros importados. Atividades manuais, metas, diário, limiares e equipamentos inseridos manualmente permanecem.",
+    reviewDataControl: "Revisar controles da conexão",
     subtitle: "Conexão com o Strava, vínculo de equipamentos e correções manuais.",
     connectedAlert: "Strava conectado",
     connectedAlertBody:

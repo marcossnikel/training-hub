@@ -68,7 +68,10 @@ function StatTile({
   return (
     <div className="min-w-0">
       <div className="label-micro">{label}</div>
-      <div className="mt-1 font-display text-3xl font-bold" style={color ? { color } : undefined}>
+      <div
+        className="mt-1 text-3xl font-semibold tracking-[-0.035em] tabular-nums"
+        style={color ? { color } : undefined}
+      >
         {value}
       </div>
       {sub ? <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div> : null}
@@ -155,11 +158,16 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
     key === DEFAULT_CURVE_WINDOW.key ? "/performance" : `/performance?window=${key}`;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="font-display text-4xl font-bold">{tp.title}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{tp.subtitle}</p>
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:py-10">
+      <header className="max-w-3xl">
+        <p className="font-mono text-xs text-muted-foreground uppercase">{tp.eyebrow}</p>
+        <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-[2.5rem] sm:leading-[2.75rem]">
+          {tp.headline}
+        </h1>
+        <p className="mt-3 text-base leading-7 text-muted-foreground">{tp.intro}</p>
+      </header>
 
-      <Card className="mt-6">
+      <Card className="mt-8 rounded-2xl">
         <CardHeader>
           <CardTitle>{t.zones.title}</CardTitle>
           <CardDescription>{t.zones.subtitle}</CardDescription>
@@ -429,6 +437,10 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
           <TotalsTable rows={totals} period={period} lang={lang} t={t} />
         </CardContent>
       </Card>
+
+      <p className="mt-6 max-w-3xl font-mono text-xs leading-5 text-muted-foreground">
+        {tp.methodNote}
+      </p>
     </div>
   );
 }

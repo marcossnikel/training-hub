@@ -3,9 +3,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** Static shell only — see the note in src/app/loading.tsx. */
 export default function Loading() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <Skeleton className="h-9 w-48" />
-      <Skeleton className="mt-2 h-4 w-80" />
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:py-10">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="mt-4 h-11 w-full max-w-xl" />
+      <Skeleton className="mt-3 h-6 w-full max-w-2xl" />
 
       {/* Zones card, then the best-efforts / critical-speed / prediction cards. */}
       <div className="mt-6 space-y-4">
