@@ -134,13 +134,23 @@ schema belong to later tasks.
 
 ## Validation
 
-Focused owner-scoped integration tests for the connection-import-to-performance
-path, exact consistency cells/minutes/session counts/streak, pending exclusion
-and later confirmation, partial coverage, local-day/year boundaries with known/
-unknown timezone, totals, and query-state mapping. Then iterate the disposable
-connection story through the first `/performance` load and verify the populated
-Consistency surface, period/window controls, empty/partial states, keyboard
-focus, and 1440/390 layouts in a real browser.
+Add `src/features/performance/first-value.integration.test.ts` using disposable
+SQLite and the R9 loopback-provider fixture. It covers connection-import-to-
+performance, exact totals and consistency cells/minutes/session counts/streak,
+pending exclusion and later confirmation, partial coverage, local-day/year
+boundaries with known/unknown timezone, owner isolation, and query-state
+mapping.
+
+```sh
+npx vitest run src/features/performance/first-value.integration.test.ts
+npx playwright test e2e/byo-connection.spec.ts e2e/performance.spec.ts
+```
+
+Do not run the full repository gate. Make the focused integration story green
+first, then start the disposable app and iterate connection through the first
+`/performance` load. Verify populated Consistency, Weeks/Months and curve-window
+controls, empty/partial states, keyboard/focus, no horizontal overflow, and
+1440/390 layouts until the focused Playwright specs and direct inspection pass.
 
 ## Migration, compatibility, and rollback
 
@@ -149,6 +159,17 @@ confirmed data remains valid. No deployment or remote provider effect.
 
 ## Stop only if
 
-Summary queries require unowned data, an effective timezone cannot be passed as
-an explicit validated input without importing client/server globals, or correct
-behavior requires automatic detail/stream enrichment outside this task.
+The accepted immediate-value result genuinely requires unavailable detail/
+stream/provider data rather than stored summaries; D-024/D-026 semantics need a
+Marcos decision; or proof requires real Strava, a shared database, or deployment.
+
+Owner-scope query defects, explicit-timezone plumbing, aggregation, URL state,
+partial copy, fixtures, responsive layout, and all other recoverable local
+findings are owned and fixed by the builder within this task. It must not add
+automatic detail/stream enrichment.
+
+## Finish
+
+Both named focused commands pass with disposable data and real-browser proof,
+R16 is marked done in the roadmap, and the complete attributable change is one
+local-main commit with no push or deployment.
