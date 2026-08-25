@@ -142,12 +142,23 @@ new analysis or replace R14/R9 state.
 
 ## Validation
 
-Focused integration tests for callback handoff, activation eligibility,
-dismiss/revisit/complete, R14 progress/retry, deterministic summary, and owner
-isolation using disposable SQLite plus loopback provider. Then iterate the full
-OAuth-return-to-summary story in a real browser at 1440/390, including slow
-progress, partial failure/retry, skip, refresh, revisit, completion, no replay,
-keyboard/focus, and reduced motion.
+Add `src/features/onboarding/connection-activation.integration.test.ts` using
+disposable SQLite plus the loopback provider. It composes already-proven R14/
+R15/R16 outputs and covers callback handoff, per-connection eligibility,
+welcome-state independence, dismiss/revisit/complete, progress/retry, exact
+deterministic summary, summary-seen timing, owner isolation, and no replay.
+
+```sh
+npx vitest run src/features/onboarding/connection-activation.integration.test.ts
+npx playwright test e2e/connection-activation.spec.ts
+```
+
+Do not rerun every prerequisite suite or the full repository gate. Make the
+focused composition integration green, then iterate the complete disposable
+OAuth-return-to-summary browser story at 1440/390. The one focused Playwright
+spec owns slow/indeterminate progress, real counters, partial failure/retry,
+skip, refresh, manual revisit, completion, no replay, populated evidence links,
+light/dark, keyboard/focus, live regions, and reduced motion.
 
 ## Migration, compatibility, and rollback
 
@@ -158,6 +169,17 @@ import/activation records. No deployment or remote migration is authorized.
 
 ## Stop only if
 
-R14 cannot provide truthful observable state, exact activation visual/copy
-contract remains unresolved at ready time, callback continuation would weaken
-OAuth safety, or proof needs real/shared services.
+Exact activation visual/copy still needs a Marcos decision at ready time; a
+truthful experience requires a new background-runtime/provider contract; OAuth
+safety creates an unresolved security decision; or proof requires real Strava,
+a shared database, remote migration, deployment, or external credential.
+
+Callback composition, presentation persistence, polling/advance behavior,
+summary mapping, retry, fixtures, motion, focus, responsive layout, and all other
+recoverable local findings are owned and fixed by the builder within this task.
+
+## Finish
+
+Both named focused commands pass with disposable data and real-browser proof,
+R18 is marked done in the roadmap, and the complete attributable change is one
+local-main commit with no push, migration execution, or deployment.
