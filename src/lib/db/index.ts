@@ -6,6 +6,7 @@ export * from "./shoes";
 export * from "./bikes";
 export * from "./activities";
 export * from "./strava-auth";
+export * from "./strava-import-jobs";
 export * from "./oauth-state";
 export * from "./thresholds";
 export * from "./metrics";

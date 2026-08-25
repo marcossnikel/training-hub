@@ -109,15 +109,26 @@ describe("initial Strava import", () => {
       return response([]);
     }) as unknown as typeof fetch;
 
-    await expect(strava.syncActivities(owner)).rejects.toThrow("loopback page two failure");
+    // R14 makes each sync invocation one durable page/terminal step. The
+    // failure below therefore leaves the first committed page visible and the
+    // same persisted job resumable instead of asking a browser request to walk
+    // all history again.
+    await expect(strava.syncActivities(owner)).resolves.toMatchObject({
+      imported: 100,
+      historicalConfirmed: 100,
+    });
+    await expect(strava.syncActivities(owner)).resolves.toMatchObject({
+      imported: 100,
+      historicalConfirmed: 100,
+    });
     expect(await db.countPending(owner)).toBe(0);
     const stateAfterFailure = await db.getStravaSyncState(owner);
     expect(stateAfterFailure?.initialSyncCompletedAt).toBeNull();
 
     const complete = await strava.syncActivities(owner);
     expect(complete).toMatchObject({
-      imported: 2,
-      historicalConfirmed: 2,
+      imported: 102,
+      historicalConfirmed: 102,
       pendingNew: 0,
       pendingTotal: 0,
     });

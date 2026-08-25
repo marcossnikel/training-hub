@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   promotePendingStravaConnection: vi.fn(),
   setMeta: vi.fn(),
   exchangeByoCode: vi.fn(),
-  syncActivities: vi.fn(),
+  advanceInitialStravaImport: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
@@ -20,7 +20,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/strava", () => ({
   exchangeByoCode: mocks.exchangeByoCode,
-  syncActivities: mocks.syncActivities,
+  advanceInitialStravaImport: mocks.advanceInitialStravaImport,
 }));
 
 import { GET } from "./route";
@@ -55,12 +55,7 @@ beforeEach(() => {
     athlete: { id: 42, firstname: "Ada", lastname: "Runner" },
   });
   mocks.promotePendingStravaConnection.mockResolvedValue(true);
-  mocks.syncActivities.mockResolvedValue({
-    imported: 1,
-    historicalConfirmed: 1,
-    pendingNew: 0,
-    pendingTotal: 0,
-  });
+  mocks.advanceInitialStravaImport.mockResolvedValue({ advanced: true, status: null });
 });
 
 afterEach(() => {
@@ -69,7 +64,7 @@ afterEach(() => {
 });
 
 describe("owner-bound Strava callback", () => {
-  it("consumes state before owner-only exchange, promotes exact scope, syncs, and redirects safely", async () => {
+  it("consumes state before owner-only exchange, promotes exact scope, starts one bounded import step, and redirects safely", async () => {
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.status).toBe(307);
@@ -88,7 +83,7 @@ describe("owner-bound Strava callback", () => {
         granted_scope: "read,activity:read_all,profile:read_all",
       })
     );
-    expect(mocks.syncActivities).toHaveBeenCalledWith(OWNER);
+    expect(mocks.advanceInitialStravaImport).toHaveBeenCalledWith(OWNER);
     const artifact = JSON.stringify({
       location: response.headers.get("location"),
       calls: mocks.exchangeByoCode.mock.calls,
@@ -113,7 +108,7 @@ describe("owner-bound Strava callback", () => {
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=scope`);
     expect(mocks.consumeOAuthState).toHaveBeenCalledWith(OWNER, STATE);
     expect(mocks.exchangeByoCode).not.toHaveBeenCalled();
-    expect(mocks.syncActivities).not.toHaveBeenCalled();
+    expect(mocks.advanceInitialStravaImport).not.toHaveBeenCalled();
   });
 
   it("rejects missing or expanded granted scopes before token persistence or sync", async () => {
@@ -128,7 +123,7 @@ describe("owner-bound Strava callback", () => {
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=scope`);
     expect(mocks.promotePendingStravaConnection).not.toHaveBeenCalled();
-    expect(mocks.syncActivities).not.toHaveBeenCalled();
+    expect(mocks.advanceInitialStravaImport).not.toHaveBeenCalled();
   });
 
   it("keeps the pending credentials for an exchange or sync failure and exposes no provider detail", async () => {
@@ -137,7 +132,7 @@ describe("owner-bound Strava callback", () => {
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=recovery`);
     expect(mocks.promotePendingStravaConnection).not.toHaveBeenCalled();
-    expect(mocks.syncActivities).not.toHaveBeenCalled();
+    expect(mocks.advanceInitialStravaImport).not.toHaveBeenCalled();
     expect(await response.text()).not.toContain("provider body");
   });
 });

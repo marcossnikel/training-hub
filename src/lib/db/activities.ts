@@ -358,6 +358,18 @@ export interface SyncedActivityInput {
   bike_id: number | null;
 }
 
+/**
+ * Optional R14 bookkeeping joined to the same SQLite transaction as a newly
+ * materialized activity. It deliberately carries only durable identifiers and
+ * enum values, never provider payload fields.
+ */
+export interface InitialImportOutcomeWrite {
+  jobId: string;
+  leaseToken: string;
+  outcome: "historical_confirmed_created" | "new_pending_created";
+  sportFamily: "run" | "ride" | "other" | "unknown";
+}
+
 const INSERT_SPLIT_SQL = `INSERT INTO activity_splits (activity_id, shoe_id, km)
   SELECT ?, ?, ? WHERE ? IS NULL OR EXISTS (SELECT 1 FROM shoes WHERE id = ? AND user_id = ?)`;
 const DELETE_SPLITS_SQL =
@@ -374,7 +386,8 @@ function splitArgs(
 export async function insertSyncedActivity(
   owner: OwnerContext,
   input: SyncedActivityInput,
-  splits: SplitInput[]
+  splits: SplitInput[],
+  initialImportOutcome?: InitialImportOutcomeWrite
 ): Promise<void> {
   await ensureMigrated();
   const tx = await client.transaction("write");
@@ -420,6 +433,26 @@ export async function insertSyncedActivity(
       if (shoe !== true && shoe.rows.length === 0)
         throw new Error("Owner does not own selected shoe");
       await tx.execute({ sql: INSERT_SPLIT_SQL, args: splitArgs(owner, activityId, split) });
+    }
+    if (initialImportOutcome) {
+      await tx.execute({
+        sql: `INSERT OR IGNORE INTO strava_import_job_outcomes
+              (job_id, provider_activity_id, outcome, sport_family, created_at)
+              SELECT ?, ?, ?, ?, ? WHERE EXISTS (
+                SELECT 1 FROM strava_import_jobs
+                WHERE id = ? AND user_id = ? AND lease_token = ? AND status = 'running'
+              )`,
+        args: [
+          initialImportOutcome.jobId,
+          input.strava_id,
+          initialImportOutcome.outcome,
+          initialImportOutcome.sportFamily,
+          new Date().toISOString(),
+          initialImportOutcome.jobId,
+          owner.userId,
+          initialImportOutcome.leaseToken,
+        ],
+      });
     }
     await tx.commit();
   } finally {

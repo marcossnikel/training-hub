@@ -19,9 +19,15 @@ import {
   saveStravaAuth,
   markStravaConnectionRecoverable,
   setMeta,
-  markInitialStravaSyncComplete,
   upsertActivityBestEfforts,
   upsertActivityMetrics,
+  completeInitialStravaImport,
+  commitInitialStravaImportPage,
+  ensureInitialStravaImportJob,
+  failInitialStravaImport,
+  getInitialStravaImportStatus,
+  leaseInitialStravaImportJob,
+  recordInitialStravaImportOutcome,
 } from "./db";
 import { bestEffortRows, type StravaBestEffort } from "./best-efforts";
 import { isRideSport } from "./cycling";
@@ -39,6 +45,11 @@ import { isRunSport } from "./validate";
 import type { SplitInput, StravaGear } from "./types";
 import type { OwnerContext } from "./owner-context";
 import { classifyInitialImportStart } from "../features/strava/initial-import";
+import {
+  classifyImportError,
+  sportFamily,
+  type ImportOutcome,
+} from "../features/strava/import-progress";
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const API_BASE = "https://www.strava.com/api/v3";
@@ -662,16 +673,184 @@ export interface SyncResult {
   pendingTotal: number;
 }
 
+export interface InitialImportStepResult {
+  advanced: boolean;
+  status: Awaited<ReturnType<typeof getInitialStravaImportStatus>>;
+}
+
+function isProviderActivityId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+async function importOneInitialActivity(
+  owner: OwnerContext,
+  job: { id: string },
+  leaseToken: string,
+  reviewAfter: string,
+  activity: StravaActivity
+): Promise<void> {
+  if (!isProviderActivityId(activity.id)) {
+    // No stable identity means it cannot be part of an athlete-wide cumulative
+    // counter; it is deliberately only an opaque per-attempt diagnostic.
+    logger.warn("strava.import.invalidActivity", { reason: "missing_provider_identity" });
+    return;
+  }
+  const sport = activity.sport_type ?? activity.type ?? null;
+  const family = sportFamily(sport);
+  const classification = classifyInitialImportStart(activity.start_date, reviewAfter);
+  if (classification === "invalid") {
+    await recordInitialStravaImportOutcome(
+      owner,
+      job.id,
+      leaseToken,
+      activity.id,
+      "skipped_invalid",
+      family
+    );
+    return;
+  }
+  if (await activityExistsByStravaId(owner, activity.id)) {
+    await recordInitialStravaImportOutcome(
+      owner,
+      job.id,
+      leaseToken,
+      activity.id,
+      "already_present",
+      family
+    );
+    return;
+  }
+
+  const distanceKm = activity.distance ? round2(activity.distance / 1000) : 0;
+  const movingS = activity.moving_time ?? null;
+  const pace =
+    activity.distance && activity.distance > 0 && movingS
+      ? Math.round(movingS / (activity.distance / 1000))
+      : null;
+  let status: "confirmed" | "pending_review";
+  let splits: SplitInput[] = [];
+  let bikeId: number | null = null;
+  let outcome: ImportOutcome;
+  if (classification === "confirmed") {
+    status = "confirmed";
+    outcome = "historical_confirmed_created";
+  } else {
+    status = "pending_review";
+    outcome = "new_pending_created";
+    const matchedGearId = activity.gear_id ?? null;
+    if (isRideSport(sport)) {
+      bikeId = matchedGearId ? await findBikeIdByGear(owner, matchedGearId) : null;
+    } else {
+      const matchedShoeId = matchedGearId ? await findShoeIdByGear(owner, matchedGearId) : null;
+      if ((isRunSport(sport) || matchedShoeId) && distanceKm > 0) {
+        splits = [{ shoe_id: matchedShoeId, km: distanceKm }];
+      }
+    }
+  }
+  await insertSyncedActivity(
+    owner,
+    {
+      strava_id: activity.id,
+      name: activity.name ?? null,
+      sport_type: sport,
+      started_at: activity.start_date!,
+      started_at_local: activity.start_date_local ?? null,
+      distance_km: distanceKm,
+      moving_time_s: movingS,
+      avg_pace_s_per_km: pace,
+      avg_hr: activity.average_heartrate ?? null,
+      elevation_gain_m: activity.total_elevation_gain ?? null,
+      status,
+      raw_json: JSON.stringify(activity),
+      bike_id: bikeId,
+    },
+    splits,
+    { jobId: job.id, leaseToken, outcome, sportFamily: family }
+  );
+}
+
 /**
- * The first sync deliberately walks all history on every retry. Existing
- * owner+provider IDs make that safe and prevent a page-two failure from
- * permanently skipping older pages. Later syncs use the newest stored epoch.
+ * Does exactly one provider page (or the terminal local completion) under a
+ * short persisted lease. Nothing supplied by the browser can influence its
+ * cursor, cutoff, stage, counters, or owner scope.
  */
+export async function advanceInitialStravaImport(
+  owner: OwnerContext
+): Promise<InitialImportStepResult> {
+  const job = await ensureInitialStravaImportJob(owner);
+  if (!job) return { advanced: false, status: await getInitialStravaImportStatus(owner) };
+  const leased = await leaseInitialStravaImportJob(owner, job.id);
+  if (!leased) return { advanced: false, status: await getInitialStravaImportStatus(owner) };
+
+  try {
+    const syncState = await getStravaSyncState(owner);
+    if (!syncState || syncState.initialSyncCompletedAt !== null) {
+      throw new Error("Strava initial import is unavailable.");
+    }
+    const page = leased.job.nextPage;
+    const batch = await apiGet<StravaActivity[]>(owner, "/athlete/activities", {
+      per_page: "100",
+      page: String(page),
+    });
+    if (!Array.isArray(batch)) throw new Error("Strava API returned an invalid activity page.");
+    for (const activity of batch) {
+      await importOneInitialActivity(
+        owner,
+        leased.job,
+        leased.leaseToken,
+        syncState.reviewAfter,
+        activity
+      );
+    }
+    const terminal = batch.length < 100;
+    if (
+      !(await commitInitialStravaImportPage(
+        owner,
+        leased.job.id,
+        leased.leaseToken,
+        page,
+        terminal
+      ))
+    ) {
+      return { advanced: false, status: await getInitialStravaImportStatus(owner) };
+    }
+    if (terminal) {
+      await completeInitialStravaImport(
+        owner,
+        leased.job.id,
+        leased.leaseToken,
+        new Date().toISOString()
+      );
+    }
+    return { advanced: true, status: await getInitialStravaImportStatus(owner) };
+  } catch (error) {
+    await failInitialStravaImport(
+      owner,
+      leased.job.id,
+      leased.leaseToken,
+      classifyImportError(error)
+    );
+    logger.warn("strava.initialImport.failed", { category: classifyImportError(error) });
+    return { advanced: true, status: await getInitialStravaImportStatus(owner) };
+  }
+}
+
+/** Subsequent syncs use the newest committed provider activity as their cursor. */
 export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
   const syncState = await getStravaSyncState(owner);
   if (!syncState) throw new Error("Strava connection sync state is unavailable.");
-  const initialSync = syncState.initialSyncCompletedAt === null;
-  const afterEpoch = initialSync ? null : await latestSyncedStartEpoch(owner);
+  if (syncState.initialSyncCompletedAt === null) {
+    const stepped = await advanceInitialStravaImport(owner);
+    const counters = stepped.status?.counters;
+    return {
+      imported:
+        (counters?.historical_confirmed_created ?? 0) + (counters?.new_pending_created ?? 0),
+      historicalConfirmed: counters?.historical_confirmed_created ?? 0,
+      pendingNew: counters?.new_pending_created ?? 0,
+      pendingTotal: stepped.status?.snapshot.pending ?? (await countPending(owner)),
+    };
+  }
+  const afterEpoch = await latestSyncedStartEpoch(owner);
 
   let imported = 0;
   let historicalConfirmed = 0;
@@ -764,7 +943,6 @@ export async function syncActivities(owner: OwnerContext): Promise<SyncResult> {
   }
 
   const completedAt = new Date().toISOString();
-  if (initialSync) await markInitialStravaSyncComplete(owner, completedAt);
   await setMeta(owner, "last_sync_at", completedAt);
   return { imported, historicalConfirmed, pendingNew, pendingTotal: await countPending(owner) };
 }

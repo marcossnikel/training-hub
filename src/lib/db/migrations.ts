@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 28;
+export const OWNER_SCHEMA_VERSION = 29;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -314,9 +314,26 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
     // not to personal gear-baseline policy. Existing retained connections get
     // a conservative cutoff at their own creation time.
     version: 28,
+    statementsFor: async (target) => {
+      const columns = await target.execute(
+        "SELECT name FROM pragma_table_info('strava_connections')"
+      );
+      const names = new Set(columns.rows.map((row) => String(row.name)));
+      return [
+        ...(names.has("review_after")
+          ? []
+          : [{ sql: "ALTER TABLE strava_connections ADD COLUMN review_after TEXT", args: [] }]),
+        ...(names.has("initial_sync_completed_at")
+          ? []
+          : [
+              {
+                sql: "ALTER TABLE strava_connections ADD COLUMN initial_sync_completed_at TEXT",
+                args: [],
+              },
+            ]),
+      ];
+    },
     statements: [
-      "ALTER TABLE strava_connections ADD COLUMN review_after TEXT",
-      "ALTER TABLE strava_connections ADD COLUMN initial_sync_completed_at TEXT",
       "UPDATE strava_connections SET review_after = created_at WHERE review_after IS NULL",
       `UPDATE strava_connections
        SET initial_sync_completed_at = (
@@ -328,6 +345,45 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
            SELECT 1 FROM user_meta
            WHERE user_meta.user_id = strava_connections.user_id AND key = 'last_sync_at'
          )`,
+    ],
+  },
+  {
+    // R14: one durable, owner-and-connection-scoped initial-import lifecycle.
+    // Outcome rows, rather than fetch attempts, are the cumulative counters.
+    version: 29,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS strava_import_jobs (
+         id TEXT PRIMARY KEY,
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         connection_id TEXT NOT NULL UNIQUE REFERENCES strava_connections(id) ON DELETE CASCADE,
+         status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'partial', 'completed', 'failed')),
+         stage TEXT NOT NULL CHECK (stage IN ('fetching_activities', 'classifying_history', 'materializing_gear', 'aggregating_summary', 'completed')),
+         next_page INTEGER NOT NULL DEFAULT 1 CHECK (next_page > 0),
+         started_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL,
+         completed_at TEXT,
+         retry_count INTEGER NOT NULL DEFAULT 0 CHECK (retry_count >= 0),
+         error_category TEXT,
+         lease_token TEXT,
+         lease_expires_at TEXT,
+         CHECK ((status = 'completed') = (completed_at IS NOT NULL))
+       )`,
+      `CREATE TABLE IF NOT EXISTS strava_import_job_outcomes (
+         job_id TEXT NOT NULL REFERENCES strava_import_jobs(id) ON DELETE CASCADE,
+         provider_activity_id INTEGER NOT NULL,
+         outcome TEXT NOT NULL CHECK (outcome IN ('historical_confirmed_created', 'new_pending_created', 'already_present', 'skipped_invalid')),
+         sport_family TEXT NOT NULL CHECK (sport_family IN ('run', 'ride', 'other', 'unknown')),
+         created_at TEXT NOT NULL,
+         PRIMARY KEY (job_id, provider_activity_id)
+       )`,
+      `CREATE TABLE IF NOT EXISTS strava_import_job_pages (
+         job_id TEXT NOT NULL REFERENCES strava_import_jobs(id) ON DELETE CASCADE,
+         provider_page INTEGER NOT NULL CHECK (provider_page > 0),
+         committed_at TEXT NOT NULL,
+         PRIMARY KEY (job_id, provider_page)
+       )`,
+      "CREATE INDEX IF NOT EXISTS idx_strava_import_jobs_owner_updated ON strava_import_jobs(user_id, updated_at DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_strava_import_outcomes_job_family ON strava_import_job_outcomes(job_id, sport_family)",
     ],
   },
 ];
@@ -379,7 +435,13 @@ async function applyMigration(target: Client, migration: AdditiveMigration): Pro
       return;
     } catch (error) {
       if ((await currentSchemaVersion(target)) >= migration.version) return;
-      if (!String(error).includes("SQLITE_BUSY") || attempt === 19) throw error;
+      // SQLite can surface a just-committed competing ALTER as a duplicate
+      // column before this client observes the winner's schema-version write.
+      // It is the same harmless migration race as SQLITE_BUSY; re-read on the
+      // next bounded attempt rather than treating it as a schema failure.
+      const concurrentConflict =
+        String(error).includes("SQLITE_BUSY") || String(error).includes("duplicate column name");
+      if (!concurrentConflict || attempt === 19) throw error;
       await wait(10 * (attempt + 1));
     }
   }
@@ -439,11 +501,20 @@ export async function runMigrations(
     );
     current = OWNER_SCHEMA_FLOOR;
   }
-  for (const migration of migrations) {
-    if (migration.version <= current) continue;
-    await applyMigration(target, migration);
+  // A concurrent runner can observe one individual migration as complete while
+  // its winner is still applying later entries. Re-read and finish the ordered
+  // list until the whole target is visible, rather than falsely rejecting that
+  // harmless race after the first observed version.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    current = await currentSchemaVersion(target);
+    for (const migration of migrations) {
+      if (migration.version <= current) continue;
+      await applyMigration(target, migration);
+    }
+    if ((await currentSchemaVersion(target)) >= OWNER_SCHEMA_VERSION) return;
+    await wait(10 * (attempt + 1));
   }
-  if ((await currentSchemaVersion(target)) < OWNER_SCHEMA_VERSION) throw new BehindSchemaError();
+  throw new BehindSchemaError();
 }
 
 async function migrate(): Promise<void> {

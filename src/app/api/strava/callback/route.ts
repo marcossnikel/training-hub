@@ -6,7 +6,7 @@ import {
   promotePendingStravaConnection,
   setMeta,
 } from "@/lib/db";
-import { exchangeByoCode, syncActivities } from "@/lib/strava";
+import { advanceInitialStravaImport, exchangeByoCode } from "@/lib/strava";
 import { normalizeExactByoGrantedScope, resolveAuthorizationByoOrigin } from "@/lib/strava-byo";
 
 type CallbackResult = "connected" | "scope" | "recovery";
@@ -31,7 +31,7 @@ function settingsRedirect(origin: string, result: CallbackResult): NextResponse 
   return NextResponse.redirect(url);
 }
 
-/** A completed first sync starts with the athlete's own imported records. */
+/** The callback starts one bounded page; later requests safely resume the job. */
 function recentTrainingRedirect(origin: string): NextResponse {
   const url = new URL("/", origin);
   url.searchParams.set("strava", "connected");
@@ -90,10 +90,10 @@ export async function GET(request: NextRequest) {
   const name = [token.athlete.firstname, token.athlete.lastname].filter(Boolean).join(" ");
   try {
     if (name) await setMeta(owner, "athlete_name", name);
-    await syncActivities(owner);
+    await advanceInitialStravaImport(owner);
   } catch {
-    // A valid connection remains connected after an initial import failure, so
-    // the owner can retry through the existing owner-scoped sync action.
+    // A valid connection remains connected after a start failure. The next
+    // owner-scoped advance can create or resume the persisted job.
     return settingsRedirect(origin, "recovery");
   }
   return recentTrainingRedirect(origin);
