@@ -2,10 +2,9 @@
 
 **Status:** draft
 **Delivery class:** full stack
-**Risk:** high
-**Recommended builder:** Terra high
+**Risk/model:** high — Terra high
 **Depends on:** R2M
-**Unlocks:** R11
+**Unlocks:** R11, R14, R15, and R16
 
 ## Outcome
 
@@ -138,6 +137,11 @@ the review-inbox cutoff for new multi-user connections.
 
 ## Required integration proof
 
+- preserve focused behavior in `src/lib/strava.test.ts`,
+  `src/lib/db.strava-lifecycle.test.ts`, and
+  `src/app/api/strava/callback/route.test.ts`;
+- add `src/features/strava/initial-import.integration.test.ts` using disposable
+  SQLite plus the loopback provider for the complete connection/sync boundary;
 - pure cutoff: before/equal/after/invalid;
 - initial all-history import status/splits/counts;
 - partial pagination failure + complete retry with no duplicates;
@@ -149,9 +153,14 @@ the review-inbox cutoff for new multi-user connections.
 - callback error leaves connected/retryable state and same cutoff;
 - redaction canaries absent from logs/responses.
 
-When this draft becomes ready, name the focused integration test files and exact
-command covering the classification, persistence, callback, repair, owner, and
-loopback-provider scenarios above. Do not require the full repository gate.
+```sh
+npx vitest run src/lib/strava.test.ts src/lib/db.strava-lifecycle.test.ts src/app/api/strava/callback/route.test.ts src/features/strava/initial-import.integration.test.ts
+npx playwright test e2e/byo-connection.spec.ts e2e/tenant-isolation.spec.ts
+```
+
+Do not run the full repository gate. Make the integration command green first,
+then start the disposable loopback-provider app and iterate the real browser
+story until both focused Playwright specs and direct 1440/390 inspection pass.
 
 ## Required manual or visual proof
 
@@ -165,8 +174,9 @@ Disposable E2E at 1440/390:
 5. exactly that activity enters Review;
 6. success/error copy matches the accepted decision.
 
-Also inspect local repair before/after counts. Never capture a usable token or
-real athlete payload.
+The integration suite asserts local repair before/after counts and idempotence;
+manual repair execution is not validation. Never capture a usable token or real
+athlete payload.
 
 ## Migration, rollout, and rollback
 
@@ -179,13 +189,15 @@ or exact captured candidate IDs, never a broad status rewrite.
 
 ## Stop conditions
 
-- “new activity” is redefined as upload time instead of Strava start time;
-- reconnect/disconnect cutoff semantics change;
-- migration cannot derive a safe existing cutoff;
-- repair candidates cannot be bounded owner + Strava origin + cutoff + pending;
-- initial retry needs a provider cursor not available from the current contract;
-- real Strava/remote DB/deployment is required; or
-- D-020/product copy is not updated to the new Inbox meaning.
+- Marcos changes D-020's start-time, reconnect, disconnect, or Review semantics;
+- the provider contract requires an unavailable external cursor/credential to
+  retrieve older pages; or
+- correct proof requires real Strava, a remote/shared database, migration, or
+  deployment.
+
+Migration/backfill SQL, safe candidate bounding, pagination/retry, callback copy,
+fixtures, browser behavior, and all other recoverable local findings are owned
+and fixed by the builder within this task.
 
 ## Completion criteria
 
@@ -196,3 +208,4 @@ or exact captured candidate IDs, never a broad status rewrite.
 - Partial initial import retry completes all older pages without duplicates.
 - Existing-data repair is dry-run-first, exact, idempotent, and not run remotely.
 - owner isolation, secrets, disconnect semantics, and full focused proof pass.
+- Both named focused commands pass with disposable data and real-browser proof.
