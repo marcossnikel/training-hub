@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-oauth-state-${process.pid}-${Date.now()}.db`);
 const ownerA = { userId: "oauth-owner-a" };
@@ -57,22 +57,38 @@ describe("owner-bound opaque OAuth state", () => {
   });
 
   it("rejects expiry, invalid state, and non-allowlisted intent/redirect input", async () => {
-    const expired = await db.createOAuthState(ownerA, {
-      intent: "reconnect",
-      redirectKey: "onboarding",
-      expiresAt: new Date(Date.now() + 1),
-    });
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(await db.consumeOAuthState(ownerA, expired)).toBeNull();
-    expect(await db.consumeOAuthState(ownerA, "not-issued")).toBeNull();
-    await expect(
-      db.createOAuthState(ownerA, { intent: "delete" as "connect", redirectKey: "settings" })
-    ).rejects.toThrow("Invalid OAuth state request.");
-    await expect(
-      db.createOAuthState(ownerA, {
-        intent: "connect",
-        redirectKey: "https://bad.example" as "settings",
-      })
-    ).rejects.toThrow("Invalid OAuth state request.");
+    const createdAt = new Date("2026-08-24T12:00:00.000Z");
+    const expiresAt = new Date(createdAt.getTime() + 1_000);
+    vi.useFakeTimers({ now: createdAt, toFake: ["Date"] });
+
+    try {
+      const expired = await db.createOAuthState(ownerA, {
+        intent: "reconnect",
+        redirectKey: "onboarding",
+        expiresAt,
+      });
+      vi.setSystemTime(expiresAt);
+
+      expect(await db.consumeOAuthState(ownerA, expired)).toBeNull();
+      expect(await db.consumeOAuthState(ownerA, "not-issued")).toBeNull();
+      await expect(
+        db.createOAuthState(ownerA, {
+          intent: "connect",
+          redirectKey: "settings",
+          expiresAt: new Date(),
+        })
+      ).rejects.toThrow("Invalid OAuth state request.");
+      await expect(
+        db.createOAuthState(ownerA, { intent: "delete" as "connect", redirectKey: "settings" })
+      ).rejects.toThrow("Invalid OAuth state request.");
+      await expect(
+        db.createOAuthState(ownerA, {
+          intent: "connect",
+          redirectKey: "https://bad.example" as "settings",
+        })
+      ).rejects.toThrow("Invalid OAuth state request.");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
