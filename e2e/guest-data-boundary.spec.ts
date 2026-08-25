@@ -3,6 +3,7 @@ import path from "node:path";
 import { createClient } from "@libsql/client";
 import { expect, request, test, type Browser, type Page } from "@playwright/test";
 import { betaSignUpPath } from "./beta-invite";
+import { expectSuccessfulManualActivityAction } from "./manual-activity";
 
 const BASE_URL = "http://localhost:3100";
 
@@ -17,49 +18,51 @@ async function captureEvidence(page: Page, name: string) {
   await page.screenshot({ path: path.join(evidenceDir, name), fullPage: false });
 }
 
-/**
- * The test intentionally creates unique owner data through real Server Actions.
- * Wait for the resulting owner-scoped rows, rather than assuming that a dismissed
- * dialog means the next server render has observed the SQLite commit. This is a
- * persistence invariant, not a blind retry of the guest-boundary assertion.
- */
-async function waitForPersistedOwnerFixture(email: string, shoeName: string): Promise<void> {
+async function expectPersistedOwnerFixture(email: string, shoeName: string): Promise<void> {
   const database = createClient({
     url: `file:${path.join(process.cwd(), "data", "e2e.db")}`,
     intMode: "number",
   });
   try {
-    await expect
-      .poll(
-        async () => {
-          const result = await database.execute({
-            sql: `SELECT
-                    (SELECT COUNT(*)
-                     FROM shoes
-                     JOIN users ON users.id = shoes.user_id
-                     JOIN "user" ON "user".id = users.auth_subject
-                     WHERE "user".email = ? AND shoes.name = ?) AS shoe_count,
-                    (SELECT COUNT(*)
-                     FROM activities
-                     JOIN users ON users.id = activities.user_id
-                     JOIN "user" ON "user".id = users.auth_subject
-                     WHERE "user".email = ?
-                       AND activities.sport_type = 'Manual'
-                       AND activities.started_at = '2026-08-15T12:00:00Z'
-                       AND activities.distance_km = 12.58) AS activity_count`,
-            args: [email, shoeName, email],
-          });
-          const row = result.rows[0];
-          return {
-            shoeCount: Number(row?.shoe_count),
-            activityCount: Number(row?.activity_count),
-          };
-        },
+    const shoes = await database.execute({
+      sql: `SELECT shoes.name
+            FROM shoes
+            JOIN users ON users.id = shoes.user_id
+            JOIN "user" ON "user".id = users.auth_subject
+            WHERE "user".email = ? AND shoes.name = ?`,
+      args: [email, shoeName],
+    });
+    const activities = await database.execute({
+      sql: `SELECT activities.started_at, activities.distance_km, shoes.name AS shoe_name
+            FROM activities
+            JOIN users ON users.id = activities.user_id
+            JOIN "user" ON "user".id = users.auth_subject
+            JOIN activity_splits ON activity_splits.activity_id = activities.id
+            JOIN shoes ON shoes.id = activity_splits.shoe_id
+            WHERE "user".email = ? AND activities.sport_type = 'Manual'
+            ORDER BY activities.id`,
+      args: [email],
+    });
+    expect(
+      {
+        shoeNames: shoes.rows.map((row) => String(row.name)),
+        manualActivities: activities.rows.map((row) => ({
+          startedAt: String(row.started_at),
+          distanceKm: Number(row.distance_km),
+          shoeName: String(row.shoe_name),
+        })),
+      },
+      "the completed owner action should be immediately visible with its exact inputs"
+    ).toEqual({
+      shoeNames: [shoeName],
+      manualActivities: [
         {
-          message: "owner-only shoe and manual activity should be committed before guest probes",
-        }
-      )
-      .toEqual({ shoeCount: 1, activityCount: 1 });
+          startedAt: "2026-08-15T12:00:00Z",
+          distanceKm: 12.58,
+          shoeName,
+        },
+      ],
+    });
   } finally {
     database.close();
   }
@@ -89,14 +92,33 @@ async function signUpAndCreateOwnerOnlyActivity(
     await expect(dialog).toBeHidden();
 
     await page.goto("/settings");
-    await page.getByLabel("Date", { exact: true }).fill("2026-08-15");
-    await page.locator("#manual-km").fill("12.58");
-    await page.locator("#manual-shoe").press("Enter");
+    const manualDate = page.getByLabel("Date", { exact: true });
+    const manualKm = page.locator("#manual-km");
+    const manualShoe = page.locator("#manual-shoe");
+    // Prove the client-owned Select is interactive before filling controlled
+    // values; an empty distance is the initial state, not submission evidence.
+    await manualShoe.press("Enter");
     await page.getByRole("option", { name: shoeName }).click();
-    await page.getByRole("button", { name: "Add entry" }).click();
-    await expect(page.locator("#manual-km")).toHaveValue("");
+    await expect(manualShoe).toContainText(shoeName);
+    const selectedShoeId = Number(
+      await manualShoe.locator("xpath=ancestor::form").locator("select").inputValue()
+    );
+    expect(selectedShoeId).toBeGreaterThan(0);
+    await manualDate.fill("2026-08-15");
+    await manualKm.fill("12.58");
+    await expectSuccessfulManualActivityAction(
+      page,
+      () => page.getByRole("button", { name: "Add entry" }).click(),
+      {
+        date: "2026-08-15",
+        km: 12.58,
+        shoe: { id: selectedShoeId, name: shoeName },
+        successMessage: `Added 12.6 km to ${shoeName}`,
+      }
+    );
+    await expect(manualKm).toHaveValue("");
 
-    await waitForPersistedOwnerFixture(email, shoeName);
+    await expectPersistedOwnerFixture(email, shoeName);
 
     // Prime an authenticated root/RSC render with this owner-specific value.
     // The subsequent cookie-free probes prove that neither the HTML nor RSC
