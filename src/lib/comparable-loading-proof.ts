@@ -28,7 +28,7 @@ export function comparableLoadingProofEnabled(env: ProofEnvironment = process.en
     env.TRAINING_HUB_E2E === "1" &&
     env.TRAINING_HUB_ENV === "e2e" &&
     env.TRAINING_HUB_DISPOSABLE_DATA === "1" &&
-    env.VERCEL_ENV !== "production" &&
+    !env.VERCEL_ENV &&
     !env.TURSO_DATABASE_URL &&
     !env.TURSO_AUTH_TOKEN &&
     Boolean(env.DATABASE_URL?.startsWith("file:"))

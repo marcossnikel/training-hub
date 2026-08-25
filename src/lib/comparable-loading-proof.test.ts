@@ -44,9 +44,14 @@ describe("comparable loading production proof gate", () => {
     expect(comparableLoadingProofEnabled({ ...disposableE2E, TURSO_AUTH_TOKEN: "token" })).toBe(
       false
     );
-    expect(comparableLoadingProofEnabled({ ...disposableE2E, VERCEL_ENV: "production" })).toBe(
-      false
-    );
+  });
+
+  it("is inert in every Vercel-managed environment, including preview", () => {
+    for (const vercelEnv of ["preview", "production", "development"]) {
+      expect(comparableLoadingProofEnabled({ ...disposableE2E, VERCEL_ENV: vercelEnv })).toBe(
+        false
+      );
+    }
   });
 
   it("accepts only opaque UUID proof IDs", () => {

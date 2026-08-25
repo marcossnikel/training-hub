@@ -55,6 +55,15 @@ describe("disposable comparable loading proof endpoint", () => {
     }
   });
 
+  it("is a fresh 404 in a Vercel preview even if every disposable flag is spoofed", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const getResponse = await GET(new Request("http://localhost"), context);
+    const postResponse = await POST(new Request("http://localhost"), context);
+    expect(getResponse.status).toBe(404);
+    expect(postResponse.status).toBe(404);
+    expect(getResponse).not.toBe(postResponse);
+  });
+
   it("reports, releases, and removes exactly one pending real-content gate", async () => {
     const waiting = waitForComparableLoadingProof(proofId);
     await expect(GET(new Request("http://localhost"), context)).resolves.toMatchObject({

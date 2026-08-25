@@ -2,8 +2,11 @@
 
 ## Gate and scope
 
-- GitHub issue 77 was open, unblocked, and sufficiently specified; its project
-  item was `In Progress`, which satisfies the repository's Ready for Build gate.
+- GitHub issue 77 was open and unblocked. Its self-contained implementation
+  packet supplied the applicable user moment, scope/non-goals, state and proof
+  contract, acceptance checks, prohibited actions, dependencies, cleanup, and
+  rollback required by `ORCHESTRATION.md`; that packet completeness—not its
+  `In Progress` project status—satisfied the Ready for Build gate.
 - The branch started clean at draft PR 73 commit `3bb4e2b`. The change has no
   domain, comparison, auth, owner-scope, schema, production-data, or UI contract
   change. The route marker, `aria-busy="true"`, seven skeleton primitives, final
@@ -59,9 +62,10 @@ All temporary lifecycle instrumentation was removed after the cause was proven.
 - The gate can activate only when every local disposable guard is present:
   `TRAINING_HUB_COMPARABLE_LOADING_PROOF=1`, `TRAINING_HUB_E2E=1`,
   `TRAINING_HUB_ENV=e2e`, `TRAINING_HUB_DISPOSABLE_DATA=1`, a `file:` database,
-  no Turso URL or token, and no production Vercel environment. It also requires a
-  UUIDv4 request header. The Playwright server enables the extra guard only for
-  `E2E_PRODUCTION=1`.
+  no Turso URL or token, and an absent/empty `VERCEL_ENV`. Any Vercel-managed
+  environment, including preview, makes the seam inert. It also requires a UUIDv4
+  request header. The Playwright server enables the extra guard only for
+  `E2E_PRODUCTION=1`; the local production-build lane leaves `VERCEL_ENV` absent.
 - Missing any guard makes both proof endpoint methods return a newly constructed
   404 response and makes the page wait inert. The ordinary dev target proves the
   endpoint is actually 404 and its navigation request contains no proof header.
@@ -111,6 +115,12 @@ All temporary lifecycle instrumentation was removed after the cause was proven.
   tests, and the explicit production lane at 4/4 with zero retries. Normal
   Playwright completed in 40.1s, 41.9s, and 42.3s; the production lane completed
   in 11.4s, 11.4s, and 10.6s.
+- After independent review hardened the Vercel boundary, the focused helper/API/
+  page proof passed 3 files / 10 tests, ordinary development passed 4/4 in 10.4s,
+  and the local production build passed 4/4 in 10.3s; both browser targets used
+  `--retries=0`. The final `CI=1 npm run verify` repair gate passed 74 unit files /
+  717 tests, the 50-test normal Playwright lane in 41.2s, and the 4-test production
+  lane in 11.4s.
 - The normal suite deliberately emits the expected missing-column errors for its
   real owner-scoped failure/recovery test. In two production setup phases, Better
   Auth also logged a non-failing `SQLITE_BUSY: database is locked`; setup still
@@ -120,6 +130,12 @@ All temporary lifecycle instrumentation was removed after the cause was proven.
   `moving_time_s_proof_error` did not.
 - `git diff --check` passed. Repository search found no issue 77 debug lifecycle
   hooks, 300,000-row loading volume, or loading-volume fixture name.
+
+## Remote acceptance status
+
+Local builder validation is complete. Remote acceptance remains pending the
+Orchestrator-owned reviewed push and three fresh successful GitHub Actions runs.
+No remote CI success is claimed by this local evidence.
 
 ## Cleanup and rollback
 
