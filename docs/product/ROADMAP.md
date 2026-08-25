@@ -141,7 +141,11 @@ needed by a specific formula.
 
 Every value is nullable and carries provenance such as `athlete_entered`,
 `provider`, `calculated`, or `analyst_hypothesis`, plus calculation version and
-source evidence when derived. There are no founder-specific defaults.
+source evidence when derived. Athlete-entered numeric values are durable
+overrides; sync, recalculation, and analyst candidates cannot replace them.
+Clearing a numeric override produces an explicit unknown state unless the
+athlete chooses an eligible source-labelled candidate. Timezone keeps D-024's
+explicit provider fallback. There are no founder-specific defaults.
 
 The activation flow may ask the athlete to confirm or edit high-impact values,
 but the form is skippable and remains editable later. Calculations degrade

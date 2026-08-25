@@ -52,20 +52,37 @@ skip or edit their profile later.
 6. An `analyst_hypothesis` cannot become an effective calculation input until
    the athlete explicitly confirms/edits it; confirmation creates
    `athlete_entered` provenance.
-7. Validation is key/unit-specific and server-side. Browser input cannot choose
+7. Athlete-entered numeric values are durable overrides. Provider refresh,
+   recalculation, and analyst output may append/update their own source-labelled
+   candidates but never replace or mutate the athlete-entered value.
+8. Every deterministic consumer declares the parameter keys and provenances it
+   accepts. Resolution returns the athlete-entered value first; without one it
+   may return an eligible provider/calculated observation only when that
+   consumer contract explicitly allows it. Analyst hypotheses are never
+   eligible automatically.
+9. Clearing an athlete-entered numeric value creates an explicit unknown/
+   suppressed state. It does not silently reveal an older provider/calculated
+   value. The UI may offer eligible candidates with source/date, but applying
+   one requires an explicit athlete action and creates athlete-entered
+   provenance. Timezone is the deliberate exception and follows D-024's
+   athlete-override-then-provider precedence.
+10. Candidate, confirmation, supersession, and clearing history is retained so
+    the displayed effective value can name its source and effective time;
+    history is not itself treated as simultaneously current.
+11. Validation is key/unit-specific and server-side. Browser input cannot choose
    owner, calculation version, or trusted provenance.
-8. Existing saved threshold rows migrate as `athlete_entered` or explicit
+12. Existing saved threshold rows migrate as `athlete_entered` or explicit
    `legacy_saved` mapped to athlete-entered; unsaved fallback values do not
    migrate.
-9. Forms are field-independent and skippable. Missing one input does not require
+13. Forms are field-independent and skippable. Missing one input does not require
    inventing the others. UI explains which calculations become available.
-10. Deterministic modules declare required parameters and return a typed
+14. Deterministic modules declare required parameters and return a typed
    unavailable reason when missing/invalid/stale; they do not fall back.
-11. Threshold/parameter changes invalidate or version dependent derived metrics
+15. Threshold/parameter changes invalidate or version dependent derived metrics
    so stale zones are not presented as current.
-12. Easy-HR remains an observation only after the athlete confirms source runs;
+16. Easy-HR remains an observation only after the athlete confirms source runs;
     it is not inferred or prescribed in this task.
-13. Critical Speed requires the athlete to confirm candidate race sources first,
+17. Critical Speed requires the athlete to confirm candidate race sources first,
     then shows dates, points, recency, fit limitation, and an explicit separate
     `Use as threshold pace` action. Two-point R² is never labeled high confidence.
 
@@ -105,11 +122,14 @@ formulas or analyst runtime.
    fallback to founder, browser, or process timezone remains.
 2. Add additive schema and migration. Completion: saved values preserve exact
    units/provenance and accounts with no saved row remain empty.
-3. Implement owner-scoped read/upsert/delete/confirm operations and validation.
-   Completion: forged owner/provenance/evidence is rejected and invalid IANA/
-   browser-offset timezone input never becomes effective.
-4. Migrate deterministic consumers to explicit availability. Completion: zones,
-   curves, summaries, and forms render correct value or honest missing reason.
+3. Implement owner-scoped observation, effective-value, clear/suppress, and
+   confirm operations plus validation. Completion: a provider refresh cannot
+   overwrite an athlete entry, clearing does not reveal an old candidate, and
+   forged owner/provenance/evidence is rejected.
+4. Migrate deterministic consumers to explicit availability and accepted-
+   provenance contracts. Completion: zones, curves, summaries, and forms render
+   the effective source-labelled value or an honest missing reason; invalid
+   IANA/browser-offset timezone input never becomes effective.
 5. Implement profile UI and optional race-confirmation/threshold application.
    Completion: each field can save/clear independently and skip works.
 6. Version/invalidate derived metrics. Completion: a changed input cannot leave
@@ -120,9 +140,12 @@ formulas or analyst runtime.
 - New account has no threshold/HR/FTP/VO2 values and no guessed timezone.
 - Existing explicitly saved values migrate exactly with provenance.
 - Each parameter can be saved, edited, cleared, or left unknown independently.
+- Provider refresh/recalculation never overwrites an athlete-entered value;
+  clearing it remains unknown until the athlete explicitly applies a candidate.
 - Consumers never substitute a founder/default value.
-- Derived/hypothesis values show source/version and require confirmation before
-  effective use.
+- Derived/provider candidates show source/version/date and are effective only
+  where the named consumer accepts that provenance. Analyst hypotheses always
+  require confirmation.
 - Critical Speed flow confirms sources then separately applies the value.
 - Athlete-entered timezone overrides provider timezone; disconnect removes only
   provider timezone and exact-date labels replace unavailable relative labels.
@@ -132,11 +155,13 @@ formulas or analyst runtime.
 ## Validation
 
 Focused integration tests for migration, empty account, saved account, per-key
-validation/unit/provenance, provider-timezone parsing, IANA precedence/
-disconnect, offset-only rejection, forged owner/source, consumer availability,
-invalidation, race-source confirmation, and explicit threshold application.
-Then browser-iterate profile entry/edit/clear/skip, unknown states, candidate
-race flow, and dependent Performance changes at 1440/390.
+validation/unit/provenance, provider refresh versus athlete override, clear-
+without-fallback, explicit candidate application, provider-timezone parsing,
+IANA precedence/disconnect, offset-only rejection, forged owner/source,
+consumer-specific provenance availability, invalidation, race-source
+confirmation, and explicit threshold application. Then browser-iterate profile
+entry/edit/clear/skip, candidate source/date display and application, unknown
+states, candidate race flow, and dependent Performance changes at 1440/390.
 
 ## Migration, compatibility, and rollback
 
