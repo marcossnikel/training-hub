@@ -17,6 +17,9 @@ the same event.
 
 - Sign-up and sign-in currently continue to `next` or `/`; there is no distinct
   first-login destination.
+- R8 introduces the server-owned first-auth continuation seam with `/` as its
+  compatibility destination; R17 owns replacing that seam for eligible accounts
+  without changing returning sign-in `next` behavior.
 - `/` shows a Training Log empty-state CTA to Settings for an unconnected owner.
 - No onboarding completion/skip/version state exists. `user_meta` carries other
   owner values but does not model this experience.
@@ -82,8 +85,9 @@ activation.
 ## Implementation map
 
 1. Lock exact route, four-moment copy, state/version API, and authenticated
-   redirect rules in the ready packet. Completion: no copy/navigation decision
-   remains for builder.
+   redirect rules in the ready packet. Completion: the R8 first-auth seam names
+   this route for eligible owners and no copy/navigation decision remains for
+   builder.
 2. Add first-login eligibility and idempotent complete/skip actions. Completion:
    existing/new disposable accounts enter once; completed/skipped accounts do
    not replay.
