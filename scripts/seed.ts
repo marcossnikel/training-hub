@@ -14,6 +14,7 @@ import type { Feeling } from "../src/lib/types";
 const SEED_MARKER = '{"seed":true}';
 const SEED_FILTER = "json_extract(raw_json, '$.seed') = 1";
 const FIXTURE_OWNER = "e2e-fixture-owner";
+const CREATOR_FIXTURE_OWNER = "e2e-creator-fixture-owner";
 
 /**
  * Guard against seeding a remote (shared/prod Turso) database. Resolves the DB URL
@@ -76,6 +77,28 @@ async function main() {
       {
         sql: "INSERT OR IGNORE INTO users (id, auth_subject) VALUES (?, ?)",
         args: [fixtureOwner, fixtureAuthSubject],
+      },
+      // Separate fixed identities keep E2E/browser successors able to exercise
+      // creator and member authorization without granting the seeded athlete
+      // operational authority.
+      {
+        sql: 'INSERT OR IGNORE INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [
+          "seed-creator-fixture-auth-subject",
+          "Creator Fixture",
+          "creator-e2e@example.test",
+          0,
+          now,
+          now,
+        ],
+      },
+      {
+        sql: "INSERT OR IGNORE INTO users (id, auth_subject) VALUES (?, ?)",
+        args: [CREATOR_FIXTURE_OWNER, "seed-creator-fixture-auth-subject"],
+      },
+      {
+        sql: "UPDATE users SET role = 'creator' WHERE id = ?",
+        args: [CREATOR_FIXTURE_OWNER],
       },
     ],
     "write"

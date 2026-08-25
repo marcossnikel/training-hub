@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 24;
+export const OWNER_SCHEMA_VERSION = 25;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -209,8 +209,8 @@ export type AdditiveMigration = {
   statements: readonly InStatement[];
 };
 
-// #24 changes only migration bookkeeping. Future product schema tasks append an
-// ordered entry here and own its compatibility, backfill, counts, and forward fix.
+// Future product schema tasks append an ordered entry here and own its
+// compatibility, backfill, counts, and forward fix.
 export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
   {
     version: 24,
@@ -219,13 +219,17 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
       "CREATE INDEX IF NOT EXISTS idx_schema_version_version ON schema_version(version)",
     ],
   },
+  {
+    // Application authorization is intentionally separate from Better Auth's
+    // tables. Existing accounts start as members; a constrained local operator
+    // command is the only bootstrap path to creator.
+    version: 25,
+    statements: [
+      "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('creator', 'member'))",
+    ],
+  },
 ];
 
-const LATEST_SCHEMA_VERSION_TABLE = `CREATE TABLE IF NOT EXISTS schema_version (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  version INTEGER NOT NULL,
-  applied_at TEXT
-)`;
 const VERSION_23_SCHEMA_VERSION_TABLE = `CREATE TABLE IF NOT EXISTS schema_version (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   version INTEGER NOT NULL
@@ -293,7 +297,10 @@ export async function runMigrations(
 ): Promise<void> {
   if (autoApply) {
     await target.execute("PRAGMA foreign_keys = ON");
-    await target.execute(LATEST_SCHEMA_VERSION_TABLE);
+    // Start new disposable databases from the exact v23 floor, then take the
+    // same additive path as existing databases. This keeps current-schema
+    // bootstraps honest and keeps createVersion23Fixture representative.
+    await target.execute(VERSION_23_SCHEMA_VERSION_TABLE);
   }
 
   if (!autoApply) {
@@ -307,7 +314,7 @@ export async function runMigrations(
     }
   }
 
-  const current = await currentSchemaVersion(target);
+  let current = await currentSchemaVersion(target);
   if (current !== 0 && current < OWNER_SCHEMA_FLOOR) {
     throw new Error(
       "This database predates the #23 owner schema. Reset only disposable local/E2E data with npm run db:reset; never reset a remote, shared, preview, or production database."
@@ -318,13 +325,13 @@ export async function runMigrations(
       [
         ...OWNER_SCHEMA_V23,
         {
-          sql: "INSERT INTO schema_version (id, version, applied_at) VALUES (1, ?, datetime('now'))",
-          args: [OWNER_SCHEMA_VERSION],
+          sql: "INSERT INTO schema_version (id, version) VALUES (1, ?)",
+          args: [OWNER_SCHEMA_FLOOR],
         },
       ],
       "write"
     );
-    return;
+    current = OWNER_SCHEMA_FLOOR;
   }
   for (const migration of migrations) {
     if (migration.version <= current) continue;

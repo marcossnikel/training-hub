@@ -11,7 +11,7 @@ The state vocabulary is `queued | done | blocked`. `blocked` is reserved
 for a genuinely external dependency; a local implementation or test failure is
 owned by the builder.
 
-**Next task:** R3
+**Next task:** R4
 
 ## Task index
 
@@ -21,7 +21,7 @@ owned by the builder.
 | R1 | done | API/backend | medium, Terra medium | Affordable developer loop and truthful local production smoke. | [R1](tasks/R1-developer-loop.md) |
 | R2 | done | API/backend | high, Terra high | Validated runtime configuration without weaker environment isolation. | [R2](tasks/R2-runtime-configuration.md) |
 | R2M | done | API/backend | high, Terra high | Additive, idempotent schema migration runner. | [R2M](tasks/R2M-additive-migrations.md) |
-| R3 | queued | API/backend | high, Terra high | Creator/member capabilities without cross-owner authority. | [R3](tasks/R3-creator-authorization.md) |
+| R3 | done | API/backend | high, Terra high | Creator/member capabilities without cross-owner authority. | [R3](tasks/R3-creator-authorization.md) |
 | R4 | queued | documentation/plan | medium, Sol high | Selected creator-only environment indicator contract. | [R4](tasks/R4-environment-indicator-contract.md) |
 | R5 | queued | full stack | medium, Terra medium | Server-derived creator-only environment indicator. | [R5](tasks/R5-environment-indicator-implementation.md) |
 | R6 | queued | API/backend | high, Terra high | Owner-safe invite issuance, listing, and revocation module. | [R6](tasks/R6-invite-module.md) |
