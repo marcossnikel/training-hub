@@ -2,8 +2,8 @@
 
 **Status:** draft
 **Ready gate note:** a concrete Figma frame must be approved before Ready  
-**Risk:** high
-**Recommended builder:** Terra medium after design approval
+**Delivery class:** full stack
+**Risk/model:** high — Terra medium after design approval
 **Depends on:** R5 and R6
 **Unlocks:** R8 and creator-operated beta access
 
@@ -141,7 +141,9 @@ environment name, internal invite ID, token hash, or unsupported product claim.
 
 ## Required automated proof
 
-- action tests: creator success, member/guest/session-expiry denial before work;
+- one focused `src/features/invites/invite-management.integration.test.ts`
+  exercises the server action through R6 with disposable SQLite/auth: creator
+  success and member/guest/session-expiry denial before work;
 - single-result/double-submit behavior;
 - exact Portuguese/English message interpolation from normalized email, persisted
   expiry, current locale, and immediate URL;
@@ -154,9 +156,14 @@ environment name, internal invite ID, token hash, or unsupported product claim.
 - E2E creator flow plus member direct-route denial using disposable DB.
 
 ```sh
-npm run verify:fast
+npx vitest run src/features/invites/invites.integration.test.ts src/features/invites/invite-management.integration.test.ts
 npx playwright test e2e/beta-invite.spec.ts e2e/tenant-isolation.spec.ts
 ```
+
+Do not run the full repository gate. The builder first makes the focused
+integration command green, then starts the disposable app and iterates the real
+browser story until the named Playwright specs and direct 1440/390 inspection
+match the approved contract.
 
 ## Required manual or visual proof
 
@@ -174,11 +181,16 @@ retained.
 
 ## Stop conditions
 
-- no approved Figma frame/exact copy;
-- token would persist beyond immediate creator result;
-- denial behavior is unresolved;
-- UI requires broad Better Auth admin plugin; or
+- approved Figma frame, exact copy, or safe denial behavior still requires a
+  Marcos decision;
+- preserving R6's accepted token boundary would require a product/security
+  contract change; or
 - live invite/deployment access is required.
+
+Clipboard API behavior, focus/responsive defects, test fixture failures,
+token-lifetime implementation bugs, double-submit bugs, and all other
+recoverable local findings are owned and fixed by the builder inside this task.
+The builder does not add the broad Better Auth admin plugin.
 
 ## Completion criteria
 
@@ -189,3 +201,4 @@ retained.
 - Every specified state is implemented and visually proven.
 - No stored evidence or later payload contains usable token material.
 - CLI expiry remains explicit.
+- Both named focused commands pass using disposable data and the real browser.
