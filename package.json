@@ -17,6 +17,7 @@
     "doctor": "tsx scripts/doctor.ts",
     "check:retired-strava-config": "node scripts/check-retired-strava-config.mjs",
     "db:reset": "node scripts/reset-local-db.mjs --confirm-reset-disposable-data",
+    "db:migrate": "tsx scripts/migrate.ts",
     "e2e:seed": "rm -f data/e2e.db data/e2e.db-shm data/e2e.db-wal data/e2e.db-journal && DATABASE_URL=\"${DATABASE_URL:-file:data/e2e.db}\" tsx scripts/seed.ts",
     "deadcode": "knip",
     "cycles": "madge --circular --ts-config tsconfig.json --extensions ts,tsx src",

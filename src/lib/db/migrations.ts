@@ -1,11 +1,13 @@
+import type { Client, InStatement } from "@libsql/client";
 import { client, IS_LOCAL_FILE } from "./client";
 
 // #23 is a deliberate fresh-schema cutover under D-005. It is not a destructive
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
-export const OWNER_SCHEMA_VERSION = 23;
+export const OWNER_SCHEMA_FLOOR = 23;
+export const OWNER_SCHEMA_VERSION = 24;
 
-const OWNER_SCHEMA: string[] = [
+export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
   `CREATE TABLE IF NOT EXISTS "user" (
      "id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL,
@@ -202,31 +204,137 @@ const OWNER_SCHEMA: string[] = [
   "CREATE INDEX IF NOT EXISTS idx_oauth_states_owner_expiry ON oauth_states(user_id, expires_at)",
 ];
 
-async function currentSchemaVersion(): Promise<number> {
-  const result = await client.execute("SELECT version FROM schema_version WHERE id = 1");
+export type AdditiveMigration = {
+  version: number;
+  statements: readonly InStatement[];
+};
+
+// #24 changes only migration bookkeeping. Future product schema tasks append an
+// ordered entry here and own its compatibility, backfill, counts, and forward fix.
+export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
+  {
+    version: 24,
+    statements: [
+      "ALTER TABLE schema_version ADD COLUMN applied_at TEXT",
+      "CREATE INDEX IF NOT EXISTS idx_schema_version_version ON schema_version(version)",
+    ],
+  },
+];
+
+const LATEST_SCHEMA_VERSION_TABLE = `CREATE TABLE IF NOT EXISTS schema_version (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  version INTEGER NOT NULL,
+  applied_at TEXT
+)`;
+const VERSION_23_SCHEMA_VERSION_TABLE = `CREATE TABLE IF NOT EXISTS schema_version (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  version INTEGER NOT NULL
+)`;
+
+export class BehindSchemaError extends Error {
+  constructor() {
+    super(
+      `Database schema is behind required version ${OWNER_SCHEMA_VERSION}. ` +
+        "Run the explicitly approved operator migration command for this environment."
+    );
+    this.name = "BehindSchemaError";
+  }
+}
+
+async function currentSchemaVersion(target: Client): Promise<number> {
+  const result = await target.execute("SELECT version FROM schema_version WHERE id = 1");
   return result.rows.length > 0 ? Number(result.rows[0].version) : 0;
 }
 
-async function migrate(): Promise<void> {
-  if (IS_LOCAL_FILE) await client.execute("PRAGMA foreign_keys = ON");
-  await client.execute(
-    `CREATE TABLE IF NOT EXISTS schema_version (
-       id INTEGER PRIMARY KEY CHECK (id = 1),
-       version INTEGER NOT NULL
-     )`
-  );
-  const current = await currentSchemaVersion();
-  if (current !== 0 && current < OWNER_SCHEMA_VERSION) {
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function applyMigration(target: Client, migration: AdditiveMigration): Promise<void> {
+  // Each batch is one SQLite write transaction. A runner that loses the race
+  // retries from the committed schema version, so it never replays DDL already
+  // committed by the winner.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      await target.batch(
+        [
+          ...migration.statements,
+          {
+            sql: "UPDATE schema_version SET version = ?, applied_at = datetime('now') WHERE id = 1",
+            args: [migration.version],
+          },
+        ],
+        "write"
+      );
+      return;
+    } catch (error) {
+      if ((await currentSchemaVersion(target)) >= migration.version) return;
+      if (!String(error).includes("SQLITE_BUSY") || attempt === 19) throw error;
+      await wait(10 * (attempt + 1));
+    }
+  }
+}
+
+export async function createVersion23Fixture(target: Client): Promise<void> {
+  await target.batch([VERSION_23_SCHEMA_VERSION_TABLE, ...OWNER_SCHEMA_V23], "write");
+  await target.execute({
+    sql: "INSERT INTO schema_version (id, version) VALUES (1, ?)",
+    args: [OWNER_SCHEMA_FLOOR],
+  });
+}
+
+/** Runs only file-backed local/E2E schema writes; remote callers get a read-only gate. */
+export async function runMigrations(
+  target: Client,
+  {
+    autoApply,
+    migrations = ADDITIVE_MIGRATIONS,
+  }: { autoApply: boolean; migrations?: readonly AdditiveMigration[] }
+): Promise<void> {
+  if (autoApply) {
+    await target.execute("PRAGMA foreign_keys = ON");
+    await target.execute(LATEST_SCHEMA_VERSION_TABLE);
+  }
+
+  if (!autoApply) {
+    try {
+      if ((await currentSchemaVersion(target)) < OWNER_SCHEMA_VERSION)
+        throw new BehindSchemaError();
+      return;
+    } catch (error) {
+      if (error instanceof BehindSchemaError) throw error;
+      throw new BehindSchemaError();
+    }
+  }
+
+  const current = await currentSchemaVersion(target);
+  if (current !== 0 && current < OWNER_SCHEMA_FLOOR) {
     throw new Error(
       "This database predates the #23 owner schema. Reset only disposable local/E2E data with npm run db:reset; never reset a remote, shared, preview, or production database."
     );
   }
-  if (current >= OWNER_SCHEMA_VERSION) return;
-  await client.batch(OWNER_SCHEMA, "write");
-  await client.execute({
-    sql: "INSERT INTO schema_version (id, version) VALUES (1, ?)",
-    args: [OWNER_SCHEMA_VERSION],
-  });
+  if (current === 0) {
+    await target.batch(
+      [
+        ...OWNER_SCHEMA_V23,
+        {
+          sql: "INSERT INTO schema_version (id, version, applied_at) VALUES (1, ?, datetime('now'))",
+          args: [OWNER_SCHEMA_VERSION],
+        },
+      ],
+      "write"
+    );
+    return;
+  }
+  for (const migration of migrations) {
+    if (migration.version <= current) continue;
+    await applyMigration(target, migration);
+  }
+  if ((await currentSchemaVersion(target)) < OWNER_SCHEMA_VERSION) throw new BehindSchemaError();
+}
+
+async function migrate(): Promise<void> {
+  await runMigrations(client, { autoApply: IS_LOCAL_FILE });
 }
 
 let migrated: Promise<void> | null = null;

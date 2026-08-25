@@ -77,6 +77,28 @@ provider requests. The smoke refuses to reuse an already-running server and
 checks the guest landing and `/login` email/password form for HTTP and browser
 runtime/console errors.
 
+## Additive schema migrations
+
+Version 23 is the reset-only owner-schema floor. Versioned additive migrations
+advance later schemas transactionally: each migration applies its statements and
+records its new `schema_version` only after they all succeed. Local and E2E
+startup applies pending additive migrations automatically. Preview and production
+startup never writes schema; when behind, it fails with a redacted operator error.
+
+An explicitly authorized operator may apply a remote migration only after a
+sanitized rehearsal and with the matching runtime target and confirmation:
+
+```bash
+npm run db:migrate -- --target=preview --approve-remote-migration
+```
+
+The command rejects any non-preview/production target, mismatched
+`TRAINING_HUB_ENV`, invalid runtime boundary, or missing confirmation before it
+opens a write transaction. It must not be run by autonomous local work. Each
+future migration packet must include its exact version and forward SQL,
+compatibility window, backfill plan, before/after verification counts, and a
+rollback or forward-fix statement. Down migrations are not promised.
+
 ## Disposable schema reset
 
 The #23 fresh owner-schema cutover is intentionally local/E2E-only. A human may
