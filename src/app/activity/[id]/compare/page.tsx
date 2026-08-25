@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { ComparableActivitySkeleton } from "./comparable-activity-skeleton";
 import { ComparableActivityView } from "./comparable-activity-view";
 import { requireCurrentUser } from "@/lib/auth";
@@ -16,10 +17,20 @@ import {
 import { getDict } from "@/lib/lang";
 import { comparableActivityInsightReference } from "@/lib/insight-feedback";
 import { InsightFeedback } from "@/components/insight-feedback";
+import {
+  COMPARABLE_LOADING_PROOF_HEADER,
+  comparableLoadingProofEnabled,
+  waitForComparableLoadingProof,
+} from "@/lib/comparable-loading-proof";
 
 export const metadata = { title: "Comparable prior activity" };
 
-export default function ComparableActivityPage({ params }: PageProps<"/activity/[id]/compare">) {
+export default async function ComparableActivityPage({
+  params,
+}: PageProps<"/activity/[id]/compare">) {
+  if (comparableLoadingProofEnabled()) {
+    await waitForComparableLoadingProof((await headers()).get(COMPARABLE_LOADING_PROOF_HEADER));
+  }
   return (
     <Suspense fallback={<ComparableActivitySkeleton />}>
       {params.then(({ id }) => (
