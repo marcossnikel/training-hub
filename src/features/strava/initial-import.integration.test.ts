@@ -10,7 +10,7 @@ const dbFile = path.join(
 const owner = { userId: "initial-import-owner" };
 const otherOwner = { userId: "initial-import-other-owner" };
 let db: typeof import("../../lib/db");
-let strava: typeof import("../../lib/strava");
+let strava: typeof import("./server/sync");
 const realFetch = global.fetch;
 
 function response(body: unknown): Response {
@@ -55,7 +55,7 @@ beforeAll(async () => {
   process.env.DATABASE_URL = `file:${dbFile}`;
   process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 19).toString("base64url");
   db = await import("../../lib/db");
-  strava = await import("../../lib/strava");
+  strava = await import("./server/sync");
   await db.ensureMigrated();
   await addOwner(owner.userId);
   await addOwner(otherOwner.userId);
@@ -113,11 +113,11 @@ describe("initial Strava import", () => {
     // failure below therefore leaves the first committed page visible and the
     // same persisted job resumable instead of asking a browser request to walk
     // all history again.
-    await expect(strava.syncActivities(owner)).resolves.toMatchObject({
+    await expect(strava.syncStravaActivities(owner)).resolves.toMatchObject({
       imported: 100,
       historicalConfirmed: 100,
     });
-    await expect(strava.syncActivities(owner)).resolves.toMatchObject({
+    await expect(strava.syncStravaActivities(owner)).resolves.toMatchObject({
       imported: 100,
       historicalConfirmed: 100,
     });
@@ -125,7 +125,7 @@ describe("initial Strava import", () => {
     const stateAfterFailure = await db.getStravaSyncState(owner);
     expect(stateAfterFailure?.initialSyncCompletedAt).toBeNull();
 
-    const complete = await strava.syncActivities(owner);
+    const complete = await strava.syncStravaActivities(owner);
     expect(complete).toMatchObject({
       imported: 102,
       historicalConfirmed: 102,
@@ -149,7 +149,7 @@ describe("initial Strava import", () => {
         },
       ])
     ) as unknown as typeof fetch;
-    const incremental = await strava.syncActivities(owner);
+    const incremental = await strava.syncStravaActivities(owner);
     expect(incremental).toMatchObject({
       imported: 1,
       historicalConfirmed: 0,

@@ -9,7 +9,7 @@ import { localStartedAt } from "@/lib/format";
 import { analyzeRace, buildBlock } from "@/lib/blocks";
 import type { AthleteThresholds } from "@/lib/fitness";
 import { raceCategory, type RaceCategory } from "@/lib/races";
-import { ensureActivityStreams } from "@/lib/strava";
+import { loadActivityStreams } from "@/features/strava/server/enrichment";
 import { requireCurrentUser } from "@/lib/auth";
 import type { OwnerContext } from "@/lib/owner-context";
 import type { ActivityWithSplits } from "@/lib/types";
@@ -57,7 +57,7 @@ async function buildSide(
   const blockStartIso = new Date(Date.parse(raceStartIso) - weeks * 7 * DAY_MS).toISOString();
   const activities = await listBlockActivities(owner, blockStartIso, raceStartIso);
   const block = buildBlock(activities, raceStartIso, weeks, thresholds);
-  const streams = await ensureActivityStreams(owner, race);
+  const streams = await loadActivityStreams(owner, race);
   const analysis = analyzeRace(race, streams, thresholds);
   return {
     race: {

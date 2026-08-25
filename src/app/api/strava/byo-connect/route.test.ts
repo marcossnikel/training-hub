@@ -3,14 +3,12 @@ import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
-  getPendingStravaAuthorization: vi.fn(),
-  createOAuthState: vi.fn(),
+  startByoAuthorization: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
-vi.mock("@/lib/db", () => ({
-  getPendingStravaAuthorization: mocks.getPendingStravaAuthorization,
-  createOAuthState: mocks.createOAuthState,
+vi.mock("@/features/strava/server/connection", () => ({
+  startByoAuthorization: mocks.startByoAuthorization,
 }));
 
 import { GET } from "./route";
@@ -21,8 +19,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   delete process.env.TRAINING_HUB_PUBLIC_ORIGIN;
   mocks.requireCurrentUser.mockResolvedValue({ userId: "owner-a" });
-  mocks.getPendingStravaAuthorization.mockResolvedValue({ client_id: "athlete-client" });
-  mocks.createOAuthState.mockResolvedValue("opaque-state");
+  mocks.startByoAuthorization.mockResolvedValue(
+    "https://www.strava.com/oauth/authorize?state=opaque-state"
+  );
 });
 
 afterEach(() => {
@@ -37,8 +36,7 @@ describe("BYO authorization handoff route", () => {
 
     expect(response.status).toBe(401);
     expect(response.headers.get("location")).toBeNull();
-    expect(mocks.getPendingStravaAuthorization).not.toHaveBeenCalled();
-    expect(mocks.createOAuthState).not.toHaveBeenCalled();
+    expect(mocks.startByoAuthorization).not.toHaveBeenCalled();
   });
 
   it("rejects a nonlocal request even when hostile forwarding headers name an attacker", async () => {
@@ -52,8 +50,7 @@ describe("BYO authorization handoff route", () => {
     );
     expect(response.status).toBe(400);
     expect(response.headers.get("location")).toBeNull();
-    expect(mocks.getPendingStravaAuthorization).not.toHaveBeenCalled();
-    expect(mocks.createOAuthState).not.toHaveBeenCalled();
+    expect(mocks.startByoAuthorization).not.toHaveBeenCalled();
   });
 
   it("uses only the configured canonical HTTPS origin despite hostile forwarding headers", async () => {
@@ -67,20 +64,16 @@ describe("BYO authorization handoff route", () => {
       })
     );
     expect(response.status).toBe(307);
-    const location = new URL(response.headers.get("location")!);
-    expect(location.searchParams.get("redirect_uri")).toBe(
-      "https://preview.training-hub.example/api/strava/callback"
-    );
-    expect(location.toString()).not.toContain("attacker.example");
-    expect(mocks.createOAuthState).toHaveBeenCalledWith(
+    expect(response.headers.get("location")).not.toContain("attacker.example");
+    expect(mocks.startByoAuthorization).toHaveBeenCalledWith(
       { userId: "owner-a" },
-      { intent: "connect", redirectKey: "settings" }
+      "https://preview.training-hub.example"
     );
   });
 
   it("uses the canonical Settings recovery when this owner has no pending credentials", async () => {
     process.env.TRAINING_HUB_PUBLIC_ORIGIN = "https://preview.training-hub.example";
-    mocks.getPendingStravaAuthorization.mockResolvedValue(null);
+    mocks.startByoAuthorization.mockResolvedValue(null);
 
     const response = await GET(
       new NextRequest("https://attacker.example/api/strava/byo-connect", {
@@ -89,6 +82,9 @@ describe("BYO authorization handoff route", () => {
     );
 
     expect(response.headers.get("location")).toBe("https://preview.training-hub.example/settings");
-    expect(mocks.createOAuthState).not.toHaveBeenCalled();
+    expect(mocks.startByoAuthorization).toHaveBeenCalledWith(
+      { userId: "owner-a" },
+      "https://preview.training-hub.example"
+    );
   });
 });

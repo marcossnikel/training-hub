@@ -3,7 +3,8 @@
 import { fail } from "@/lib/action-result";
 import { dict, refreshAll } from "@/lib/action-helpers";
 import { requireCurrentUser } from "@/lib/auth";
-import { isStravaConnected, syncActivities, type SyncResult } from "@/lib/strava";
+import { isStravaConnected } from "./connection";
+import { syncStravaActivities, type SyncResult } from "./sync";
 
 export type SyncActionResult = ({ ok: true } & SyncResult) | { ok: false; error: string };
 
@@ -13,7 +14,7 @@ export async function syncNowAction(): Promise<SyncActionResult> {
   if (!owner) return { ok: false, error: t.errors.unauthorized };
   if (!(await isStravaConnected(owner))) return { ok: false, error: t.errors.notConnected };
   try {
-    const result = await syncActivities(owner);
+    const result = await syncStravaActivities(owner);
     refreshAll();
     return { ok: true, ...result };
   } catch (error) {

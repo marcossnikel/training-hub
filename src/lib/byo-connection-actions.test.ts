@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
-  getStravaConnectionStatus: vi.fn(),
-  savePendingStravaConnection: vi.fn(),
+  connectionStatus: vi.fn(),
+  saveByoCredentials: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
 vi.mock("./auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
-vi.mock("./db", () => ({
-  getStravaConnectionStatus: mocks.getStravaConnectionStatus,
-  savePendingStravaConnection: mocks.savePendingStravaConnection,
+vi.mock("@/features/strava/server/connection", () => ({
+  connectionStatus: mocks.connectionStatus,
+  saveByoCredentials: mocks.saveByoCredentials,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
@@ -29,8 +29,8 @@ function credentials(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireCurrentUser.mockResolvedValue({ userId: "owner-a" });
-  mocks.getStravaConnectionStatus.mockResolvedValue("disconnected");
-  mocks.savePendingStravaConnection.mockResolvedValue(true);
+  mocks.connectionStatus.mockResolvedValue("disconnected");
+  mocks.saveByoCredentials.mockResolvedValue(true);
 });
 
 describe("begin BYO connection Server Action", () => {
@@ -39,14 +39,14 @@ describe("begin BYO connection Server Action", () => {
     const result = await beginByoConnectionAction(credentials());
     expect(result).toEqual({ status: "unauthorized" });
     expect(JSON.stringify(result)).not.toContain("secret-that-must-not-return");
-    expect(mocks.savePendingStravaConnection).not.toHaveBeenCalled();
+    expect(mocks.saveByoCredentials).not.toHaveBeenCalled();
   });
 
   it("returns only a fixed handoff after a saved owner credential pair", async () => {
     const result = await beginByoConnectionAction(credentials("  athlete-client  "));
-    expect(mocks.savePendingStravaConnection).toHaveBeenCalledWith(
+    expect(mocks.saveByoCredentials).toHaveBeenCalledWith(
       { userId: "owner-a" },
-      { client_id: "athlete-client", client_secret: "secret-that-must-not-return" }
+      { clientId: "athlete-client", clientSecret: "secret-that-must-not-return" }
     );
     expect(result).toEqual({ status: "ready", handoffPath: "/api/strava/byo-connect" });
     expect(JSON.stringify(result)).not.toContain("secret-that-must-not-return");
@@ -57,9 +57,9 @@ describe("begin BYO connection Server Action", () => {
     const invalid = await beginByoConnectionAction(credentials(" "));
     expect(invalid).toMatchObject({ status: "invalid", clientId: "" });
     expect(JSON.stringify(invalid)).not.toContain("secret-that-must-not-return");
-    expect(mocks.savePendingStravaConnection).not.toHaveBeenCalled();
+    expect(mocks.saveByoCredentials).not.toHaveBeenCalled();
 
-    mocks.savePendingStravaConnection.mockResolvedValue(false);
+    mocks.saveByoCredentials.mockResolvedValue(false);
     const duplicate = await beginByoConnectionAction(credentials());
     expect(duplicate).toEqual({ status: "pending", handoffPath: "/api/strava/byo-connect" });
     expect(JSON.stringify(duplicate)).not.toContain("secret-that-must-not-return");

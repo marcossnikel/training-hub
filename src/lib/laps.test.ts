@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { distanceAtTime, lapWindows } from "./laps";
-import type { StravaLap } from "./strava";
+import type { StravaLap } from "@/features/strava/server/provider";
 
 /** A lap as Strava sends one, with only the fields the windows are built from. */
 function lap(fields: Partial<StravaLap>): StravaLap {

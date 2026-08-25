@@ -13,7 +13,7 @@ import { FilterPill } from "@/components/filter-pill";
 import { ReviewBanner } from "@/components/review-banner";
 import { countPending, listConfirmedActivities } from "@/lib/db";
 import { getDict } from "@/lib/lang";
-import { isStravaConnected } from "@/lib/strava";
+import { isStravaConnected } from "@/features/strava/server/connection";
 import { requireCurrentUser } from "@/lib/auth";
 import { PrivateBetaLanding } from "@/components/private-beta-landing";
 import {

@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
 vi.mock("@/lib/db", () => ({ getInitialStravaImportStatus: mocks.getInitialStravaImportStatus }));
-vi.mock("@/lib/strava", () => ({ advanceInitialStravaImport: mocks.advanceInitialStravaImport }));
+vi.mock("@/features/strava/server/sync", () => ({
+  advanceInitialStravaImport: mocks.advanceInitialStravaImport,
+}));
 
 import { GET, POST } from "./route";
 

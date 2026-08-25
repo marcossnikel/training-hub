@@ -3,9 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { hrZones, zoneIndexOf, zoneSeconds } from "./fitness";
+import type { ActivityStreams } from "./streams";
+import type { StravaActivityDetail } from "@/features/strava/server/provider";
 
 // T3.6 — Strava resilience (G7.2, G7.4). Node-env unit tests that drive the REAL
-// strava.ts + db.ts against an ISOLATED temp sqlite file (never Turso) with a
+// feature-owned Strava modules + db.ts against an ISOLATED temp sqlite file (never Turso) with a
 // mocked global.fetch. The backoff sleep is stubbed so the 429 retry path is
 // exercised with zero wall-clock delay. No real network call is ever made.
 //
@@ -14,22 +16,23 @@ import { hrZones, zoneIndexOf, zoneSeconds } from "./fitness";
 
 const dbFile = path.join(os.tmpdir(), `training-hub-strava-${process.pid}-${Date.now()}.db`);
 
-type StravaModule = typeof import("./strava");
-type StravaTestApi = Pick<StravaModule, "backoff"> & {
-  deauthorizeStravaAccessToken(
-    accessToken: string
-  ): ReturnType<StravaModule["deauthorizeStravaAccessToken"]>;
-  apiGet<T>(pathname: string, params?: Record<string, string>): Promise<T>;
+type StravaTestApi = {
+  sleep: ReturnType<typeof vi.fn>;
+  getAthleteGear(): Promise<{ shoes: unknown[]; bikes: unknown[] }>;
   exchangeByoCode(
     credentials: { client_id: string; client_secret: string },
     code: string
-  ): ReturnType<StravaModule["exchangeByoCode"]>;
-  ensureActivityStreams(
-    activity: Parameters<StravaModule["ensureActivityStreams"]>[1]
-  ): ReturnType<StravaModule["ensureActivityStreams"]>;
-  ensureActivityDetail(
-    activity: Parameters<StravaModule["ensureActivityDetail"]>[1]
-  ): ReturnType<StravaModule["ensureActivityDetail"]>;
+  ): Promise<unknown>;
+  deauthorizeStravaAccessToken(accessToken: string): Promise<boolean>;
+  ensureActivityStreams(activity: {
+    id: number;
+    strava_id: number | null;
+  }): Promise<ActivityStreams | null>;
+  ensureActivityDetail(activity: {
+    id: number;
+    strava_id: number | null;
+    detail_json: string | null;
+  }): Promise<StravaActivityDetail | null>;
 };
 
 let strava: StravaTestApi;
@@ -78,15 +81,22 @@ beforeAll(async () => {
   process.env.DATABASE_URL = `file:${dbFile}`;
   process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 37).toString("base64url");
   db = await import("./db");
-  const stravaModule = await import("./strava");
+  const { createStravaProvider } = await import("../features/strava/server/provider");
+  const { loadActivityDetail, loadActivityStreams } =
+    await import("../features/strava/server/enrichment");
+  const sleep = vi.fn().mockResolvedValue(undefined);
+  const provider = createStravaProvider({ sleep });
   strava = {
-    backoff: stravaModule.backoff,
-    deauthorizeStravaAccessToken: stravaModule.deauthorizeStravaAccessToken,
-    apiGet: <T>(pathname: string, params?: Record<string, string>) =>
-      stravaModule.apiGet<T>(TEST_OWNER, pathname, params),
-    exchangeByoCode: (credentials, code) => stravaModule.exchangeByoCode(credentials, code),
-    ensureActivityStreams: (activity) => stravaModule.ensureActivityStreams(TEST_OWNER, activity),
-    ensureActivityDetail: (activity) => stravaModule.ensureActivityDetail(TEST_OWNER, activity),
+    sleep,
+    getAthleteGear: () => provider.getAthleteGear({ accessToken: "access-abc" }),
+    exchangeByoCode: (credentials, code) =>
+      provider.exchangeAuthorizationCode({
+        credentials: { clientId: credentials.client_id, clientSecret: credentials.client_secret },
+        code,
+      }),
+    deauthorizeStravaAccessToken: (accessToken) => provider.deauthorize({ accessToken }),
+    ensureActivityStreams: (activity) => loadActivityStreams(TEST_OWNER, activity, provider),
+    ensureActivityDetail: (activity) => loadActivityDetail(TEST_OWNER, activity, provider),
   };
   await db.ensureMigrated();
   const now = new Date().toISOString();
@@ -109,11 +119,30 @@ afterAll(() => {
 });
 
 afterEach(() => {
+  vi.clearAllMocks();
   vi.restoreAllMocks();
   global.fetch = realFetch;
 });
 
-describe("apiGet honors Retry-After on 429 and retries (G7.2)", () => {
+describe("provider transport honors Retry-After on 429 and retries (G7.2)", () => {
+  it("keeps the loopback provider's API version prefix", async () => {
+    const originalE2E = process.env.TRAINING_HUB_E2E;
+    const originalOrigin = process.env.TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN;
+    process.env.TRAINING_HUB_E2E = "1";
+    process.env.TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN = "http://127.0.0.1:3210";
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ shoes: [], bikes: [] }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    try {
+      await strava.getAthleteGear();
+      expect(new URL(String(fetchMock.mock.calls[0][0])).pathname).toBe("/api/v3/athlete");
+    } finally {
+      if (originalE2E === undefined) delete process.env.TRAINING_HUB_E2E;
+      else process.env.TRAINING_HUB_E2E = originalE2E;
+      if (originalOrigin === undefined) delete process.env.TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN;
+      else process.env.TRAINING_HUB_STRAVA_TEST_PROVIDER_ORIGIN = originalOrigin;
+    }
+  });
+
   it("retries after a single 429 and returns the 200 body", async () => {
     await connectWithFreshToken();
     const fetchMock = vi
@@ -122,15 +151,13 @@ describe("apiGet honors Retry-After on 429 and retries (G7.2)", () => {
       .mockResolvedValueOnce(jsonResponse({ hello: "world" }));
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const sleepSpy = vi.spyOn(strava.backoff, "sleep").mockResolvedValue(undefined);
+    const result = await strava.getAthleteGear();
 
-    const result = await strava.apiGet<{ hello: string }>("/athlete");
-
-    expect(result).toEqual({ hello: "world" });
+    expect(result).toEqual({ shoes: [], bikes: [] });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(sleepSpy).toHaveBeenCalledTimes(1);
+    expect(strava.sleep).toHaveBeenCalledTimes(1);
     // Retry-After: 2 seconds -> a 2000 ms sleep, honored before the retry.
-    expect(sleepSpy).toHaveBeenCalledWith(2000);
+    expect(strava.sleep).toHaveBeenCalledWith(2000);
   });
 
   it("gives up after a bounded number of retries, with a capped default backoff", async () => {
@@ -138,14 +165,12 @@ describe("apiGet honors Retry-After on 429 and retries (G7.2)", () => {
     // Always rate-limited, no Retry-After header -> default backoff each time.
     const fetchMock = vi.fn().mockResolvedValue(rateLimitResponse(null));
     global.fetch = fetchMock as unknown as typeof fetch;
-    const sleepSpy = vi.spyOn(strava.backoff, "sleep").mockResolvedValue(undefined);
-
-    await expect(strava.apiGet("/athlete")).rejects.toThrow(/rate limit/i);
+    await expect(strava.getAthleteGear()).rejects.toThrow(/rate limit/i);
 
     // Bounded: initial attempt + 2 retries = 3 fetches, 2 sleeps. Never unbounded.
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(sleepSpy).toHaveBeenCalledTimes(2);
-    for (const call of sleepSpy.mock.calls) {
+    expect(strava.sleep).toHaveBeenCalledTimes(2);
+    for (const call of strava.sleep.mock.calls) {
       expect(call[0]).toBeGreaterThan(0);
       expect(call[0]).toBeLessThanOrEqual(30_000);
     }
@@ -198,7 +223,7 @@ describe("token refresh fetch carries a timeout signal (G7.4)", () => {
       .mockResolvedValueOnce(jsonResponse({ athlete: "owner only" }));
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    await strava.apiGet("/athlete");
+    await strava.ensureActivityStreams({ id: 999_999, strava_id: 1 });
 
     const [, tokenOptions] = fetchMock.mock.calls[0];
     const tokenBody = new URLSearchParams(String(tokenOptions?.body));

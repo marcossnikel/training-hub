@@ -15,7 +15,8 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Header } from "@/components/header";
 import { countPending } from "@/lib/db";
 import { getLang } from "@/lib/lang";
-import { isStravaConnected, shouldAutoSync } from "@/lib/strava";
+import { isStravaConnected } from "@/features/strava/server/connection";
+import { shouldAutoSync } from "@/features/strava/server/sync";
 import { requireCurrentUser } from "@/lib/auth";
 import { requireCreator, resolveEnvironmentIndicator } from "@/features/access/server";
 

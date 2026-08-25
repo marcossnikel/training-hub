@@ -2,12 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireCurrentUser } from "./auth";
-import {
-  deleteOwnerStravaData,
-  getStravaDeauthorizationAccessToken,
-  prepareStravaReconnect,
-} from "./db";
-import { deauthorizeStravaAccessToken } from "./strava";
+import { disconnectStrava, requestStravaReconnect } from "@/features/strava/server/connection";
 
 export type ReconnectStravaResult = { status: "unavailable" } | { status: "unauthorized" };
 
@@ -22,7 +17,7 @@ export async function reconnectStravaAction(): Promise<ReconnectStravaResult> {
   const owner = await requireCurrentUser();
   if (!owner) return { status: "unauthorized" };
   try {
-    const ready = await prepareStravaReconnect(owner);
+    const ready = await requestStravaReconnect(owner);
     if (!ready) return { status: "unavailable" };
   } catch {
     return { status: "unavailable" };
@@ -40,22 +35,11 @@ export async function disconnectStravaAction(): Promise<DisconnectStravaResult> 
   const owner = await requireCurrentUser();
   if (!owner) return { status: "unauthorized" };
 
-  let providerConfirmed = false;
-  try {
-    const accessToken = await getStravaDeauthorizationAccessToken(owner);
-    if (accessToken) providerConfirmed = await deauthorizeStravaAccessToken(accessToken);
-  } catch {
-    // A malformed/unreadable encrypted record cannot prevent local removal.
-    providerConfirmed = false;
-  }
-
-  try {
-    await deleteOwnerStravaData(owner);
-  } catch {
-    // Do not claim deletion unless the local transaction committed.
-    return { status: "unavailable" };
-  }
+  const result = await disconnectStrava(owner);
+  if (!result.deleted) return { status: "unavailable" };
   redirect(
-    providerConfirmed ? "/settings?strava=deleted" : "/settings?strava=deleted_provider_unconfirmed"
+    result.providerConfirmed
+      ? "/settings?strava=deleted"
+      : "/settings?strava=deleted_provider_unconfirmed"
   );
 }

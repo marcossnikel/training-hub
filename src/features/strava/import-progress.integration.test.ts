@@ -10,7 +10,7 @@ const dbFile = path.join(
 const owner = { userId: "import-progress-owner" };
 const otherOwner = { userId: "import-progress-other" };
 let db: typeof import("../../lib/db");
-let strava: typeof import("../../lib/strava");
+let strava: typeof import("./server/sync");
 const realFetch = global.fetch;
 
 function response(body: unknown): Response {
@@ -55,7 +55,7 @@ beforeAll(async () => {
   process.env.DATABASE_URL = `file:${dbFile}`;
   process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 71).toString("base64url");
   db = await import("../../lib/db");
-  strava = await import("../../lib/strava");
+  strava = await import("./server/sync");
   await db.ensureMigrated();
   await addOwner(owner.userId);
   await addOwner(otherOwner.userId);

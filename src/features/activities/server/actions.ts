@@ -18,7 +18,7 @@ import {
 } from "@/lib/db";
 import { FTP_RANGE, THRESHOLD_PACE_RANGE } from "@/lib/fitness";
 import { splitErrorText } from "@/lib/i18n";
-import { ensureActivityStreams } from "@/lib/strava";
+import { loadActivityStreams } from "@/features/strava/server/enrichment";
 import { logger } from "@/lib/telemetry";
 import type { Feeling, SplitInput } from "@/lib/types";
 import { validateSplits } from "@/lib/validate";
@@ -48,7 +48,7 @@ export async function confirmActivityAction(input: {
       input.bikeId != null && (await getBike(owner, input.bikeId)) ? input.bikeId : null;
     await confirmActivity(owner, input.activityId, journal, splits, bikeId);
     try {
-      await ensureActivityStreams(owner, activity);
+      await loadActivityStreams(owner, activity);
     } catch (error) {
       logger.error("confirmActivityAction.streams", { error, activityId: input.activityId });
     }

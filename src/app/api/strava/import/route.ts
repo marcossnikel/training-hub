@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/auth";
 import { getInitialStravaImportStatus } from "@/lib/db";
-import { advanceInitialStravaImport } from "@/lib/strava";
+import { advanceInitialStravaImport } from "@/features/strava/server/sync";
 
 /** Owner-scoped observation. There is intentionally no job, cursor, or count input. */
 export async function GET() {

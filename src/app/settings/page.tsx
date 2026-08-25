@@ -19,7 +19,8 @@ import {
 } from "@/lib/db";
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
-import { isStravaConnected, tryFetchAllGear } from "@/lib/strava";
+import { isStravaConnected } from "@/features/strava/server/connection";
+import { loadStravaGear } from "@/features/strava/server/enrichment";
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { requireCurrentUser } from "@/lib/auth";
@@ -40,7 +41,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const athleteName = await getMeta(owner, "athlete_name");
   const lastSync = await getMeta(owner, "last_sync_at");
   const baselineDate = await getMeta(owner, "baseline_date");
-  const allGear = connected ? await tryFetchAllGear(owner) : null;
+  const allGear = connected ? await loadStravaGear(owner) : null;
   const gear = allGear?.shoes ?? null;
   const bikeGear = allGear?.bikes ?? null;
   const shoes = await listShoes(owner);

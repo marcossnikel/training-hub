@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCurrentUser } from "./auth";
-import { getStravaConnectionStatus, savePendingStravaConnection } from "./db";
 import { STRAVA_BYO_HANDOFF_PATH, validateByoCredentials } from "./strava-byo";
+import { connectionStatus, saveByoCredentials } from "@/features/strava/server/connection";
 
 export type BeginByoConnectionResult =
   | { status: "invalid"; clientId: string; errors: { clientId?: string; clientSecret?: string } }
@@ -37,11 +37,11 @@ export async function beginByoConnectionAction(
   }
 
   try {
-    const status = await getStravaConnectionStatus(owner);
+    const status = await connectionStatus(owner);
     if (status === "connected") return { status: "unavailable" };
-    const saved = await savePendingStravaConnection(owner, {
-      client_id: validated.clientId,
-      client_secret: validated.clientSecret,
+    const saved = await saveByoCredentials(owner, {
+      clientId: validated.clientId,
+      clientSecret: validated.clientSecret,
     });
     revalidatePath("/settings");
     return saved

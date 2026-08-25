@@ -43,12 +43,12 @@ import { getDict } from "@/lib/lang";
 import { lapWindows } from "@/lib/laps";
 import { ZONE_COLORS, zoneLabels } from "@/lib/zones";
 import {
-  ensureActivityDetail,
-  ensureActivityStreams,
+  loadActivityDetail,
+  loadActivityStreams,
   type StravaBestEffort,
   type StravaLap,
   type StravaSplit,
-} from "@/lib/strava";
+} from "@/features/strava/server/enrichment";
 import { requireCurrentUser } from "@/lib/auth";
 import { fmtCadence, fmtEnergy, fmtPower, fmtSpeed, isRideSport, rideMetrics } from "@/lib/cycling";
 import {
@@ -436,8 +436,8 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
 
   const thresholds = await getAthleteThresholds(owner);
 
-  const detail = await ensureActivityDetail(owner, activity);
-  const streams = await ensureActivityStreams(owner, activity);
+  const detail = await loadActivityDetail(owner, activity);
+  const streams = await loadActivityStreams(owner, activity);
 
   const laps = (detail?.laps ?? []).filter(
     (lap) => (lap.distance ?? 0) > 0 || (lap.moving_time ?? 0) > 0

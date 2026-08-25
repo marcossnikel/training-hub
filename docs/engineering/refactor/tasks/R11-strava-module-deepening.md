@@ -1,6 +1,6 @@
 # R11 — Deepen the Strava integration module
 
-**Status:** queued
+**Status:** done
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high
 **Depends on:** R9 and R14 done

@@ -4,22 +4,18 @@ import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
   consumeOAuthState: vi.fn(),
-  getPendingStravaExchangeInput: vi.fn(),
-  promotePendingStravaConnection: vi.fn(),
-  setMeta: vi.fn(),
-  exchangeByoCode: vi.fn(),
+  completeByoAuthorization: vi.fn(),
   advanceInitialStravaImport: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
 vi.mock("@/lib/db", () => ({
   consumeOAuthState: mocks.consumeOAuthState,
-  getPendingStravaExchangeInput: mocks.getPendingStravaExchangeInput,
-  promotePendingStravaConnection: mocks.promotePendingStravaConnection,
-  setMeta: mocks.setMeta,
 }));
-vi.mock("@/lib/strava", () => ({
-  exchangeByoCode: mocks.exchangeByoCode,
+vi.mock("@/features/strava/server/connection", () => ({
+  completeByoAuthorization: mocks.completeByoAuthorization,
+}));
+vi.mock("@/features/strava/server/sync", () => ({
   advanceInitialStravaImport: mocks.advanceInitialStravaImport,
 }));
 
@@ -43,18 +39,7 @@ beforeEach(() => {
   process.env.TRAINING_HUB_PUBLIC_ORIGIN = ORIGIN;
   mocks.requireCurrentUser.mockResolvedValue(OWNER);
   mocks.consumeOAuthState.mockResolvedValue({ intent: "connect", redirectKey: "settings" });
-  mocks.getPendingStravaExchangeInput.mockResolvedValue({
-    client_id: "athlete-client",
-    client_secret: "athlete-secret",
-  });
-  mocks.exchangeByoCode.mockResolvedValue({
-    access_token: "access-token",
-    refresh_token: "refresh-token",
-    expires_at: 4_000_000_000,
-    scope: "profile:read_all read activity:read_all",
-    athlete: { id: 42, firstname: "Ada", lastname: "Runner" },
-  });
-  mocks.promotePendingStravaConnection.mockResolvedValue(true);
+  mocks.completeByoAuthorization.mockResolvedValue("connected");
   mocks.advanceInitialStravaImport.mockResolvedValue({ advanced: true, status: null });
 });
 
@@ -64,32 +49,19 @@ afterEach(() => {
 });
 
 describe("owner-bound Strava callback", () => {
-  it("consumes state before owner-only exchange, promotes exact scope, starts one bounded import step, and redirects safely", async () => {
+  it("consumes state before the owner-bound lifecycle, starts one bounded import step, and redirects safely", async () => {
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(`${ORIGIN}/?strava=connected`);
     expect(mocks.consumeOAuthState).toHaveBeenCalledWith(OWNER, STATE);
-    expect(mocks.exchangeByoCode).toHaveBeenCalledWith(
-      { client_id: "athlete-client", client_secret: "athlete-secret" },
-      "provider-code"
-    );
-    expect(mocks.promotePendingStravaConnection).toHaveBeenCalledWith(
-      OWNER,
-      expect.objectContaining({
-        access_token: "access-token",
-        refresh_token: "refresh-token",
-        strava_athlete_id: 42,
-        granted_scope: "read,activity:read_all,profile:read_all",
-      })
-    );
+    expect(mocks.completeByoAuthorization).toHaveBeenCalledWith(OWNER, "provider-code");
     expect(mocks.advanceInitialStravaImport).toHaveBeenCalledWith(OWNER);
     const artifact = JSON.stringify({
       location: response.headers.get("location"),
-      calls: mocks.exchangeByoCode.mock.calls,
+      calls: mocks.completeByoAuthorization.mock.calls,
     });
-    expect(artifact).not.toContain("access-token");
-    expect(artifact).not.toContain("refresh-token");
+    expect(artifact).not.toContain("athlete-secret");
   });
 
   it("fails closed for a consumed, expired, replayed, or other-owner state without exchange", async () => {
@@ -97,9 +69,7 @@ describe("owner-bound Strava callback", () => {
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=recovery`);
-    expect(mocks.exchangeByoCode).not.toHaveBeenCalled();
-    expect(mocks.getPendingStravaExchangeInput).not.toHaveBeenCalled();
-    expect(mocks.promotePendingStravaConnection).not.toHaveBeenCalled();
+    expect(mocks.completeByoAuthorization).not.toHaveBeenCalled();
   });
 
   it("consumes a provider denial but makes no exchange or sync", async () => {
@@ -107,31 +77,25 @@ describe("owner-bound Strava callback", () => {
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=scope`);
     expect(mocks.consumeOAuthState).toHaveBeenCalledWith(OWNER, STATE);
-    expect(mocks.exchangeByoCode).not.toHaveBeenCalled();
+    expect(mocks.completeByoAuthorization).not.toHaveBeenCalled();
     expect(mocks.advanceInitialStravaImport).not.toHaveBeenCalled();
   });
 
   it("rejects missing or expanded granted scopes before token persistence or sync", async () => {
-    mocks.exchangeByoCode.mockResolvedValue({
-      access_token: "access-token",
-      refresh_token: "refresh-token",
-      expires_at: 4_000_000_000,
-      scope: "read,activity:read_all,profile:read_all,read_all",
-      athlete: { id: 42 },
-    });
+    mocks.completeByoAuthorization.mockResolvedValue("scope");
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=scope`);
-    expect(mocks.promotePendingStravaConnection).not.toHaveBeenCalled();
+    expect(mocks.completeByoAuthorization).toHaveBeenCalledWith(OWNER, "provider-code");
     expect(mocks.advanceInitialStravaImport).not.toHaveBeenCalled();
   });
 
   it("keeps the pending credentials for an exchange or sync failure and exposes no provider detail", async () => {
-    mocks.exchangeByoCode.mockRejectedValue(new Error("provider body: secret response"));
+    mocks.completeByoAuthorization.mockResolvedValue("recovery");
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=recovery`);
-    expect(mocks.promotePendingStravaConnection).not.toHaveBeenCalled();
+    expect(mocks.completeByoAuthorization).toHaveBeenCalledWith(OWNER, "provider-code");
     expect(mocks.advanceInitialStravaImport).not.toHaveBeenCalled();
     expect(await response.text()).not.toContain("provider body");
   });

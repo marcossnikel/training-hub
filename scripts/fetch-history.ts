@@ -39,12 +39,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { listActivitiesMissingStravaData } from "../src/lib/db";
+import { loadActivityDetail, loadActivityStreams } from "../src/features/strava/server/enrichment";
 import {
-  ensureActivityDetail,
-  ensureActivityStreams,
-  observeStravaRequests,
+  createStravaProvider,
   type StravaRequestEvent,
-} from "../src/lib/strava";
+} from "../src/features/strava/server/provider";
 
 /** Rolling request window Strava enforces, and the ceiling we keep under it. */
 const WINDOW_MS = 15 * 60 * 1000;
@@ -91,7 +90,7 @@ function parseLimit(): number | null {
 /**
  * The rolling-window throttle, booked from what actually left the process rather
  * than from what this script intended to send: `record` is driven by
- * `observeStravaRequests`, so a token refresh and every 429 retry are counted
+ * the injected provider observer, so a token refresh and every 429 retry are counted
  * like any other request. `awaitSlot` waits, before a request, until the window
  * has room; the window itself lives in a small file shared by every run on this
  * machine, so a second run cannot spend a fresh 85 alongside the first.
@@ -250,9 +249,11 @@ async function main() {
   // this loop never asked for (a token refresh, a 429 retry) — and the events of
   // the attempt in flight are collected so its outcome can be read off them.
   let attemptEvents: StravaRequestEvent[] = [];
-  observeStravaRequests((event) => {
-    budget.record();
-    attemptEvents.push(event);
+  const provider = createStravaProvider({
+    onRequest: (event) => {
+      budget.record();
+      attemptEvents.push(event);
+    },
   });
 
   let processed = 0;
@@ -261,76 +262,76 @@ async function main() {
   let emptyActivities = 0;
   let consecutiveFailures = 0;
 
-  try {
-    for (const activity of queue) {
-      const calls = activity.needs_detail + activity.needs_streams;
-      if (!budget.fits(calls)) {
-        console.log(`Stopping: the ${MAX_CALLS_PER_RUN}-call budget for this run is spent.`);
-        break;
-      }
+  for (const activity of queue) {
+    const calls = activity.needs_detail + activity.needs_streams;
+    if (!budget.fits(calls)) {
+      console.log(`Stopping: the ${MAX_CALLS_PER_RUN}-call budget for this run is spent.`);
+      break;
+    }
 
-      const attempts: Attempt[] = [];
-      const failures: StravaRequestEvent[] = [];
-      const runAttempt = async (fetchOne: () => Promise<unknown>) => {
-        await budget.awaitSlot();
-        attemptEvents = [];
-        const result = await fetchOne();
-        const outcome = classifyAttempt(result !== null, attemptEvents);
-        attempts.push(outcome);
-        if (outcome === "failed") failures.push(...attemptEvents);
-        return outcome;
-      };
+    const attempts: Attempt[] = [];
+    const failures: StravaRequestEvent[] = [];
+    const runAttempt = async (fetchOne: () => Promise<unknown>) => {
+      await budget.awaitSlot();
+      attemptEvents = [];
+      const result = await fetchOne();
+      const outcome = classifyAttempt(result !== null, attemptEvents);
+      attempts.push(outcome);
+      if (outcome === "failed") failures.push(...attemptEvents);
+      return outcome;
+    };
 
-      if (activity.needs_detail) {
-        const outcome = await runAttempt(() =>
-          ensureActivityDetail(owner, {
+    if (activity.needs_detail) {
+      const outcome = await runAttempt(() =>
+        loadActivityDetail(
+          owner,
+          {
             id: activity.id,
             strava_id: activity.strava_id,
             detail_json: null,
-          })
-        );
-        if (outcome === "ok") detailFetched += 1;
-      }
-      if (activity.needs_streams) {
-        // Writes the stream cache AND, through the fetch-time hook, this
-        // activity's full-resolution metrics row.
-        const outcome = await runAttempt(() =>
-          ensureActivityStreams(owner, { id: activity.id, strava_id: activity.strava_id })
-        );
-        if (outcome === "ok") streamsFetched += 1;
-      }
-
-      processed += 1;
-      const failed = attempts.includes("failed");
-      const gotSomething = attempts.includes("ok");
-      if (!failed && !gotSomething) emptyActivities += 1;
-      consecutiveFailures = failed && !gotSomething ? consecutiveFailures + 1 : 0;
-
-      const status = gotSomething
-        ? "ok"
-        : failed
-          ? `fetch failed — ${failureReason(failures)}`
-          : "nothing to fetch (Strava has no data for it)";
-      console.log(
-        `  [${processed}/${queue.length}] ${activity.started_at.slice(0, 10)} #${activity.id} ` +
-          `${activity.name ?? "—"} — ${status} (calls ${budget.used}/${MAX_CALLS_PER_RUN})`
+          },
+          provider
+        )
       );
-
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        console.error(
-          `Stopping: ${MAX_CONSECUTIVE_FAILURES} activities in a row could not be fetched ` +
-            `(last: ${failureReason(failures)}). Strava is refusing or unreachable — ` +
-            "check the token and the rate limit, then re-run."
-        );
-        break;
-      }
-      if (budget.exhausted) {
-        console.log(`Stopping: the ${MAX_CALLS_PER_RUN}-call budget for this run is spent.`);
-        break;
-      }
+      if (outcome === "ok") detailFetched += 1;
     }
-  } finally {
-    observeStravaRequests(null);
+    if (activity.needs_streams) {
+      // Writes the stream cache AND, through the fetch-time hook, this
+      // activity's full-resolution metrics row.
+      const outcome = await runAttempt(() =>
+        loadActivityStreams(owner, { id: activity.id, strava_id: activity.strava_id }, provider)
+      );
+      if (outcome === "ok") streamsFetched += 1;
+    }
+
+    processed += 1;
+    const failed = attempts.includes("failed");
+    const gotSomething = attempts.includes("ok");
+    if (!failed && !gotSomething) emptyActivities += 1;
+    consecutiveFailures = failed && !gotSomething ? consecutiveFailures + 1 : 0;
+
+    const status = gotSomething
+      ? "ok"
+      : failed
+        ? `fetch failed — ${failureReason(failures)}`
+        : "nothing to fetch (Strava has no data for it)";
+    console.log(
+      `  [${processed}/${queue.length}] ${activity.started_at.slice(0, 10)} #${activity.id} ` +
+        `${activity.name ?? "—"} — ${status} (calls ${budget.used}/${MAX_CALLS_PER_RUN})`
+    );
+
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      console.error(
+        `Stopping: ${MAX_CONSECUTIVE_FAILURES} activities in a row could not be fetched ` +
+          `(last: ${failureReason(failures)}). Strava is refusing or unreachable — ` +
+          "check the token and the rate limit, then re-run."
+      );
+      break;
+    }
+    if (budget.exhausted) {
+      console.log(`Stopping: the ${MAX_CALLS_PER_RUN}-call budget for this run is spent.`);
+      break;
+    }
   }
 
   const remaining = await listActivitiesMissingStravaData(owner, MAX_ACTIVITIES);

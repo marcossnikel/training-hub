@@ -3,7 +3,7 @@
 // table that shares no axis with it. Pure (no DB, no UI): the activity page
 // builds the windows server-side and the chart maps them through its x-scale.
 
-import type { StravaLap } from "./strava";
+import type { StravaLap } from "@/features/strava/server/provider";
 
 /**
  * One lap as a half-open window of elapsed seconds since the activity started,

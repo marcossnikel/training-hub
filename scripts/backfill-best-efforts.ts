@@ -25,7 +25,7 @@ import {
   upsertActivityBestEfforts,
 } from "../src/lib/db";
 import { bestEffortRows, type BestEffortRow } from "../src/lib/best-efforts";
-import { parseActivityDetail } from "../src/lib/strava";
+import { parseActivityDetail } from "../src/features/strava/server/enrichment";
 import { assertLocalDb } from "./lib/assert-local-db";
 
 function scriptOwner() {

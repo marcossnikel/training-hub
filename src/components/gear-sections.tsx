@@ -6,7 +6,8 @@ import { ShoeCard } from "@/components/shoe-card";
 import { BikeCard } from "@/components/bike-card";
 import { listBikes, listShoes } from "@/lib/db";
 import { getDict } from "@/lib/lang";
-import { isStravaConnected, tryFetchBikes, tryFetchGear } from "@/lib/strava";
+import { isStravaConnected } from "@/features/strava/server/connection";
+import { loadStravaBikes, loadStravaShoes } from "@/features/strava/server/enrichment";
 import { fmtKm } from "@/lib/format";
 import { requireCurrentUser } from "@/lib/auth";
 import type { BikeWithMileage, ShoeWithMileage } from "@/lib/types";
@@ -20,7 +21,7 @@ export async function ShoesSection() {
   const { t } = await getDict();
   const shoes = await listShoes(owner);
   const connected = await isStravaConnected(owner);
-  const gear = await tryFetchGear(owner);
+  const gear = await loadStravaShoes(owner);
   const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));
 
   const active = shoes.filter((s) => !s.retired_at);
@@ -88,7 +89,7 @@ export async function BikesSection() {
   const { t } = await getDict();
   const bikes = await listBikes(owner);
   const connected = await isStravaConnected(owner);
-  const gear = await tryFetchBikes(owner);
+  const gear = await loadStravaBikes(owner);
   const gearNameById = new Map((gear ?? []).map((g) => [g.id, g.name]));
 
   const active = bikes.filter((b) => !b.retired_at);
