@@ -27,7 +27,6 @@ export function ComparePriorActivityEntry({
   return (
     <Link
       href={`/activity/${activityId}/compare`}
-      prefetch={false}
       className="focus-ring inline-flex rounded-md border bg-card px-3 py-2 text-sm font-medium transition-colors duration-150 hover:bg-muted motion-reduce:transition-none"
     >
       {children}
