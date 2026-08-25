@@ -18,7 +18,7 @@ const E2E_DATABASE_URL = `file:${path.join(process.cwd(), "data", "e2e.db")}`;
 const E2E_CONNECTION_ENCRYPTION_KEY = Buffer.alloc(32, 58).toString("base64url");
 const E2E_APP_COMMAND =
   process.env.E2E_PRODUCTION === "1"
-    ? `npm run e2e:seed && npm run build && npm run start -- --port ${PORT}`
+    ? `echo "E2E production smoke: disposable file:data/e2e.db + loopback Strava provider" && npm run e2e:seed && echo "E2E production smoke: next build" && npm run build && echo "E2E production smoke: next start" && npm run start -- --port ${PORT}`
     : `npm run e2e:seed && npm run dev -- --port ${PORT}`;
 const E2E_SERVER_COMMAND = `sh -c 'node scripts/e2e-strava-provider.mjs & training_hub_mock_pid=$!; trap "kill $training_hub_mock_pid 2>/dev/null || true" EXIT INT TERM; ${E2E_APP_COMMAND}'`;
 process.env.STRAVA_CONNECTION_ENCRYPTION_KEY = E2E_CONNECTION_ENCRYPTION_KEY;
@@ -161,15 +161,25 @@ export default defineConfig({
       // root loading boundary. Keep it after all other database consumers.
       dependencies: ["chromium", "mobile"],
     },
+    // This has no setup dependency or saved browser state. It proves the
+    // guest-only entry boundaries against a command-owned `next build` +
+    // `next start` server and never enters the wider mutation graph.
+    {
+      name: "production-smoke",
+      testMatch: /production-smoke\.spec\.ts/,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   webServer: {
     // Reset + seed before the server opens the file, so it never sees an empty
     // database. The loopback provider serves only this E2E process;
     // E2E_PRODUCTION=1 switches the application process to build + start for
-    // final visual proof while the ordinary verification suite stays fast.
+    // the narrow production smoke while the ordinary verification suite stays
+    // fast. A production smoke always owns this port, even outside CI.
     command: E2E_SERVER_COMMAND,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && process.env.E2E_PRODUCTION !== "1",
     // Generous timeout for seeding plus the first on-demand route compile.
     timeout: 120_000,
     env: {

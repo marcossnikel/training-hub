@@ -2,10 +2,9 @@
 
 ## Current program state
 
-Product implementation was paused after R0 while the product direction and task
-contract were refined. R1 is the first prepared packet; no implementation starts
-until Marcos invokes it. Every later packet remains non-executable until both its
-file and this index say `ready`.
+Product implementation paused after R0 while the product direction and task
+contract were refined. R1 is the first completed packet. Every later packet
+remains non-executable until both its file and this index say `ready`.
 
 The state vocabulary is `draft | ready | done | blocked`. `blocked` is reserved
 for a genuinely external dependency; a local implementation or test failure is
@@ -16,7 +15,7 @@ owned by the builder.
 | ID | Status | Delivery class | Risk/model | Outcome | Packet |
 | --- | --- | --- | --- | --- | --- |
 | R0 | done | documentation/tooling | medium, Terra medium | Trustworthy tooling baseline. | [R0](tasks/R0-tooling-baseline.md) |
-| R1 | ready | API/backend | medium, Terra medium | Affordable developer loop and truthful local production smoke. | [R1](tasks/R1-developer-loop.md) |
+| R1 | done | API/backend | medium, Terra medium | Affordable developer loop and truthful local production smoke. | [R1](tasks/R1-developer-loop.md) |
 | R2 | draft | API/backend | high, Terra high | Validated runtime configuration without weaker environment isolation. | [R2](tasks/R2-runtime-configuration.md) |
 | R2M | draft | API/backend | high, Terra high | Additive, idempotent schema migration runner. | [R2M](tasks/R2M-additive-migrations.md) |
 | R3 | draft | API/backend | high, Terra high | Creator/member capabilities without cross-owner authority. | [R3](tasks/R3-creator-authorization.md) |
@@ -39,7 +38,7 @@ owned by the builder.
 | R20 | draft | documentation/plan | high, Sol high | Training Analyst evidence, theory, privacy, and output contract. | [R20](tasks/R20-training-analyst-contract.md) |
 | R21 | draft | full stack | high, Terra high | Bounded Training Analyst hypotheses with confirm/edit/reject feedback. | [R21](tasks/R21-training-analyst-hypotheses.md) |
 
-Current packet files are under `tasks/`. R1-R21 remain drafts until each receives
+Current packet files are under `tasks/`. R2-R21 remain drafts until each receives
 a current-truth refresh, exact target/test commands, and any remaining design or
 external decision required by the new task contract.
 

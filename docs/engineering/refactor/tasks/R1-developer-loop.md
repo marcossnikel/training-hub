@@ -1,6 +1,6 @@
 # R1 — Establish the affordable developer loop
 
-**Status:** ready
+**Status:** done
 **Delivery class:** API/backend
 **Risk:** medium
 **Recommended builder:** Terra medium

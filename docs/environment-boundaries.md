@@ -21,18 +21,37 @@ a preview is disposable staging, never a read-only view of production.
 | Environment | Database | Stripe | Credentials | Allowed work |
 | --- | --- | --- | --- | --- |
 | `local` | `file:data/app.db`; `TURSO_*` unset | Unset or test only | Local `.env.local` | Development, unit tests, local seed |
-| `e2e` | `file:data/e2e.db`, seeded by Playwright | Unset | Throwaway E2E auth values only | `npm run verify` |
+| `e2e` | `file:data/e2e.db`, seeded by Playwright | Unset | Throwaway E2E auth/encryption values and a loopback Strava double only | `npm run verify`, `npm run test:e2e:production` |
 | `preview` / staging | Dedicated remote database whose host includes `preview` or `staging` | Test mode only | Preview-only values, separate Blob store and Strava app | Only after #20 is unblocked |
 | `production` | Dedicated production database | Live mode only after explicit approval | Production-only Vercel values | Explicitly authorized human operations |
 
 ## Executable guard
 
-Run the guard directly or through the full gate:
+Run the guard directly, the fast ordinary-edit gate, or the release/milestone gate:
 
 ```bash
 npm run check:env
+npm run verify:fast
 npm run verify
 ```
+
+`verify:fast` runs every maintained non-browser check: environment and retired
+configuration guards, type checking, linting, formatting, unit tests, dead-code,
+and cycle checks. `verify` composes that command with the full Playwright suite.
+
+For a command-owned production-server smoke, run:
+
+```bash
+npm run test:e2e:production
+```
+
+This command uses `next build` followed by `next start`, but it remains the
+`e2e` runtime: it seeds only `file:data/e2e.db`, clears Turso credentials, uses
+throwaway auth/encryption values, and starts the loopback-only Strava double.
+It does not use production data, approval markers, Stripe values, or real
+provider requests. The smoke refuses to reuse an already-running server and
+checks the guest landing and `/login` email/password form for HTTP and browser
+runtime/console errors.
 
 ## Disposable schema reset
 
