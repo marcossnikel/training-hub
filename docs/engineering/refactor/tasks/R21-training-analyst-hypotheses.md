@@ -1,6 +1,6 @@
 # R21 — Add evidence-bound Training Analyst hypotheses
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
 **Depends on:** R20 done
@@ -16,7 +16,8 @@ defer each one without any autonomous training prescription or profile mutation.
 
 R20 must replace this section with exact accepted evidence/output schemas,
 provider/model boundary, persistence, consent, UI states, evaluation fixtures,
-and target files. This packet is not ready until that happens.
+and target files. R20 must be done before invocation; no second readiness state
+exists after that dependency.
 
 ## Locked decisions
 

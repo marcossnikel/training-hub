@@ -1,6 +1,6 @@
 # Rxx — Outcome title
 
-**Status:** draft | ready | done
+**Status:** queued | done | blocked
 **Delivery class:** API/backend | full stack | frontend | documentation/plan
 **Risk/model:** low, medium, or high — recommended Codex model and effort
 **Depends on:** done task IDs or none
@@ -14,6 +14,8 @@ One observable result for the user or developer.
 
 Name the exact files, call sites, tests, existing behavior, and confirmed failure
 mechanism needed to execute this task. Do not rely on the planning chat.
+At invocation, refresh stale local facts here and continue directly into
+implementation; no separate readiness transition exists.
 
 ## Locked decisions
 
@@ -81,6 +83,7 @@ decision requiring Marcos, or unavoidable overlap with unowned dirty work.
 Inspect the complete diff from the starting commit, all new/deleted files,
 `git diff --check`, and `git status`; fix in-scope findings and rerun affected
 proof; update this packet and `ROADMAP.md` to `done`; stage explicit paths;
-inspect the staged diff; commit once directly on local `main`; do not push or
-deploy; return outcome, SHA, exact checks/browser paths, and genuine external
-blockers.
+set `Next task` to the first dependency-satisfied queued item in roadmap priority
+order; inspect the staged diff; commit once directly on local `main`; do not
+push or deploy; return outcome, SHA, exact checks/browser paths, next task, and
+genuine external blockers.

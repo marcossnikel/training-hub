@@ -1,23 +1,23 @@
 # Optional batch runner
 
-The default and cheapest mode is a fresh user-started task for each ready packet:
+The default and cheapest mode is a fresh user-started task for each queued packet:
 `Realize Rxx`. This document defines only the optional automatic mode.
 
 ## When to use it
 
 Use a batch runner only when Marcos explicitly asks to execute a milestone or a
-sequence of ready tasks automatically. Product discovery and packet preparation
-are not batch execution.
+sequence of queued tasks automatically. Each builder refreshes its own local
+packet facts; the runner does not add a planning stage.
 
 ## Topology
 
 ```text
 one lightweight runner
-  -> selects the next ready dependency
+  -> selects the next queued dependency
   -> starts one fresh builder
   -> waits for its final result
   -> confirms task state=done and a local commit exists
-  -> starts the next ready sibling builder
+  -> starts the next queued sibling builder
 ```
 
 The runner does not edit code, review diffs, rerun tests, create evidence files,
@@ -41,12 +41,14 @@ expensive persistent model merely to relay task text.
 ## Runner algorithm
 
 1. Read only `AGENTS.md` and `ROADMAP.md`.
-2. Select the first `ready` task whose dependencies are `done`.
+2. Select the first `queued` task in roadmap priority order whose dependencies
+   are `done`.
 3. Start one fresh builder with: `Realize Rxx. Read AGENTS.md and <packet>.`
 4. Wait. Do not duplicate its context or perform a second acceptance pass.
 5. Continue only when the builder returns a commit SHA and both task and roadmap
    say `done`.
-6. Stop when no ready task remains or a builder reports a genuine stop condition.
+6. Stop when no executable queued task remains or a builder reports a genuine
+   stop condition.
 
 The runner may retry a task in a fresh builder only after a hard session/tool
 failure. An implementation or test failure belongs to the active builder, which
@@ -63,10 +65,10 @@ impossible.
 ## Launch prompt
 
 ```text
-Execute the ready tasks in milestone <Mx> sequentially. Read AGENTS.md,
+Execute the queued tasks in milestone <Mx> sequentially. Read AGENTS.md,
 docs/engineering/refactor/ROADMAP.md, and
 docs/engineering/refactor/ORCHESTRATION.md. Act only as the lightweight runner:
-start one fresh builder per ready task, wait for its committed done result, then
+start one fresh builder per queued task, wait for its committed done result, then
 start the next. Do not implement, review, rerun proof, create evidence files,
 push, deploy, use shared resources, or ask Marcos about recoverable local
 failures. Stop only at the external and decision boundaries in AGENTS.md.

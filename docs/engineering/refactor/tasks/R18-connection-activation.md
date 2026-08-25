@@ -1,6 +1,6 @@
 # R18 — Deliver post-Strava connection activation
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
 **Depends on:** R9, R14, R15, and R16 done
@@ -107,8 +107,8 @@ new analysis or replace R14/R9 state.
 ## Implementation map
 
 1. Lock route, presentation state, exact stage/error/partial/summary copy, and
-   design states in the ready packet/Figma contract. Completion: builder has no
-   remaining visual or product choice.
+   design states from accepted decisions and the design foundation before code.
+   Completion: no visual/product choice remains during implementation.
 2. Add owner/connection-scoped activation state and callback handoff.
    Completion: new connection enters once; same connection reauthorization and
    foreign/guest routes do not.
@@ -169,14 +169,14 @@ import/activation records. No deployment or remote migration is authorized.
 
 ## Stop only if
 
-Exact activation visual/copy still needs a Marcos decision at ready time; a
-truthful experience requires a new background-runtime/provider contract; OAuth
-safety creates an unresolved security decision; or proof requires real Strava,
-a shared database, remote migration, deployment, or external credential.
+A truthful experience requires a new background-runtime/provider contract;
+OAuth safety creates an unresolved security decision; or proof requires real
+Strava, a shared database, remote migration, deployment, or external credential.
 
 Callback composition, presentation persistence, polling/advance behavior,
 summary mapping, retry, fixtures, motion, focus, responsive layout, and all other
-recoverable local findings are owned and fixed by the builder within this task.
+recoverable local findings, including exact copy/layout within the accepted
+contract, are owned and fixed by the builder within this task.
 
 ## Finish
 

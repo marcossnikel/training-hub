@@ -1,10 +1,9 @@
 # R13 — Converge dead code, tooling, and documentation
 
-**Status:** draft
-**Ready gate note:** generate and approve the deletion inventory last  
-**Risk:** medium
-**Recommended builder:** Luna high for a fixed mechanical list; Terra medium otherwise
-**Depends on:** R0 through R12
+**Status:** queued
+**Delivery class:** full stack
+**Risk/model:** medium — Luna high after the inventory is frozen
+**Depends on:** R0 through R12 and R14 through R21 done
 **Unlocks:** Milestone M4 completion
 
 ## Outcome
@@ -16,7 +15,8 @@ implemented feature ownership without relying on stale AI-generated guidance.
 
 ## Required context
 
-- done packets from R0–R12, especially every named compatibility expiry;
+- done packets from R0–R12 and R14–R21, especially every named compatibility
+  expiry;
 - `AGENTS.md`, `package.json`, `biome.json`, `knip.json`, TypeScript/Vitest/
   Playwright configuration, scripts, and import aliases;
 - `docs/product/`, `docs/design/`, `docs/engineering/`, root Markdown files, and
@@ -35,8 +35,9 @@ the check's staging behavior must be understood before further cleanup.
 Earlier refactors may also introduce aliases, exports, scripts, schema
 compatibility fields, or docs that must be deliberately expired.
 
-This task must regenerate its candidate list after R12. The current observations
-are reasons to investigate, not a deletion authorization.
+This task must regenerate its candidate list after every earlier product/
+structural packet is done. The current observations are reasons to investigate,
+not deletion authorization.
 
 ## Locked decisions
 
@@ -44,8 +45,8 @@ are reasons to investigate, not a deletion authorization.
    entrypoints, dynamic references, framework conventions, package scripts,
    tests, build behavior, and documentation ownership.
 2. Classify each candidate as delete, keep with named reason, move/merge, or
-   externally blocked. The ready packet freezes that table before using a cheap
-   mechanical model; the builder does not reopen it.
+   externally blocked. The builder freezes that table from current repository
+   evidence before making mechanical edits.
 3. Tighten broad Knip ignores. A remaining ignore must identify the convention
    or dynamic entrypoint that requires it and, where practical, a negative test.
 4. Delete expired compatibility exports/files named by R0–R12. If one remains,
@@ -93,7 +94,7 @@ are reasons to investigate, not a deletion authorization.
 
 ## Candidate inventory format
 
-Before implementation, add a frozen table to this ready task:
+At the start of the same implementation session, add a frozen table to this task:
 
 | Candidate | Evidence unused/stale | Dynamic/convention checks | Decision | Replacement/expiry | Proof |
 | --- | --- | --- | --- | --- | --- |
@@ -108,8 +109,8 @@ The implementation model may act only on rows marked `delete` or `move`.
    have been checked.
 2. Collect all compatibility/expiry promises from R0–R12 handoffs.
    Completion: each is present in the candidate table with an outcome.
-3. Freeze delete/move/keep decisions when the packet becomes ready. Completion:
-   no row asks the builder to judge current product or architecture.
+3. Freeze delete/move/keep decisions before editing files. Completion: no row
+   asks the builder to judge current product or architecture while deleting.
 4. Tighten Knip entrypoints/ignores until its report is meaningful. Completion:
    remaining ignores are narrow and justified; known safe dead fixture proves the
    checker would fail when appropriate.

@@ -1,6 +1,6 @@
 # R19 — Model athlete performance parameters without founder defaults
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
 **Depends on:** R2M and R16 done

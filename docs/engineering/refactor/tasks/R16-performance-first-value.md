@@ -1,6 +1,6 @@
 # R16 — Fill summary performance and repair period controls
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium
 **Depends on:** R9 done

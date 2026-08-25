@@ -1,6 +1,6 @@
 # R14 — Persist truthful initial-import progress
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high
 **Depends on:** R2M and R9 done

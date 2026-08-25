@@ -1,6 +1,6 @@
 # R9 — Keep initial Strava history out of Review
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
 **Depends on:** R2M

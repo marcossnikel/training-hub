@@ -1,6 +1,6 @@
 # R5 — Implement the creator environment indicator
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium
 **Depends on:** R4
@@ -110,7 +110,7 @@ data remains harmless. No deployment in this task.
 
 ## Stop conditions
 
-- R4 lacks explicit Marcos approval or an exact state/placement contract;
+- R4 lacks an exact selected state/placement contract after its completed task;
 - an accepted role/environment security decision would need to change; or
 - proof requires a live deployment, shared database, or production credential.
 

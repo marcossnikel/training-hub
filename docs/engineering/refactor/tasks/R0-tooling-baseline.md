@@ -33,7 +33,8 @@ starts; do not assume this snapshot is unchanged.
 1. This task resolves only tooling baseline, not application architecture.
 2. Finish the in-progress Biome lint replacement; do not restore ESLint as a
    competing lint path. If a material Next/React correctness gap cannot be
-   covered, stop for planner revision instead of silently accepting weaker lint.
+   covered, repair deterministic in-scope findings instead of accepting weaker
+   lint.
 3. Prettier remains the formatter; Biome must not silently become a second
    formatter or organize imports as an unrelated rewrite.
 4. The task documents and configures coverage for React Hooks, JSX

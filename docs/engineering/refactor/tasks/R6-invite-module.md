@@ -1,6 +1,6 @@
 # R6 — Deepen beta invitation management
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high
 **Depends on:** R3 and R2M

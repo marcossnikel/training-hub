@@ -1,15 +1,14 @@
-# R4 — Approve the creator environment-indicator contract
+# R4 — Select the creator environment-indicator contract
 
-**Status:** draft
-**Risk:** medium
-**Recommended builder:** Terra high for product/design planning
-**Required approval:** Marcos approval of the selected Figma frame  
+**Status:** queued
+**Delivery class:** documentation/plan
+**Risk/model:** medium — Sol high
 **Depends on:** R3
 **Unlocks:** R5
 
 ## Outcome
 
-One approved desktop/mobile visual and interaction contract tells an
+One selected desktop/mobile visual and interaction contract tells an
 implementation model exactly how the creator-only current-environment indicator
 looks and behaves.
 
@@ -40,7 +39,8 @@ behavior is creator-only and the current root shows the landing only to guests.
    navigation/account/Strava status.
 8. Respect semantic tokens, keyboard/focus expectations, 1440/390 layouts, and
    reduced motion. Static indicator needs no decorative animation.
-9. The sketch supplies intent, not an approved visual contract.
+9. The sketch supplies intent; the builder selects the exact contract from it,
+   current shell evidence, and the design foundation.
 
 ## Protected invariants
 
@@ -71,14 +71,11 @@ behavior is creator-only and the current root shows the landing only to guests.
    visual/product choice remains for R5.
 4. Validate 1440 and 390, light/dark, long locale/account text, and production
    salience. Completion: proof is attached.
-5. Obtain Marcos's explicit approval of the concrete frame. Completion: R4 may
-   become accepted.
+5. Select the strongest alternative against the locked constraints and record
+   concrete frame/node IDs plus rationale. Completion: R5 has no remaining
+   layout, copy, token, state, or responsive choice.
 
-## Required automated proof
-
-Not applicable; design task.
-
-## Required manual or visual proof
+## Validation
 
 - selected Figma frame IDs;
 - 1440 desktop shell;
@@ -88,21 +85,27 @@ Not applicable; design task.
 - light and dark themes;
 - named reference principles and no-copy boundary.
 
+Inspect every referenced node/link, search the packet and roadmap for conflicting
+placement/copy, run `git diff --check`, and review status. This documentation/
+plan task does not run a runtime suite. If authenticated Figma access is absent,
+use the supplied sketch, current shell code, design foundation, and disposable
+browser captures to record the same complete contract without creating a gate.
+
 ## Migration, rollout, and rollback
 
-No code/data change. Unapproved Figma work is a proposal, not implementation
-authority.
+No code/data change. The recorded selected contract is implementation authority
+for R5 within the accepted product constraints.
 
 ## Stop conditions
 
-- no concrete authenticated-shell frame is selected;
-- placement requires redesigning unrelated shell capabilities;
-- the indicator becomes interactive; or
-- Marcos has not approved the selected direction.
+Stop only if selecting a direction requires changing the accepted creator-only,
+non-interactive product contract or an unavoidable external design asset is
+inaccessible. Alternative generation, frame choice, responsive placement, and
+documentation defects are owned by the builder.
 
 ## Completion criteria
 
-- One concrete frame is explicitly approved.
+- One concrete direction is selected and recorded.
 - Exact desktop/mobile placement, copy, tokens, themes, and absence states are
   documented.
 - R5 can implement without choosing design.

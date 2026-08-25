@@ -1,6 +1,6 @@
 # R3 — Add creator operational authorization
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high
 **Depends on:** R2M

@@ -1,9 +1,8 @@
 # R7 — Add creator invitation management UI
 
-**Status:** draft
-**Ready gate note:** a concrete Figma frame must be approved before Ready  
+**Status:** queued
 **Delivery class:** full stack
-**Risk/model:** high — Terra medium after design approval
+**Risk/model:** high — Terra medium
 **Depends on:** R5 and R6
 **Unlocks:** R8 and creator-operated beta access
 
@@ -15,7 +14,8 @@ once, and revoke an unused beta invitation for the current environment.
 
 ## Required context
 
-- accepted invite-management Figma frame attached before Ready
+- current design foundation, creator shell, Settings patterns, and any available
+  invite-management frame as evidence rather than an approval gate
 - R4 environment-indicator contract and R6 invite interface
 - design foundation/visual QA, current Header navigation and Settings patterns
 - beta invite product/engineering docs and i18n conventions
@@ -50,7 +50,8 @@ an admin UI. No route/navigation/design exists for creator tools.
 9. Page prominently inherits the current creator environment indicator; issue
    confirmation names the environment, especially production.
 10. Member/guest direct access uses the existing safe not-found/redirect policy
-   selected in the packet before Ready; it must not reveal route data.
+    selected by the builder from existing protected-route behavior before UI
+    work; it must not reveal route data.
 11. UI handles default, loading, empty, validation, error/retry, success-once,
     revoked/expired/redeemed, keyboard, focus, 1440/390, dark, and reduced motion.
 12. The list is the current deployment's creator-managed invite pool, not only
@@ -121,8 +122,9 @@ environment name, internal invite ID, token hash, or unsupported product claim.
 
 ## Implementation sequence
 
-1. Planner supplies approved Figma frame, exact copy, safe denial behavior, and
-   expiry control. Completion: task may be marked ready.
+1. Lock the exact layout and safe denial behavior from this packet, the design
+   foundation, and existing protected-route patterns. Completion: no UI/security
+   choice remains before code; expiry stays the fixed R6 default.
 2. Add server-authorized route and redacted loading/empty list. Completion:
    member/guest fail before list query.
 3. Add the email-only issue form/action and immediate one-time result.
@@ -167,7 +169,7 @@ match the approved contract.
 
 ## Required manual or visual proof
 
-Approved 1440/390 frames and implementation captures for empty, list, issue
+1440/390 implementation captures for empty, list, issue
 success with read-only message and both copy actions (using a non-usable redacted
 placeholder in stored evidence), clipboard failure, validation error, revoke
 confirmation/result, mobile nav, dark, and reduced motion.
@@ -181,8 +183,8 @@ retained.
 
 ## Stop conditions
 
-- approved Figma frame, exact copy, or safe denial behavior still requires a
-  Marcos decision;
+- a layout choice would change an accepted product/security decision rather than
+  apply the existing design foundation;
 - preserving R6's accepted token boundary would require a product/security
   contract change; or
 - live invite/deployment access is required.

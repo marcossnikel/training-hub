@@ -1,9 +1,8 @@
 # R10 — Organize server actions by owning feature
 
-**Status:** draft
-**Ready gate note:** refresh caller inventory after R1 acceptance  
-**Risk:** medium
-**Recommended builder:** Terra medium
+**Status:** queued
+**Delivery class:** full stack
+**Risk/model:** medium — Terra medium
 **Depends on:** R1
 **Unlocks:** R12 and R13
 
@@ -35,9 +34,9 @@ resolve the authenticated owner before calling DB helpers. Existing tests
 concentrate on auth, owner scope, and threshold behavior; several component
 tests mock the broad module.
 
-Before this task becomes ready, regenerate the exact export/import matrix with
-`rg` and record it in this packet or the implementation handoff. Earlier tasks
-may add creator/invite actions and must not be silently omitted.
+At the start of the same implementation session, regenerate the exact export/
+import matrix with `rg` and refresh it in this packet. Earlier tasks may add
+creator/invite actions and must not be silently omitted.
 
 ## Locked decisions
 

@@ -1,6 +1,6 @@
 # R2M — Establish safe additive migrations
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high
 **Depends on:** R2

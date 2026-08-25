@@ -42,7 +42,7 @@ necessary to protect overlapping local work.
 
 ## Verification contract
 
-Every ready task declares exactly one delivery class. Its minimum proof is:
+Every queued task declares exactly one delivery class. Its minimum proof is:
 
 - **API/backend:** focused integration tests at the changed boundary, using a
   disposable database or local provider double when applicable.
@@ -85,13 +85,16 @@ deletes material data, changes an accepted product decision, encounters an
 unowned dirty change that overlaps the required edit, or creates a security or
 privacy ambiguity.
 
-## Ready-task invocation
+## Task invocation
 
-`Realize Rxx` means: read this file and the named ready task packet, inspect the
-current git state, implement the complete outcome, run its delivery-class proof,
-self-inspect the diff, mark the task done, and commit the attributable files
-directly to local `main`. Do not start another task, reviewer, subagent, push, or
-deployment unless the request explicitly adds that authority.
+`Realize Rxx` is sufficient authorization for one queued task whose dependencies
+are done. Read this file and the named packet, refresh stale file/test facts from
+the current checkout inside the same session, implement the complete outcome,
+run its delivery-class proof, self-inspect the diff, mark it done, update the
+roadmap's next task, and commit attributable files directly to local `main`.
+Local packet drift is implementation work, not a separate planning gate. Do not
+start another task, reviewer, subagent, push, or deployment unless the request
+explicitly adds that authority.
 
 ## Product and design guardrails
 

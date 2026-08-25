@@ -1,10 +1,9 @@
 # R12 — Refactor activity and chart hotspots by reason to change
 
-**Status:** draft
-**Ready gate note:** refresh boundaries after R10 and R11 acceptance  
-**Risk:** medium
-**Recommended builder:** Terra medium; high reasoning for data-query changes
-**Depends on:** R10 and R11
+**Status:** queued
+**Delivery class:** full stack
+**Risk/model:** medium — Terra medium; use high reasoning for data-query changes
+**Depends on:** R10, R11, R16, and R19 done
 **Unlocks:** R13
 
 ## Outcome

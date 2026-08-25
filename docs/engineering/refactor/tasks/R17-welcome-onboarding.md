@@ -1,6 +1,6 @@
 # R17 — Add one-time first-login platform onboarding
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium
 **Depends on:** R2M and R8 done
@@ -34,8 +34,8 @@ the same event.
    and R17 creates no prerequisite state that R18 needs in order to run.
 2. Audience includes all accounts existing at release and all future accounts.
 3. Use a dedicated route-level, resumable experience, not a tooltip tour over
-   unrelated pages. Suggested route: `/onboarding/welcome`; final route must be
-   locked when packet becomes ready.
+   unrelated pages. Use `/onboarding/welcome` unless current routing evidence
+   proves a collision; resolve a local collision inside this task.
 4. Show a maximum of four concise moments: product/evidence model, core surfaces,
    private BYO Strava boundary, and choose `Connect Strava` or `Explore first`.
 5. `Skip` and `Explore first` permanently dismiss this onboarding version.
@@ -85,9 +85,9 @@ activation.
 ## Implementation map
 
 1. Lock exact route, four-moment copy, state/version API, and authenticated
-   redirect rules in the ready packet. Completion: the R8 first-auth seam names
-   this route for eligible owners and no copy/navigation decision remains for
-   builder.
+   redirect rules from the locked decisions before code. Completion: the R8
+   first-auth seam names this route for eligible owners and no copy/navigation
+   choice remains.
 2. Add first-login eligibility and idempotent complete/skip actions. Completion:
    existing/new disposable accounts enter once; completed/skipped accounts do
    not replay.
@@ -137,14 +137,14 @@ migration/deployment is authorized.
 
 ## Stop only if
 
-Exact copy/route/design still requires a Marcos decision at ready time; accepted
-D-019 eligibility/skip semantics must change; or proof requires a live invite,
-remote/shared database, deployment, or external credential.
+Accepted D-019 eligibility/skip semantics must change; or proof requires a live
+invite, remote/shared database, deployment, or external credential.
 
 Auth continuation, persistence, eligibility, route guards, fixtures, motion,
 focus, responsive layout, and all other recoverable local findings are owned and
 fixed by the builder within this task. Onboarding remains independent of Strava
-activation.
+activation; exact local copy/layout choices follow the existing design
+foundation and are builder-owned.
 
 ## Finish
 

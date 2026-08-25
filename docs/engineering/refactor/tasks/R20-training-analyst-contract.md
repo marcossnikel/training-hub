@@ -1,6 +1,6 @@
 # R20 — Define the Training Analyst contract
 
-**Status:** draft
+**Status:** queued
 **Delivery class:** documentation/plan
 **Risk/model:** high — Sol high
 **Depends on:** R19 done and Marcos's curated theory library available

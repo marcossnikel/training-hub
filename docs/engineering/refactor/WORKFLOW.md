@@ -2,12 +2,13 @@
 
 ## Default loop
 
-One fresh Codex task implements one ready packet:
+One fresh Codex task implements one queued packet:
 
 ```text
 Marcos: "Realize Rxx"
   -> builder reads AGENTS.md + Rxx
   -> inspects current main and dirty files
+  -> refreshes stale packet facts in the same session
   -> implements and fixes recoverable in-scope failures
   -> proves the task according to its delivery class
   -> inspects the complete diff and repository status
@@ -26,7 +27,7 @@ In descending order:
 1. the current user request;
 2. `AGENTS.md`;
 3. accepted product decisions and approved Figma frames;
-4. the assigned ready packet;
+4. the assigned queued packet;
 5. current code and executable tests as evidence of existing behavior.
 
 A task packet may narrow scope but cannot broaden external authority or overturn
@@ -34,18 +35,19 @@ an accepted product decision.
 
 ## Task states
 
-- **draft:** useful plan, but not executable yet.
-- **ready:** self-contained; `Realize Rxx` authorizes execution.
+- **queued:** executable when its named dependencies are done; `Realize Rxx`
+  authorizes refresh plus implementation in one session.
 - **done:** implementation, required proof, roadmap update, and local commit are
   complete.
 - **blocked:** reserved for a genuinely external dependency or decision that the
   builder cannot safely resolve. Local failures are not blockers.
 
-The task file and `ROADMAP.md` must agree. Only a ready task may be implemented.
+The task file and `ROADMAP.md` must agree. Marcos follows `Next task` in the
+roadmap, so a builder never needs a separate readiness session.
 
-## Ready packet contract
+## Queued packet contract
 
-A ready packet contains:
+A queued packet contains:
 
 1. one observable outcome;
 2. current truth with exact files, call sites, tests, and confirmed failure
@@ -72,7 +74,8 @@ extends.
   changes. Preserve all unrelated work.
 - Read the relevant local Next.js guide before changing framework behavior.
 - Confirm the packet still matches current files and behavior. Refresh small,
-  non-product details inside the task when needed; do not reopen locked choices.
+  non-product details inside the task when needed; do not pause for a status
+  transition or reopen locked choices.
 
 ### 2. Implement autonomously
 
@@ -110,6 +113,8 @@ so. Never use typecheck alone as runtime proof.
 - Fix in-scope findings and rerun affected proof.
 - Change the packet and roadmap state to `done` in the same implementation
   commit.
+- Set `Next task` to the first queued item in the roadmap priority order whose
+  dependencies are done. This is a deterministic status update, not planning.
 - Stage explicit attributable paths, inspect the staged diff, and create one
   coherent commit directly on local `main`.
 - Do not push, deploy, use shared/live data, or trigger external effects.
