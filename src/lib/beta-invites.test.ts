@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe("beta invitation server boundary", () => {
-  it("keeps registration denied and the existing auth schema untouched until an isolated target opts in", async () => {
+  it("keeps registration denied even though durable invitation schema is always migrated", async () => {
     configureIsolatedBetaEnv();
     vi.stubEnv("BETA_INVITE_REGISTRATION_ENABLED", "");
     vi.resetModules();
@@ -61,7 +61,7 @@ describe("beta invitation server boundary", () => {
     const { ensureMigrated } = await import("./db/migrations");
     await ensureMigrated();
     const columns = await client.execute('PRAGMA table_info("user")');
-    expect(columns.rows.map((column) => column.name)).not.toContain("betaInviteClaim");
+    expect(columns.rows.map((column) => column.name)).toContain("betaInviteClaim");
   });
 
   it("refuses unlabelled targets and only the local CLI prints one private registration URL", async () => {

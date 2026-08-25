@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { client } from "./db/client";
 import { resolveDatabaseUrl, resolveTursoAuthToken, resolveTursoDatabaseUrl } from "./db/config";
 import { ensureMigrated } from "./db/migrations";
+import { persistInvitation, revokePersistedInvitation } from "@/features/invites/persistence";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,7 +16,6 @@ export type BetaInvite = {
 
 type InviteEnvironment = Record<string, string | undefined>;
 
-let schemaReady: Promise<void> | undefined;
 const registrationLocks = new Map<string, Promise<void>>();
 
 /**
@@ -131,64 +131,11 @@ export function assertBetaInviteSchemaTarget(env: InviteEnvironment = process.en
  * redeemable.
  */
 export async function ensureBetaInviteSchema(): Promise<void> {
-  if (!betaInviteRegistrationEnabled()) {
-    throw new Error("Beta invitation registration is not enabled for this environment.");
-  }
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      assertBetaInviteSchemaTarget();
-      await ensureMigrated();
-      const columns = await client.execute('PRAGMA table_info("user")');
-      if (!columns.rows.some((column) => column.name === "betaInviteClaim")) {
-        await client.execute('ALTER TABLE "user" ADD COLUMN "betaInviteClaim" TEXT');
-      }
-      await client.batch(
-        [
-          `CREATE TABLE IF NOT EXISTS beta_invites (
-             id TEXT PRIMARY KEY,
-             token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64),
-             intended_email TEXT NOT NULL,
-             issued_by TEXT NOT NULL,
-             created_at TEXT NOT NULL,
-             expires_at TEXT NOT NULL,
-             redeemed_at TEXT,
-             redeemed_auth_subject TEXT UNIQUE,
-             revoked_at TEXT
-           )`,
-          "CREATE INDEX IF NOT EXISTS idx_beta_invites_lookup ON beta_invites(token_hash, intended_email)",
-          "CREATE INDEX IF NOT EXISTS idx_beta_invites_email ON beta_invites(intended_email)",
-          `CREATE TRIGGER IF NOT EXISTS beta_invites_redeem_on_user_insert
-             AFTER INSERT ON "user"
-             WHEN NEW."betaInviteClaim" IS NOT NULL
-             BEGIN
-               SELECT CASE WHEN NOT EXISTS (
-                 SELECT 1 FROM beta_invites
-                 WHERE token_hash = NEW."betaInviteClaim"
-                   AND intended_email = lower(NEW.email)
-                   AND redeemed_at IS NULL
-                   AND revoked_at IS NULL
-                   AND julianday(expires_at) > julianday('now')
-               ) THEN RAISE(ABORT, 'registration unavailable') END;
-
-               UPDATE beta_invites
-               SET redeemed_at = datetime('now'), redeemed_auth_subject = NEW.id
-               WHERE token_hash = NEW."betaInviteClaim"
-                 AND intended_email = lower(NEW.email)
-                 AND redeemed_at IS NULL
-                 AND revoked_at IS NULL
-                 AND julianday(expires_at) > julianday('now');
-
-               UPDATE "user" SET "betaInviteClaim" = NULL WHERE id = NEW.id;
-             END`,
-        ],
-        "write"
-      );
-    })().catch((error) => {
-      schemaReady = undefined;
-      throw error;
-    });
-  }
-  return schemaReady;
+  // Kept as a compatibility export for the auth hook and temporary CLI.
+  // Schema ownership is now the ordered additive migration registry, whether
+  // registration is enabled or not.
+  assertBetaInviteSchemaTarget();
+  await ensureMigrated();
 }
 
 export async function validateBetaInviteForRegistration(input: {
@@ -233,10 +180,11 @@ export async function issueBetaInvite(input: {
   ) {
     throw new Error("Invitation expiry must be a future date.");
   }
-  await client.execute({
-    sql: `INSERT INTO beta_invites (id, token_hash, intended_email, issued_by, created_at, expires_at)
-          VALUES (?, ?, ?, ?, datetime('now'), ?)`,
-    args: [crypto.randomUUID(), digestInviteToken(token), email, issuedBy, expiresAt.toISOString()],
+  await persistInvitation({
+    tokenHash: digestInviteToken(token),
+    intendedEmail: email,
+    issuedBy,
+    expiresAt: expiresAt.toISOString(),
   });
   return { email, token, expiresAt: expiresAt.toISOString() };
 }
@@ -251,6 +199,14 @@ export async function revokeBetaInvite(token: unknown): Promise<void> {
           WHERE token_hash = ? AND redeemed_at IS NULL AND revoked_at IS NULL`,
     args: [digestInviteToken(token)],
   });
+}
+
+/** Temporary CLI adapter until R13 removes legacy operator support. */
+export async function revokeBetaInviteById(id: unknown): Promise<void> {
+  if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id))
+    throw new Error("A valid invitation identifier is required.");
+  await ensureBetaInviteSchema();
+  await revokePersistedInvitation(id);
 }
 
 function parseCanonicalInviteOrigin(value: string | undefined, name: string): URL {

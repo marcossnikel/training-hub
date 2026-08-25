@@ -5,9 +5,12 @@ page or hidden sign-up control is not an access boundary: Better Auth's
 `/sign-up/email` endpoint validates a private token on the server before it can
 create an account.
 
-## Operator issuance
+## Temporary operator adapter
 
-The only issuance interface is the operator command. For a local account, use:
+R6 introduces the authenticated creator-owned invitation module that R7 will
+present in the product. Until its UI is delivered, this guarded CLI is a
+temporary second adapter and expires in R13. It uses the same persistence and
+token policy; it never duplicates invitation SQL. For a local account, use:
 
 ```sh
 TRAINING_HUB_ENV=local \
@@ -58,8 +61,9 @@ production metadata, both production approval switches, a non-preview remote
 Turso URL, a Turso auth token, and no disposable-data marker. It never prints
 either Turso credential.
 
-To revoke an unused link, run the same guarded operator environment with its
-private token: `npm run beta:invite -- --revoke-token <token> --operator your-operator-id`.
+To revoke an unused link, use its opaque database ID from an authenticated
+creator summary, never its plaintext token:
+`npm run beta:invite -- --revoke-id <invite-id> --operator your-operator-id`.
 It intentionally reports no existence or redemption detail.
 
 The command fails closed unless its named target matches `TRAINING_HUB_ENV`.
@@ -77,8 +81,9 @@ must never use `TRAINING_HUB_DISPOSABLE_DATA=1`.
 - Tokens are 32 random bytes encoded as an opaque URL-safe value. Only a SHA-256
   digest is stored.
 - The token is bound to one normalized email, has a seven-day default expiry,
-  and an unused token can be revoked only through the same guarded local
-  operator command.
+  and an active token can be revoked idempotently by an authenticated creator
+  using its opaque invite ID. Creator operations are deployment-scoped and do
+  not reveal athlete data; issuance provenance is recorded separately.
 - Better Auth's pre-sign-up hook validates the token and injects only its digest.
   A SQLite trigger consumes and binds the invitation during the same Better Auth
   user/account/session transaction, then clears the transient digest from the
@@ -91,6 +96,8 @@ must never use `TRAINING_HUB_DISPOSABLE_DATA=1`.
   `TRAINING_HUB_PRODUCTION_INVITES_ENABLED=1`. When disabled, new registration
   fails server-side rather than falling back to self-service.
 
-No HTTP route, server action, client API, public interface, or admin UI may
-issue, list, reveal, revoke, or manage invitations. The operator command is the
-only production issuance path; remote resets remain prohibited.
+There is no public invitation endpoint, self-service registration, or general
+user administration. The future creator UI may issue, list redacted summaries,
+and revoke by opaque ID only; it receives a plaintext URL exactly once on a
+successful issue result. The temporary CLI remains guarded, and remote resets
+remain prohibited.

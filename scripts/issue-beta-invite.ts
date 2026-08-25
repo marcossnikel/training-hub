@@ -4,7 +4,7 @@ import {
   assertBetaInviteIssuanceTarget,
   buildPrivateInviteUrl,
   issueBetaInvite,
-  revokeBetaInvite,
+  revokeBetaInviteById,
 } from "../src/lib/beta-invites";
 
 function argument(name: string): string | undefined {
@@ -15,14 +15,14 @@ function argument(name: string): string | undefined {
 async function main() {
   const email = argument("--email");
   const operator = argument("--operator");
-  const revokeToken = argument("--revoke-token");
-  if (!operator || (!email && !revokeToken) || (email && revokeToken))
+  const revokeId = argument("--revoke-id");
+  if (!operator || (!email && !revokeId) || (email && revokeId))
     throw new Error(
-      "Usage: npm run beta:invite -- --email <email> --operator <operator> | --revoke-token <token> --operator <operator>"
+      "Usage: npm run beta:invite -- --email <email> --operator <operator> | --revoke-id <invite-id> --operator <operator>"
     );
   const origin = assertBetaInviteIssuanceTarget();
-  if (revokeToken) {
-    await revokeBetaInvite(revokeToken);
+  if (revokeId) {
+    await revokeBetaInviteById(revokeId);
     console.log("Invitation revocation processed.");
     return;
   }

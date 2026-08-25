@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 25;
+export const OWNER_SCHEMA_VERSION = 27;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -207,6 +207,8 @@ export const OWNER_SCHEMA_V23: readonly string[] = [
 export type AdditiveMigration = {
   version: number;
   statements: readonly InStatement[];
+  /** Selects no-op/forward SQL from the existing shape before one write batch. */
+  statementsFor?: (target: Client) => Promise<readonly InStatement[]>;
 };
 
 // Future product schema tasks append an ordered entry here and own its
@@ -226,6 +228,85 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
     version: 25,
     statements: [
       "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('creator', 'member'))",
+    ],
+  },
+  {
+    // Establish the old invitation shape first. Databases that used the
+    // pre-migration invitation feature already have this exact table; fresh
+    // databases receive it here before the additive provenance upgrade below.
+    version: 26,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS beta_invites (
+         id TEXT PRIMARY KEY,
+         token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64),
+         intended_email TEXT NOT NULL,
+         issued_by TEXT NOT NULL,
+         created_at TEXT NOT NULL,
+         expires_at TEXT NOT NULL,
+         redeemed_at TEXT,
+         redeemed_auth_subject TEXT UNIQUE,
+         revoked_at TEXT
+       )`,
+      "CREATE INDEX IF NOT EXISTS idx_beta_invites_lookup ON beta_invites(token_hash, intended_email)",
+      "CREATE INDEX IF NOT EXISTS idx_beta_invites_email ON beta_invites(intended_email)",
+    ],
+    statementsFor: async (target) => {
+      const columns = await target.execute('PRAGMA table_info("user")');
+      return columns.rows.some((column) => column.name === "betaInviteClaim")
+        ? []
+        : ['ALTER TABLE "user" ADD COLUMN "betaInviteClaim" TEXT'];
+    },
+  },
+  {
+    // `issued_by` is retained only for the temporary CLI adapter. Product
+    // operations use the local creator id, which is provenance not ownership.
+    version: 27,
+    statements: [
+      `CREATE TABLE beta_invites_next (
+         id TEXT PRIMARY KEY,
+         token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64),
+         intended_email TEXT NOT NULL,
+         issued_by TEXT,
+         issued_by_user_id TEXT REFERENCES users(id),
+         created_at TEXT NOT NULL,
+         expires_at TEXT NOT NULL,
+         redeemed_at TEXT,
+         redeemed_auth_subject TEXT UNIQUE,
+         revoked_at TEXT
+       )`,
+      `INSERT INTO beta_invites_next
+         (id, token_hash, intended_email, issued_by, created_at, expires_at, redeemed_at, redeemed_auth_subject, revoked_at)
+       SELECT id, token_hash, intended_email, issued_by, created_at, expires_at, redeemed_at, redeemed_auth_subject, revoked_at
+       FROM beta_invites`,
+      "DROP TRIGGER IF EXISTS beta_invites_redeem_on_user_insert",
+      "DROP TABLE beta_invites",
+      "ALTER TABLE beta_invites_next RENAME TO beta_invites",
+      "CREATE INDEX IF NOT EXISTS idx_beta_invites_lookup ON beta_invites(token_hash, intended_email)",
+      "CREATE INDEX IF NOT EXISTS idx_beta_invites_email ON beta_invites(intended_email)",
+      "CREATE INDEX IF NOT EXISTS idx_beta_invites_created_at ON beta_invites(created_at DESC)",
+      `CREATE TRIGGER IF NOT EXISTS beta_invites_redeem_on_user_insert
+         AFTER INSERT ON "user"
+         WHEN NEW."betaInviteClaim" IS NOT NULL
+         BEGIN
+           SELECT CASE WHEN NOT EXISTS (
+             SELECT 1 FROM beta_invites
+             WHERE token_hash = NEW."betaInviteClaim"
+               AND intended_email = lower(NEW.email)
+               AND redeemed_at IS NULL
+               AND revoked_at IS NULL
+               AND julianday(expires_at) > julianday('now')
+           ) THEN RAISE(ABORT, 'registration unavailable') END;
+
+           UPDATE beta_invites
+           SET redeemed_at = datetime('now'), redeemed_auth_subject = NEW.id
+           WHERE token_hash = NEW."betaInviteClaim"
+             AND intended_email = lower(NEW.email)
+             AND redeemed_at IS NULL
+             AND revoked_at IS NULL
+             AND julianday(expires_at) > julianday('now');
+
+           UPDATE "user" SET "betaInviteClaim" = NULL WHERE id = NEW.id;
+         END`,
     ],
   },
 ];
@@ -260,8 +341,12 @@ async function applyMigration(target: Client, migration: AdditiveMigration): Pro
   // committed by the winner.
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
+      const conditionalStatements = migration.statementsFor
+        ? await migration.statementsFor(target)
+        : [];
       await target.batch(
         [
+          ...conditionalStatements,
           ...migration.statements,
           {
             sql: "UPDATE schema_version SET version = ?, applied_at = datetime('now') WHERE id = 1",
