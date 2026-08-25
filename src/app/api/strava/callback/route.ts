@@ -13,8 +13,15 @@ type CallbackResult = "connected" | "scope" | "recovery";
 
 const OPAQUE_STATE = /^[A-Za-z0-9_-]{43}$/;
 
+function hasAsciiControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+}
+
 function isSafeCode(value: string | null): value is string {
-  return !!value && value.length <= 2048 && !/[\u0000-\u001F\u007F]/.test(value);
+  return !!value && value.length <= 2048 && !hasAsciiControlCharacter(value);
 }
 
 /** Redirect only to the state-owned Settings route on the canonical origin. */
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
   const pending = await getPendingStravaExchangeInput(owner);
   if (!pending) return settingsRedirect(origin, "recovery");
 
-  let token;
+  let token: Awaited<ReturnType<typeof exchangeByoCode>>;
   try {
     token = await exchangeByoCode(pending, code);
   } catch {

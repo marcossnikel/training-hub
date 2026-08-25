@@ -53,6 +53,13 @@ const RATE_LIMIT_MAX_RETRIES = 2; // initial attempt + 2 retries = 3 tries max
 const RATE_LIMIT_DEFAULT_BACKOFF_S = 5; // used when Retry-After is absent/unparseable
 const RATE_LIMIT_MAX_BACKOFF_S = 30; // cap so we never sleep unreasonably long
 
+function hasAsciiControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+}
+
 /**
  * E2E may use a disposable loopback Strava double. The explicit test switch
  * and origin are both ignored in production; the origin must also be loopback,
@@ -195,7 +202,7 @@ function isTokenString(value: unknown): value is string {
     typeof value === "string" &&
     value.length > 0 &&
     value.length <= 4096 &&
-    !/[\u0000-\u001F\u007F]/.test(value)
+    !hasAsciiControlCharacter(value)
   );
 }
 

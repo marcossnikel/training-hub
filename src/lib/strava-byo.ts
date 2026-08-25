@@ -12,7 +12,6 @@ export const TRAINING_HUB_PUBLIC_ORIGIN_ENV = "TRAINING_HUB_PUBLIC_ORIGIN";
 const STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
 const CLIENT_ID_MAX_LENGTH = 128;
 const CLIENT_SECRET_MAX_LENGTH = 512;
-const CONTROL_CHARACTER = /[\u0000-\u001F\u007F]/;
 const DNS_HOST = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/i;
 
 export interface ByoCredentialInput {
@@ -26,8 +25,15 @@ export interface ByoCredentialValidation {
   errors: { clientId?: string; clientSecret?: string };
 }
 
+function hasAsciiControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+}
+
 function isValidCredential(value: string, maxLength: number): boolean {
-  return value.length > 0 && value.length <= maxLength && !CONTROL_CHARACTER.test(value);
+  return value.length > 0 && value.length <= maxLength && !hasAsciiControlCharacter(value);
 }
 
 /**
@@ -101,7 +107,9 @@ export function resolveSettingsByoOrigin(
 ): string | null {
   if (configuredOrigin) return configuredOrigin;
   const host = requestHeaders.get("host");
-  if (!host || host.includes(",") || /[\u0000-\u001F\u007F/\\@?#]/.test(host)) return null;
+  if (!host || host.includes(",") || hasAsciiControlCharacter(host) || /[/\\@?#]/.test(host)) {
+    return null;
+  }
   try {
     const url = new URL(`http://${host}`);
     if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) return null;

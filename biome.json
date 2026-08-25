@@ -18,7 +18,7 @@
       "react": "recommended"
     },
     "rules": {
-      "preset": "none",
+      "preset": "recommended",
       "a11y": "warn",
       "correctness": {
         "useExhaustiveDependencies": "warn"

@@ -53,7 +53,7 @@ function rounded(metric: TotalsMetric, values: TotalsValues): number {
  * illness week reads as a rest week, not as missing data), which is why the hours
  * cell does not hand 0 to fmtHoursMin — that renders the absent-value dash.
  */
-function valueOf(metric: TotalsMetric, value: number): string {
+function formatValue(metric: TotalsMetric, value: number): string {
   switch (metric) {
     case "seconds":
       return value === 0 ? "0h 00m" : fmtHoursMin(value * 60);
@@ -129,7 +129,7 @@ export function TotalsTable({
                 const label = deltaOf(metric, change);
                 return (
                   <td key={metric} className={TD}>
-                    {valueOf(metric, value)}
+                    {formatValue(metric, value)}
                     {/* Deltas stay neutral-negative: more training is not always
                         better, so only a gain is colored. */}
                     {label ? (
