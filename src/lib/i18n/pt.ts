@@ -173,6 +173,16 @@ export const pt: Dict = {
   log: {
     showOlder: "Ver {n} mais antigas",
     title: "Diário de treinos",
+    headline: "Seu diário de treinos, com um pouco de contexto.",
+    description:
+      "Primeiro, um registro claro. Depois, uma única pergunta baseada em evidências que vale abrir.",
+    thisWeek: "Esta semana",
+    movingTime: "Tempo em movimento",
+    longSession: "Sessão mais longa",
+    confirmedWindow: "confirmadas",
+    priorFourWeeks: "semana atual · 4 semanas anteriores no Resumo semanal",
+    noLongSession: "Nenhuma sessão ainda",
+    openWeeklyBrief: "Abrir o resumo desta semana",
     empty: "Nada confirmado ainda.",
     all: "Tudo",
     emptyQueueTitle: "Seu diário começa na fila de revisão",
@@ -198,6 +208,13 @@ export const pt: Dict = {
     dismiss: "Dispensar",
   },
   review: {
+    headline: "Torne sua a atividade importada.",
+    description:
+      "Confirme os poucos fatos que mudam o contexto de uma comparação futura. Não há pressão para classificar tudo.",
+    importedQuestion: "O Strava importou isto como {sport}. Está certo?",
+    details: "Contexto da atividade",
+    confirmationEvidence:
+      "Somente atividades confirmadas são usadas no Resumo semanal e em Atividade anterior comparável.",
     caughtUp: "Tudo em dia",
     confirmedSummary: "Você confirmou {n} {noun}",
     covering: "somando {km}",

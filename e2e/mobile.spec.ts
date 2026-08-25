@@ -49,7 +49,7 @@ test("the header nav absorbs its own overflow instead of widening the page", asy
   expect(box.scrollWidth).toBeGreaterThan(box.clientWidth);
 
   // The header row itself must not overflow — the nav clips instead.
-  const header = page.locator("header");
+  const header = page.locator('header[data-app-shell="compact"]');
   const headerBox = await header.evaluate((el) => ({
     scrollWidth: el.scrollWidth,
     clientWidth: el.clientWidth,

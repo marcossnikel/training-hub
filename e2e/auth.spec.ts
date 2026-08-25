@@ -64,7 +64,12 @@ test.describe("auth", () => {
     await page.goto("/weekly-brief");
 
     await expect(page).toHaveURL(/\/login\?next=%2Fweekly-brief$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Your training log, with a little context.",
+      })
+    ).toHaveCount(0);
     await expect(page.getByText("Morning Easy Run")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Weekly brief" })).toHaveCount(0);
   });
@@ -77,7 +82,12 @@ test.describe("auth", () => {
     await page.getByRole("button", { name: "Create account" }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Your training log, with a little context.",
+      })
+    ).toBeVisible();
     const session = (await page.context().cookies()).find((c) => c.name.includes("session_token"));
     expect(session?.httpOnly).toBe(true);
     await page.getByRole("button", { name: "Log out" }).click();

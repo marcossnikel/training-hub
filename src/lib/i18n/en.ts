@@ -177,6 +177,15 @@ export const en = {
   log: {
     showOlder: "Show {n} older",
     title: "Training log",
+    headline: "Your training log, with a little context.",
+    description: "A clear record first. Then a single evidence-backed question worth opening.",
+    thisWeek: "This week",
+    movingTime: "Moving time",
+    longSession: "Long session",
+    confirmedWindow: "confirmed",
+    priorFourWeeks: "current week · prior 4 weeks available in Weekly Brief",
+    noLongSession: "No session yet",
+    openWeeklyBrief: "Open this week's brief",
     empty: "Nothing confirmed yet.",
     all: "All",
     emptyQueueTitle: "Your log starts in the review queue",
@@ -202,6 +211,13 @@ export const en = {
     dismiss: "Dismiss",
   },
   review: {
+    headline: "Make imported activity yours.",
+    description:
+      "Confirm the few facts that change the context of a future comparison. There is no pressure to classify everything.",
+    importedQuestion: "Strava imported this as {sport}. Does this look right?",
+    details: "Activity context",
+    confirmationEvidence:
+      "Confirmed activities are the only ones used for Weekly Brief and Comparable Prior Activity.",
     caughtUp: "All caught up",
     confirmedSummary: "You confirmed {n} {noun}",
     covering: "covering {km}",

@@ -28,7 +28,7 @@ export function ReviewBanner({ count }: { count: number }) {
   if (count === 0 || dismissedFor === String(count)) return null;
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3">
+    <div className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-3">
       <InboxIcon className="size-4 shrink-0 text-primary" aria-hidden />
       <p className="min-w-0 flex-1 text-sm">
         {fill(t.banner.waiting, {
@@ -36,7 +36,7 @@ export function ReviewBanner({ count }: { count: number }) {
           noun: count === 1 ? t.words.activity : t.words.activities,
         })}
       </p>
-      <Button asChild size="sm">
+      <Button asChild size="sm" className="rounded-full px-3">
         <Link href="/review">{t.banner.reviewNow}</Link>
       </Button>
       <Button

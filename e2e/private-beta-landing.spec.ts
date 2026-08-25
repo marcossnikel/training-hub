@@ -134,7 +134,12 @@ test("an authenticated athlete keeps the recent-training root and the post-sync 
   const page = await context.newPage();
   try {
     await page.goto("/?strava=connected");
-    await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Your training log, with a little context.",
+      })
+    ).toBeVisible();
     await expect(page.getByText("Strava is connected")).toBeVisible();
     await expect(
       page.getByRole("heading", {
@@ -173,9 +178,12 @@ test("the root loading shell is a real client-navigation fallback with no activi
     await expect(page.locator("html")).toHaveJSProperty("scrollWidth", 390);
     await captureEvidence(page, "40-landing-loading-390.png");
     await navigation;
-    await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Your training log, with a little context.",
+      })
+    ).toBeVisible({ timeout: 30_000 });
   } finally {
     await removeRootLoadingVolume(volumeName);
     await context.close();

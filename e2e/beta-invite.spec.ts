@@ -68,7 +68,12 @@ test.describe("private beta registration", () => {
     await page.getByLabel("Password").fill("e2e-test-password");
     await page.getByRole("button", { name: "Create account" }).press("Enter");
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Training log" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Your training log, with a little context.",
+      })
+    ).toBeVisible();
     await capture(page, "62-sign-up-success-shell-1440.png");
     const persistedStorage = await page.evaluate(() => ({
       local: Object.entries(localStorage),

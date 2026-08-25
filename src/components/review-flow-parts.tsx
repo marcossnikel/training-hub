@@ -36,9 +36,9 @@ export function ReviewSummaryScreen({
   return (
     <div className="animate-in fade-in zoom-in-95 duration-500">
       {summary.count > 0 ? (
-        <div className="flex flex-col items-center rounded-xl border bg-card px-6 py-14 text-center">
+        <div className="flex flex-col items-center rounded-2xl border bg-card px-6 py-14 text-center">
           <CheckCircle2Icon className="size-10 text-positive" aria-hidden />
-          <h2 className="mt-4 font-display text-3xl font-bold">{t.review.caughtUp}</h2>
+          <h2 className="font-narrative mt-4 text-4xl font-normal">{t.review.caughtUp}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {fillStr(t.review.confirmedSummary, {
               n: summary.count,
@@ -67,7 +67,7 @@ export function ReviewSummaryScreen({
             </dl>
           ) : null}
           <div className="mt-8 flex items-center gap-2">
-            <Button asChild>
+            <Button asChild className="h-10 rounded-full px-4">
               <Link href="/">{t.review.backToLog}</Link>
             </Button>
             {freshArrivalsCount > 0 ? (
@@ -79,7 +79,7 @@ export function ReviewSummaryScreen({
         </div>
       ) : (
         <EmptyState icon={InboxIcon} title={t.review.caughtUp} description={t.review.emptyBody}>
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="h-10 rounded-full px-4">
             <Link href="/">{t.review.backToLog}</Link>
           </Button>
         </EmptyState>
