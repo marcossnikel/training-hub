@@ -89,8 +89,8 @@ export function buildBlock(
 ): BlockSummary {
   const raceStart = Date.parse(raceStartIso);
   const blockStart = raceStart - weeks * WEEK_MS;
-  const zones = hrZones(thresholds);
-  const z3Min = zones[2].min; // Z3 lower bound = quality threshold (~90% LTHR)
+  const zones = thresholds.lthr === null ? null : hrZones(thresholds);
+  const z3Min = zones?.[2]?.min ?? null; // Z3 lower bound = quality threshold (~90% LTHR)
 
   const weekly: WeekBucket[] = Array.from({ length: weeks }, (_, i) => ({
     weekIndex: i - weeks,
@@ -127,7 +127,7 @@ export function buildBlock(
     }
 
     const persisted = a.hrZoneSec;
-    if (persisted && persisted.length === zoneSec.length) {
+    if (zones && persisted && persisted.length === zoneSec.length) {
       // Persisted zone seconds are integrated over STREAM-ELAPSED time, which
       // includes whatever the watch kept recording while stopped; every other
       // total here (week.hours, totalHours) is moving time. Left as they come,
@@ -140,13 +140,13 @@ export function buildBlock(
       const streamSec = persisted.reduce((sum, s) => sum + s, 0);
       const toMovingClock = streamSec > 0 && secs > 0 ? secs / streamSec : 1;
       for (let i = 0; i < zoneSec.length; i++) zoneSec[i] += persisted[i] * toMovingClock;
-    } else if (a.avg_hr != null) {
+    } else if (zones && a.avg_hr != null) {
       const zi = zoneIndexOf(a.avg_hr, zones);
       if (zi >= 0) zoneSec[zi] += secs;
     }
     // A quality run is still judged on the session's average: it asks whether the
     // run as a whole was hard, which per-zone seconds do not answer.
-    if (run && a.avg_hr != null && (z3Min == null || a.avg_hr >= z3Min)) qualityRuns += 1;
+    if (run && z3Min !== null && a.avg_hr != null && a.avg_hr >= z3Min) qualityRuns += 1;
   }
 
   // Whole seconds: the rescale above is fractional, and a zone bar labelled in
@@ -296,7 +296,7 @@ export function analyzeRace(
   }
 
   // In-race time-in-zone: sum the time delta of each sample into its HR zone.
-  if (heartrate) {
+  if (heartrate && thresholds.lthr !== null) {
     const zones = hrZones(thresholds);
     const zoneSec = [0, 0, 0, 0, 0];
     let any = false;

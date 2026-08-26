@@ -23,6 +23,8 @@ export interface ProviderTokens {
   grantedScope: string | null;
   athleteId: number | null;
   athleteName: string | null;
+  /** Untrusted provider text; persistence validates/canonicalizes it server-side. */
+  athleteTimezone: string | null;
 }
 
 export interface ProviderActivity {
@@ -191,6 +193,10 @@ function mapTokens(value: unknown): ProviderTokens {
           .filter(Boolean)
           .join(" ") || null
       : null;
+  const athleteTimezone =
+    athlete && typeof athlete === "object"
+      ? stringOrNull((athlete as Record<string, unknown>).timezone)
+      : null;
   return {
     accessToken: token.access_token,
     refreshToken: token.refresh_token,
@@ -198,6 +204,7 @@ function mapTokens(value: unknown): ProviderTokens {
     grantedScope: isTokenString(token.scope) ? token.scope : null,
     athleteId,
     athleteName,
+    athleteTimezone,
   };
 }
 

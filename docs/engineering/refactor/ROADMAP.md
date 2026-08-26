@@ -11,7 +11,7 @@ The state vocabulary is `queued | done | blocked`. `blocked` is reserved
 for a genuinely external dependency; a local implementation or test failure is
 owned by the builder.
 
-**Next task:** R19
+**Next task:** R20
 
 ## Task index
 
@@ -37,7 +37,7 @@ owned by the builder.
 | R16 | done | full stack | medium, Terra medium | Performance summary data and week/month controls work from imported summaries. | [R16](tasks/R16-performance-first-value.md) |
 | R17 | done | full stack | medium, Terra medium | One-time, skippable first-login platform onboarding. | [R17](tasks/R17-welcome-onboarding.md) |
 | R18 | done | full stack | high, Terra high | One-time, skippable post-connection progress and Activation Summary. | [R18](tasks/R18-connection-activation.md) |
-| R19 | queued | full stack | high, Terra high | Athlete performance profile stores nullable values with provenance. | [R19](tasks/R19-athlete-performance-profile.md) |
+| R19 | done | full stack | high, Terra high | Athlete performance profile stores nullable values with provenance. | [R19](tasks/R19-athlete-performance-profile.md) |
 | R20 | queued | documentation/plan | high, Sol high | Training Analyst evidence, theory, privacy, and output contract. | [R20](tasks/R20-training-analyst-contract.md) |
 | R21 | queued | full stack | high, Terra high | Bounded Training Analyst hypotheses with confirm/edit/reject feedback. | [R21](tasks/R21-training-analyst-hypotheses.md) |
 

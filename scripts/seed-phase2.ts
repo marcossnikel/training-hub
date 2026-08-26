@@ -12,7 +12,12 @@
  *
  * Idempotent: re-running marks the same races and rewrites the same zones.
  */
-import { client, ensureMigrated, setTrainingZones, saveAthleteThresholds } from "../src/lib/db";
+import {
+  client,
+  ensureMigrated,
+  saveAthleteEnteredParameter,
+  setTrainingZones,
+} from "../src/lib/db";
 import type { DerivedZones } from "../src/lib/zones";
 
 // Confirmed by the athlete. The Butinada Trail is included because it IS a race;
@@ -101,19 +106,16 @@ async function main() {
   });
   console.log(`  total marked: ${count.rows[0]?.n}`);
 
+  console.log("Recording the explicitly confirmed profile inputs...");
+  await Promise.all([
+    saveAthleteEnteredParameter(owner, "max_hr_bpm", 199),
+    saveAthleteEnteredParameter(owner, "resting_hr_bpm", 52),
+    saveAthleteEnteredParameter(owner, "lthr_bpm", 178),
+    saveAthleteEnteredParameter(owner, "threshold_pace_sec_per_km", pace(4, 34)),
+  ]);
+
   console.log("\nSeeding training zones...");
   await setTrainingZones(owner, ZONES);
-
-  console.log("Updating measured resting HR (50 estimated -> 52 measured)...");
-  await saveAthleteThresholds(owner, {
-    maxHr: 199,
-    restingHr: 52,
-    lthr: 178,
-    thresholdPaceSPerKm: pace(4, 34),
-    ftpW: 150,
-    restingHrEstimated: false,
-    ftpProvisional: true,
-  });
 
   console.log("\nDone.");
 }

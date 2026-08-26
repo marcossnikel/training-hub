@@ -26,7 +26,7 @@ export function parseId(raw: unknown): number | null {
  * Parses a numeric form field into a finite number, or null when the field is
  * blank or not a number.
  *
- * G6.4: ThresholdsForm coerced each field with `Number(...)`, so a blank field
+ * G6.4: the former thresholds form coerced each field with `Number(...)`, so a blank field
  * became 0 and a garbage field became NaN, either of which was posted to the
  * save action. This returns null for both so the form can stop before posting.
  */

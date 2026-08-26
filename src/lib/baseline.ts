@@ -1,9 +1,7 @@
-// The sole owner's baseline gear + threshold fixtures: the ONE place to change
+// The sole owner's baseline gear fixtures: the ONE place to change
 // or remove when the app becomes multi-user. Kept out of the shared db.ts
 // runtime per G5.7 (personal data does not belong in shared code); db.ts imports
-// these and seeds them on a fresh database. THRESHOLD_DEFAULTS is the single
-// source of truth for the seeded athlete_thresholds row (G5.8).
-import type { AthleteThresholds } from "./fitness";
+// these and seeds them on a fresh database.
 
 export interface BaselineBike {
   name: string;
@@ -47,16 +45,3 @@ export const BASELINE_SHOES: BaselineShoe[] = [
   },
   { name: "Salomon S/Lab Ultra 3 V2", initial_km: 141.1, role: "trail shoe" },
 ];
-
-// Seeded into athlete_thresholds on a fresh database and used as the fallback
-// when the row is somehow missing. Single source of truth for those numbers.
-export const THRESHOLD_DEFAULTS: AthleteThresholds = {
-  maxHr: 199,
-  restingHr: 50,
-  lthr: 176,
-  thresholdPaceSPerKm: 269,
-  ftpW: 150,
-  restingHrEstimated: true,
-  ftpProvisional: true,
-  updatedAt: null,
-};

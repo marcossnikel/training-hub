@@ -8,16 +8,17 @@ import { SyncButton } from "@/components/sync-button";
 import { ManualActivityForm } from "@/components/settings-forms";
 import { ByoConnectionForm } from "@/components/byo-connection-form";
 import { StravaConnectionControls } from "@/components/strava-connection-controls";
-import { ThresholdsForm } from "@/components/thresholds-form";
+import { PerformanceProfileForm } from "@/components/performance-profile-form";
 import { GoalsManager } from "@/components/goals-manager";
 import { Button } from "@/components/ui/button";
 import {
-  getAthleteThresholds,
+  getAthletePerformanceProfile,
   getConnectionActivation,
   getMeta,
   getStravaConnectionStatus,
   listGoals,
   listShoes,
+  listParameterCandidates,
 } from "@/lib/db";
 import { toGearOption } from "@/lib/gear";
 import { getDict } from "@/lib/lang";
@@ -43,7 +44,15 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const lastSync = await getMeta(owner, "last_sync_at");
   const baselineDate = await getMeta(owner, "baseline_date");
   const shoes = await listShoes(owner);
-  const thresholds = await getAthleteThresholds(owner);
+  const profile = await getAthletePerformanceProfile(owner);
+  const candidates = Object.fromEntries(
+    await Promise.all(
+      Object.keys(profile.parameters).map(async (key) => [
+        key,
+        await listParameterCandidates(owner, key as keyof typeof profile.parameters),
+      ])
+    )
+  );
   const goals = await listGoals(owner);
   const activation = await getConnectionActivation(owner);
 
@@ -293,7 +302,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             <CardDescription>{t.fitness.thresholds.body}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ThresholdsForm thresholds={thresholds} />
+            <PerformanceProfileForm profile={profile} candidates={candidates} />
           </CardContent>
         </Card>
 

@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 31;
+export const OWNER_SCHEMA_VERSION = 32;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -456,6 +456,90 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
          completed_at TEXT
        )`,
       "CREATE INDEX IF NOT EXISTS idx_strava_connection_activations_owner_updated ON strava_connection_activations(user_id, updated_at DESC)",
+    ],
+  },
+  {
+    // R19/D-022/D-027: profile values are observations, never founder defaults.
+    // `athlete_parameter_effective` deliberately records suppression separately
+    // from the historical observations: clearing a confirmed value must not make
+    // an older provider/calculated candidate silently effective again.
+    version: 32,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS athlete_parameter_observations (
+         id TEXT PRIMARY KEY,
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         parameter_key TEXT NOT NULL CHECK (parameter_key IN (
+           'resting_hr_bpm', 'max_hr_bpm', 'lthr_bpm',
+           'threshold_pace_sec_per_km', 'cycling_ftp_watts',
+           'measured_vo2max_ml_kg_min'
+         )),
+         numeric_value REAL NOT NULL,
+         unit TEXT NOT NULL,
+         provenance TEXT NOT NULL CHECK (provenance IN (
+           'athlete_entered', 'provider', 'calculated', 'analyst_hypothesis'
+         )),
+         observed_at TEXT,
+         calculation_version TEXT,
+         evidence_ref TEXT,
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL,
+         CHECK ((provenance NOT IN ('calculated', 'analyst_hypothesis'))
+                OR (calculation_version IS NOT NULL AND evidence_ref IS NOT NULL))
+       )`,
+      `CREATE TABLE IF NOT EXISTS athlete_parameter_effective (
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         parameter_key TEXT NOT NULL CHECK (parameter_key IN (
+           'resting_hr_bpm', 'max_hr_bpm', 'lthr_bpm',
+           'threshold_pace_sec_per_km', 'cycling_ftp_watts',
+           'measured_vo2max_ml_kg_min'
+         )),
+         observation_id TEXT REFERENCES athlete_parameter_observations(id) ON DELETE SET NULL,
+         state TEXT NOT NULL CHECK (state IN ('active', 'suppressed')),
+         updated_at TEXT NOT NULL,
+         PRIMARY KEY (user_id, parameter_key),
+         CHECK ((state = 'active' AND observation_id IS NOT NULL)
+                OR (state = 'suppressed' AND observation_id IS NULL))
+       )`,
+      `CREATE TABLE IF NOT EXISTS athlete_timezones (
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         provenance TEXT NOT NULL CHECK (provenance IN ('athlete_entered', 'provider')),
+         timezone TEXT NOT NULL,
+         observed_at TEXT,
+         updated_at TEXT NOT NULL,
+         PRIMARY KEY (user_id, provenance)
+       )`,
+      "CREATE INDEX IF NOT EXISTS idx_athlete_parameter_observations_owner_key_created ON athlete_parameter_observations(user_id, parameter_key, created_at DESC)",
+      // Pre-R19 rows are the only durable threshold writes in the old schema.
+      // The former in-memory fallback never created a row, so it is not migrated.
+      `INSERT OR IGNORE INTO athlete_parameter_observations
+         (id, user_id, parameter_key, numeric_value, unit, provenance, observed_at, created_at, updated_at)
+       SELECT 'legacy:' || user_id || ':max_hr_bpm', user_id, 'max_hr_bpm', max_hr, 'bpm',
+              'athlete_entered', updated_at, COALESCE(updated_at, datetime('now')), COALESCE(updated_at, datetime('now'))
+       FROM athlete_profiles WHERE max_hr IS NOT NULL`,
+      `INSERT OR IGNORE INTO athlete_parameter_observations
+         (id, user_id, parameter_key, numeric_value, unit, provenance, observed_at, created_at, updated_at)
+       SELECT 'legacy:' || user_id || ':resting_hr_bpm', user_id, 'resting_hr_bpm', resting_hr, 'bpm',
+              'athlete_entered', updated_at, COALESCE(updated_at, datetime('now')), COALESCE(updated_at, datetime('now'))
+       FROM athlete_profiles WHERE resting_hr IS NOT NULL`,
+      `INSERT OR IGNORE INTO athlete_parameter_observations
+         (id, user_id, parameter_key, numeric_value, unit, provenance, observed_at, created_at, updated_at)
+       SELECT 'legacy:' || user_id || ':lthr_bpm', user_id, 'lthr_bpm', lthr, 'bpm',
+              'athlete_entered', updated_at, COALESCE(updated_at, datetime('now')), COALESCE(updated_at, datetime('now'))
+       FROM athlete_profiles WHERE lthr IS NOT NULL`,
+      `INSERT OR IGNORE INTO athlete_parameter_observations
+         (id, user_id, parameter_key, numeric_value, unit, provenance, observed_at, created_at, updated_at)
+       SELECT 'legacy:' || user_id || ':threshold_pace_sec_per_km', user_id, 'threshold_pace_sec_per_km', threshold_pace_s_per_km, 's/km',
+              'athlete_entered', updated_at, COALESCE(updated_at, datetime('now')), COALESCE(updated_at, datetime('now'))
+       FROM athlete_profiles WHERE threshold_pace_s_per_km IS NOT NULL`,
+      `INSERT OR IGNORE INTO athlete_parameter_observations
+         (id, user_id, parameter_key, numeric_value, unit, provenance, observed_at, created_at, updated_at)
+       SELECT 'legacy:' || user_id || ':cycling_ftp_watts', user_id, 'cycling_ftp_watts', ftp_w, 'W',
+              'athlete_entered', updated_at, COALESCE(updated_at, datetime('now')), COALESCE(updated_at, datetime('now'))
+       FROM athlete_profiles WHERE ftp_w IS NOT NULL`,
+      `INSERT OR REPLACE INTO athlete_parameter_effective (user_id, parameter_key, observation_id, state, updated_at)
+       SELECT user_id, parameter_key, id, 'active', updated_at
+       FROM athlete_parameter_observations
+       WHERE id LIKE 'legacy:%'`,
     ],
   },
 ];

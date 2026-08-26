@@ -724,8 +724,8 @@ export const en = {
     tssUnit: "TSS",
     load: "Load",
     thresholds: {
-      title: "Athlete thresholds",
-      body: "The reference values training load is measured against. Better inputs, better numbers.",
+      title: "Athlete performance profile",
+      body: "Save only the values you know. Each field remains optional, editable, and source-labelled.",
       maxHr: "Max HR",
       restingHr: "Resting HR",
       lthr: "LTHR",

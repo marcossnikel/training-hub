@@ -500,6 +500,12 @@ export async function deleteOwnerStravaData(owner: OwnerContext): Promise<Delete
       sql: "DELETE FROM user_meta WHERE user_id = ? AND key IN ('athlete_name', 'last_sync_at')",
       args: [owner.userId],
     });
+    // A provider timezone belongs to the connection lifecycle. An explicit
+    // athlete override is a separate row and deliberately survives disconnect.
+    await transaction.execute({
+      sql: "DELETE FROM athlete_timezones WHERE user_id = ? AND provenance = 'provider'",
+      args: [owner.userId],
+    });
     // A manually entered activity may have been assigned imported gear. Keep
     // the manual activity but clear that now-deleted relationship first.
     await transaction.execute({

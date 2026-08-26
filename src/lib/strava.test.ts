@@ -354,6 +354,11 @@ describe("streamless activities cache a negative marker (G7.4)", () => {
 describe("derived metrics are written from the fetched stream", () => {
   it("stores a full-resolution row on the fetch and nothing on a cached view", async () => {
     await connectWithFreshToken();
+    // R19 intentionally leaves new accounts unknown. This stream test needs
+    // heart-rate zones, so it records the athlete input it relies on instead of
+    // inheriting a fixture/default threshold.
+    await db.saveAthleteEnteredParameter(TEST_OWNER, "lthr_bpm", 176);
+    await db.saveAthleteEnteredParameter(TEST_OWNER, "threshold_pace_sec_per_km", 300);
     const inserted = await db.client.execute({
       sql: `INSERT INTO activities (user_id, name, sport_type, started_at, distance_km, moving_time_s,
                                     avg_hr, status, strava_id)

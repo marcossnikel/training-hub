@@ -6,11 +6,11 @@
 // and this app was computing a second, different answer for them.
 
 export interface AthleteThresholds {
-  maxHr: number;
-  restingHr: number;
-  lthr: number;
-  thresholdPaceSPerKm: number;
-  ftpW: number;
+  maxHr: number | null;
+  restingHr: number | null;
+  lthr: number | null;
+  thresholdPaceSPerKm: number | null;
+  ftpW: number | null;
   restingHrEstimated: boolean;
   ftpProvisional: boolean;
   updatedAt: string | null;
@@ -52,7 +52,9 @@ const ZONE_FRACTIONS = [0.81, 0.9, 0.94, 1.0] as const;
  * Z3 90–93%, Z4 94–99%, Z5 ≥100%. Bounds are bpm.
  */
 export function hrZones(thresholds: AthleteThresholds): Zone[] {
-  const [b1, b2, b3, b4] = ZONE_FRACTIONS.map((f) => Math.round(f * thresholds.lthr));
+  const lthr = thresholds.lthr;
+  if (lthr === null) return [];
+  const [b1, b2, b3, b4] = ZONE_FRACTIONS.map((f) => Math.round(f * lthr));
   return [
     { zone: 1, min: null, max: b1 },
     { zone: 2, min: b1, max: b2 },
@@ -68,9 +70,9 @@ export function hrZones(thresholds: AthleteThresholds): Zone[] {
  * faster (higher) zones carry the smaller pace numbers. Bounds are s/km.
  */
 export function paceZones(thresholds: AthleteThresholds): Zone[] {
-  const [p1, p2, p3, p4] = ZONE_FRACTIONS.map((f) =>
-    Math.round(thresholds.thresholdPaceSPerKm / f)
-  );
+  const thresholdPace = thresholds.thresholdPaceSPerKm;
+  if (thresholdPace === null) return [];
+  const [p1, p2, p3, p4] = ZONE_FRACTIONS.map((f) => Math.round(thresholdPace / f));
   return [
     { zone: 1, min: p1, max: null },
     { zone: 2, min: p2, max: p1 },
@@ -90,7 +92,9 @@ const POWER_ZONE_FRACTIONS = [0.55, 0.75, 0.9, 1.05] as const;
  * with a real power meter.
  */
 export function powerZones(thresholds: AthleteThresholds): Zone[] {
-  const [b1, b2, b3, b4] = POWER_ZONE_FRACTIONS.map((f) => Math.round(f * thresholds.ftpW));
+  const ftpW = thresholds.ftpW;
+  if (ftpW === null) return [];
+  const [b1, b2, b3, b4] = POWER_ZONE_FRACTIONS.map((f) => Math.round(f * ftpW));
   return [
     { zone: 1, min: null, max: b1 },
     { zone: 2, min: b1, max: b2 },

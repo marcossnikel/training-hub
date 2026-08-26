@@ -725,8 +725,8 @@ export const pt: Dict = {
     tssUnit: "TSS",
     load: "Carga",
     thresholds: {
-      title: "Limiares do atleta",
-      body: "Os valores de referência usados para medir a carga de treino. Melhores entradas, melhores números.",
+      title: "Perfil de performance do atleta",
+      body: "Salve apenas os valores que você conhece. Cada campo continua opcional, editável e identificado pela fonte.",
       maxHr: "FC máxima",
       restingHr: "FC de repouso",
       lthr: "FC de limiar",

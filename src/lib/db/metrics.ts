@@ -20,40 +20,11 @@ import {
  * 1 = the 400-point downsample, 2 = full resolution fetched before the grade
  * channel existed, 3 = full resolution including it.
  *
- * `hrZoneSecs` and `paceZoneSecs` are the two fields that depend on the
- * athlete's thresholds, and they are frozen at the thresholds in force when the
- * row was written. Nothing invalidates them when thresholds change:
- * `saveAthleteThresholds` does not touch this table, and
- * `scripts/backfill-metrics.ts` skips any activity that already has a row unless
- * it is run with `--recompute` — which refreshes version-1 rows only, since
- * recomputing a full-resolution row from the cached downsample would drop the
- * `np_w` only a full-resolution fetch can produce. Every reader that prefers a
- * stored split over computing one is therefore showing the zones of the day the
- * stream was fetched.
- *
- * STILL OPEN, AND DELIBERATELY SO. The obvious owner would have been the
- * explicit recompute action on /settings, but that action recomputes
- * the thresholds and never touches this table, and folding a second bulk
- * rewrite into one button would hide it. The real blocker is provenance:
- *
- * - A refresh can only come from the cached 400-point downsample (re-fetching
- *   full resolution costs a Strava call per activity and a delete of the cached
- *   stream first). That is honest for a version-1 row and a downgrade for a
- *   version-2/3 one, which would either lose the `np_w` and `avg_gap_s_per_km`
- *   only full resolution produces, or keep `metrics_version` claiming a
- *   provenance the zone arrays no longer have. The ladder has to stay true.
- * - Doing it per column-group therefore needs its own provenance record (a
- *   second version or a zones-computed-at stamp) — a data-model change, not a
- *   rider on another task.
- * - Detecting staleness needs no migration at all (`computed_at` against
- *   `athlete_thresholds.updated_at`), but what to DO when stale differs per read
- *   site: the activity page has an exact live fallback, so ignoring a stale row
- *   is strictly better there, while `blocks.ts` falls back to a whole-session
- *   avg-HR estimate that a slightly stale stream split still beats.
- *
- * So the manual `--recompute` stopgap stands. Thresholds move rarely; when they
- * do, the version-1 rows can be refreshed by hand and the rest wait for a task
- * that settles the provenance question first.
+ * `hrZoneSecs` and `paceZoneSecs` depend on athlete parameters. R19 clears just
+ * those columns whenever an effective parameter changes, preserving unrelated
+ * full-resolution metrics (`np_w`, EF, GAP) while ensuring no stale zone split
+ * is shown as current. Readers then calculate a live split only when a valid,
+ * accepted parameter is available.
  */
 export interface StoredActivityMetrics extends ActivityMetrics {
   /** What the numbers were computed from; see the ladder above. */

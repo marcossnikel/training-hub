@@ -471,10 +471,10 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // Lap tint: runs by pace, rides by watts (real power meters only — Strava's
   // estimated wattage would tint by guesswork).
   const lapZoning: LapZoning | null = ride
-    ? metrics?.hasRealPower && thresholds.ftpW > 0
+    ? metrics?.hasRealPower && thresholds.ftpW !== null && thresholds.ftpW > 0
       ? { by: "power", zones: powerZones(thresholds) }
       : null
-    : run
+    : run && thresholds.thresholdPaceSPerKm !== null
       ? { by: "pace", zones: paceZones(thresholds) }
       : null;
   // Derived metrics (T24): computed once when the stream was fetched and read
@@ -539,28 +539,20 @@ export default async function ActivityPage({ params }: PageProps<"/activity/[id]
   // that recorded a trace, pace for runs. A bar is dropped when the threshold it
   // needs is unset or no sample landed in a zone.
   //
-  // STALE AFTER A THRESHOLD CHANGE: unlike EF and decoupling, a zone split
-  // depends on the thresholds, and the stored one was frozen at the LTHR and
-  // threshold pace in force when the stream was fetched. Saving new thresholds
-  // (Settings, for example) does NOT invalidate it,
-  // so these bars keep the old split until the row is recomputed. The fallback
-  // below always reflects the CURRENT thresholds, so while a row is stale it is
-  // the more correct of the two — a stale stored split is worse here than no row
-  // at all, and it is preferred anyway because it is full resolution and free.
-  // `scripts/backfill-metrics.ts --recompute --write` refreshes version-1 rows;
-  // a version-2 row would have to give up its np_w to be refreshed that way, so
-  // it is left alone. There is still no automatic invalidation, and the reasons
-  // it is not simply bolted onto the threshold save (or onto the /settings load
-  // recompute, which never touches `activity_metrics`) are set out on
-  // StoredActivityMetrics in src/lib/db/metrics.ts.
+  // R19 clears stored zone columns when an effective profile parameter changes.
+  // The live fallback below is therefore either the current value or unavailable;
+  // a historical zone split is never presented as current after an edit.
   const hrZoneSec =
     storedMetrics?.hrZoneSecs ??
-    (streams?.heartrate && thresholds.lthr > 0
+    (streams?.heartrate && thresholds.lthr !== null && thresholds.lthr > 0
       ? zoneSeconds(streams.timeS, streams.heartrate, hrZones(thresholds))
       : null);
   const paceZoneSec =
     storedMetrics?.paceZoneSecs ??
-    (run && streams?.paceSPerKm && thresholds.thresholdPaceSPerKm > 0
+    (run &&
+    streams?.paceSPerKm &&
+    thresholds.thresholdPaceSPerKm !== null &&
+    thresholds.thresholdPaceSPerKm > 0
       ? zoneSeconds(streams.timeS, streams.paceSPerKm, paceZones(thresholds))
       : null);
   const zoneDistributions: ZoneDistribution[] = [

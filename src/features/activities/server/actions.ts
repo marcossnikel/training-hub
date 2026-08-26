@@ -7,11 +7,10 @@ import {
   confirmActivity,
   createManualActivity,
   getActivity,
-  getAthleteThresholds,
   getBike,
   getShoe,
   replaceActivitySplits,
-  saveAthleteThresholds,
+  saveAthleteEnteredParameter,
   setActivityBike,
   setActivityRace,
   updateActivityJournal,
@@ -175,15 +174,13 @@ export async function saveThresholdsAction(input: ThresholdsInput): Promise<Acti
       lthr > maxHr
     )
       return { ok: false, error: t.errors.invalidThresholds };
-    await saveAthleteThresholds(owner, {
-      maxHr,
-      restingHr,
-      lthr,
-      thresholdPaceSPerKm: thresholdPace,
-      ftpW,
-      restingHrEstimated: input.restingHrEstimated,
-      ftpProvisional: input.ftpProvisional,
-    });
+    await Promise.all([
+      saveAthleteEnteredParameter(owner, "max_hr_bpm", maxHr),
+      saveAthleteEnteredParameter(owner, "resting_hr_bpm", restingHr),
+      saveAthleteEnteredParameter(owner, "lthr_bpm", lthr),
+      saveAthleteEnteredParameter(owner, "threshold_pace_sec_per_km", thresholdPace),
+      saveAthleteEnteredParameter(owner, "cycling_ftp_watts", ftpW),
+    ]);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -199,16 +196,7 @@ export async function applyThresholdPaceAction(paceSPerKm: number): Promise<Acti
     const thresholdPace = Math.round(paceSPerKm);
     if (!inRange(thresholdPace, THRESHOLD_PACE_RANGE.min, THRESHOLD_PACE_RANGE.max))
       return { ok: false, error: t.errors.invalidThresholds };
-    const current = await getAthleteThresholds(owner);
-    await saveAthleteThresholds(owner, {
-      maxHr: current.maxHr,
-      restingHr: current.restingHr,
-      lthr: current.lthr,
-      thresholdPaceSPerKm: thresholdPace,
-      ftpW: current.ftpW,
-      restingHrEstimated: current.restingHrEstimated,
-      ftpProvisional: current.ftpProvisional,
-    });
+    await saveAthleteEnteredParameter(owner, "threshold_pace_sec_per_km", thresholdPace);
     refreshAll();
     return { ok: true };
   } catch (error) {
@@ -224,16 +212,7 @@ export async function applyFtpAction(ftpW: number): Promise<ActionResult> {
     const ftp = Math.round(ftpW);
     if (!inRange(ftp, FTP_RANGE.min, FTP_RANGE.max))
       return { ok: false, error: t.errors.invalidThresholds };
-    const current = await getAthleteThresholds(owner);
-    await saveAthleteThresholds(owner, {
-      maxHr: current.maxHr,
-      restingHr: current.restingHr,
-      lthr: current.lthr,
-      thresholdPaceSPerKm: current.thresholdPaceSPerKm,
-      ftpW: ftp,
-      restingHrEstimated: current.restingHrEstimated,
-      ftpProvisional: false,
-    });
+    await saveAthleteEnteredParameter(owner, "cycling_ftp_watts", ftp);
     refreshAll();
     return { ok: true };
   } catch (error) {

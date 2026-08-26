@@ -9,17 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   return {
-    saveAthleteThresholds: vi.fn(async () => {}),
-    getAthleteThresholds: vi.fn(async () => ({
-      maxHr: 195,
-      restingHr: 50,
-      lthr: 170,
-      thresholdPaceSPerKm: 300,
-      ftpW: 260,
-      restingHrEstimated: true,
-      ftpProvisional: false,
-      updatedAt: "2026-01-01T00:00:00Z",
-    })),
+    saveAthleteEnteredParameter: vi.fn(async () => true),
     requireCurrentUser: vi.fn(async (): Promise<{ userId: string } | null> => ({
       userId: "owner-a",
     })),
@@ -32,11 +22,10 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => {} }),
 }));
 vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
-// Only the two DB functions saveThresholdsAction touches are stubbed; actions.ts
-// imports many more names from ./db, but none are referenced on this code path.
+// The profile boundary receives only the authenticated owner, a fixed parameter
+// key and a value. Provenance is never accepted from the browser.
 vi.mock("@/lib/db", () => ({
-  saveAthleteThresholds: mocks.saveAthleteThresholds,
-  getAthleteThresholds: mocks.getAthleteThresholds,
+  saveAthleteEnteredParameter: mocks.saveAthleteEnteredParameter,
 }));
 
 import {
@@ -67,8 +56,7 @@ describe("saveThresholdsAction (T3.7)", () => {
     const result = await saveThresholdsAction(VALID);
 
     expect(result.ok).toBe(false);
-    expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
-    expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.saveAthleteEnteredParameter).not.toHaveBeenCalled();
   });
 
   it("persists thresholds synchronously and returns without awaiting the recompute", async () => {
@@ -76,18 +64,11 @@ describe("saveThresholdsAction (T3.7)", () => {
 
     expect(result).toEqual({ ok: true });
     // The edit is written in-request, before the response returns.
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledTimes(1);
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith(
+    expect(mocks.saveAthleteEnteredParameter).toHaveBeenCalledTimes(5);
+    expect(mocks.saveAthleteEnteredParameter).toHaveBeenCalledWith(
       { userId: "owner-a" },
-      {
-        maxHr: 190,
-        restingHr: 45,
-        lthr: 165,
-        thresholdPaceSPerKm: 240,
-        ftpW: 250,
-        restingHrEstimated: false,
-        ftpProvisional: false,
-      }
+      "threshold_pace_sec_per_km",
+      240
     );
   });
 
@@ -95,30 +76,19 @@ describe("saveThresholdsAction (T3.7)", () => {
     const result = await saveThresholdsAction({ ...VALID, maxHr: 300 });
 
     expect(result.ok).toBe(false);
-    expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.saveAthleteEnteredParameter).not.toHaveBeenCalled();
   });
 });
 
 describe("applyThresholdPaceAction (pace-only apply)", () => {
-  it("changes only the pace, preserving the other thresholds read server-side", async () => {
+  it("changes only the pace as an athlete-entered parameter", async () => {
     const result = await applyThresholdPaceAction(240);
 
     expect(result).toEqual({ ok: true });
-    // It reads the CURRENT thresholds rather than trusting a client snapshot,
-    // then writes them back with only the pace changed — so a concurrent edit to
-    // maxHr/restingHr/lthr/ftp made after page load is not reverted.
-    expect(mocks.getAthleteThresholds).toHaveBeenCalledTimes(1);
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith(
+    expect(mocks.saveAthleteEnteredParameter).toHaveBeenCalledWith(
       { userId: "owner-a" },
-      {
-        maxHr: 195,
-        restingHr: 50,
-        lthr: 170,
-        thresholdPaceSPerKm: 240,
-        ftpW: 260,
-        restingHrEstimated: true,
-        ftpProvisional: false,
-      }
+      "threshold_pace_sec_per_km",
+      240
     );
   });
 
@@ -126,42 +96,19 @@ describe("applyThresholdPaceAction (pace-only apply)", () => {
     const result = await applyThresholdPaceAction(700);
 
     expect(result.ok).toBe(false);
-    expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
-    expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.saveAthleteEnteredParameter).not.toHaveBeenCalled();
   });
 });
 
 describe("applyFtpAction (eFTP apply, T28)", () => {
-  it("changes only the FTP and clears the provisional flag", async () => {
-    mocks.getAthleteThresholds.mockResolvedValueOnce({
-      maxHr: 195,
-      restingHr: 50,
-      lthr: 170,
-      thresholdPaceSPerKm: 300,
-      ftpW: 150,
-      restingHrEstimated: true,
-      ftpProvisional: true,
-      updatedAt: "2026-01-01T00:00:00Z",
-    });
-
+  it("changes only the FTP as an athlete-entered parameter", async () => {
     const result = await applyFtpAction(248.6);
 
     expect(result).toEqual({ ok: true });
-    // Same contract as the pace apply: read the CURRENT thresholds server-side,
-    // write them back with one field changed, so a concurrent edit is not lost.
-    expect(mocks.getAthleteThresholds).toHaveBeenCalledTimes(1);
-    expect(mocks.saveAthleteThresholds).toHaveBeenCalledWith(
+    expect(mocks.saveAthleteEnteredParameter).toHaveBeenCalledWith(
       { userId: "owner-a" },
-      {
-        maxHr: 195,
-        restingHr: 50,
-        lthr: 170,
-        thresholdPaceSPerKm: 300,
-        // Rounded to whole watts, and no longer a placeholder.
-        ftpW: 249,
-        restingHrEstimated: true,
-        ftpProvisional: false,
-      }
+      "cycling_ftp_watts",
+      249
     );
   });
 
@@ -169,7 +116,6 @@ describe("applyFtpAction (eFTP apply, T28)", () => {
     const result = await applyFtpAction(900);
 
     expect(result.ok).toBe(false);
-    expect(mocks.getAthleteThresholds).not.toHaveBeenCalled();
-    expect(mocks.saveAthleteThresholds).not.toHaveBeenCalled();
+    expect(mocks.saveAthleteEnteredParameter).not.toHaveBeenCalled();
   });
 });

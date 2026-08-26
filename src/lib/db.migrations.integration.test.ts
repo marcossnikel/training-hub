@@ -96,6 +96,77 @@ describe("additive owner schema migrations", () => {
     }
   });
 
+  it("migrates only saved legacy profile values into athlete-entered observations", async () => {
+    const { client } = disposableClient("r19-profile");
+    try {
+      await runMigrations(client, { autoApply: true });
+      await client.batch(
+        [
+          {
+            sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+            args: ["auth-saved", "Saved", "saved@example.test", 0, "2026-01-01", "2026-01-01"],
+          },
+          {
+            sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+            args: ["saved", "auth-saved"],
+          },
+          {
+            sql: "INSERT INTO athlete_profiles (user_id, max_hr, threshold_pace_s_per_km, updated_at) VALUES (?, ?, ?, ?)",
+            args: ["saved", 193, 287, "2026-02-03T04:05:06Z"],
+          },
+          {
+            sql: 'INSERT INTO "user" (id, name, email, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+            args: ["auth-empty", "Empty", "empty@example.test", 0, "2026-01-01", "2026-01-01"],
+          },
+          {
+            sql: "INSERT INTO users (id, auth_subject) VALUES (?, ?)",
+            args: ["empty", "auth-empty"],
+          },
+          "DELETE FROM athlete_parameter_effective",
+          "DELETE FROM athlete_parameter_observations",
+          "UPDATE schema_version SET version = 31 WHERE id = 1",
+        ],
+        "write"
+      );
+      await runMigrations(client, { autoApply: true });
+      expect(await schemaVersion(client)).toBe(OWNER_SCHEMA_VERSION);
+      expect(
+        (
+          await client.execute({
+            sql: `SELECT parameter_key, numeric_value, unit, provenance, observed_at
+                    FROM athlete_parameter_observations WHERE user_id = ? ORDER BY parameter_key`,
+            args: ["saved"],
+          })
+        ).rows
+      ).toEqual([
+        {
+          parameter_key: "max_hr_bpm",
+          numeric_value: 193,
+          unit: "bpm",
+          provenance: "athlete_entered",
+          observed_at: "2026-02-03T04:05:06Z",
+        },
+        {
+          parameter_key: "threshold_pace_sec_per_km",
+          numeric_value: 287,
+          unit: "s/km",
+          provenance: "athlete_entered",
+          observed_at: "2026-02-03T04:05:06Z",
+        },
+      ]);
+      expect(
+        (
+          await client.execute({
+            sql: "SELECT * FROM athlete_parameter_effective WHERE user_id = ?",
+            args: ["empty"],
+          })
+        ).rows
+      ).toEqual([]);
+    } finally {
+      client.close();
+    }
+  });
+
   it("rolls back a failed additive migration without changing v23 data or schema", async () => {
     const { client } = disposableClient("rollback");
     const failing: readonly AdditiveMigration[] = [

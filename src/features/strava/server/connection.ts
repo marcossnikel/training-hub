@@ -11,6 +11,7 @@ import {
   prepareStravaReconnect,
   promotePendingStravaConnection,
   savePendingStravaConnection,
+  saveProviderTimezone,
   saveStravaAuth,
   setMeta,
 } from "@/lib/db";
@@ -95,6 +96,9 @@ export async function completeByoAuthorization(
     });
     if (!promoted) return "recovery";
     if (token.athleteName) await setMeta(owner, "athlete_name", token.athleteName);
+    // The provider payload is not trusted: numeric offsets and malformed names
+    // are rejected by the profile boundary and never become calendar truth.
+    if (token.athleteTimezone) await saveProviderTimezone(owner, token.athleteTimezone);
     return "connected";
   } catch {
     return "recovery";

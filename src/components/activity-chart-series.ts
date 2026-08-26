@@ -242,7 +242,7 @@ export function buildSeries(
       area: false,
       fmt: (v) => fmtHr(v),
       tick: round,
-      zones: thresholds.lthr > 0 ? hrZones(thresholds) : undefined,
+      zones: thresholds.lthr !== null && thresholds.lthr > 0 ? hrZones(thresholds) : undefined,
     },
     {
       key: "pace",
@@ -254,7 +254,10 @@ export function buildSeries(
       area: false,
       fmt: (v) => fmtPace(v),
       tick: fmtPaceShort,
-      zones: isRun && thresholds.thresholdPaceSPerKm > 0 ? paceZones(thresholds) : undefined,
+      zones:
+        isRun && thresholds.thresholdPaceSPerKm !== null && thresholds.thresholdPaceSPerKm > 0
+          ? paceZones(thresholds)
+          : undefined,
       overlay: gapPace ? { data: gapPace, label: t.chart.gap } : undefined,
     },
     {

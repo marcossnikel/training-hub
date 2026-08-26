@@ -790,11 +790,14 @@ export function computeStreamMetrics(
         ? normalizedPower(streams.timeS, streams.watts)
         : null,
     hrZoneSecs:
-      streams.heartrate && thresholds.lthr > 0
+      streams.heartrate && thresholds.lthr !== null && thresholds.lthr > 0
         ? zoneSeconds(streams.timeS, streams.heartrate, hrZones(thresholds))
         : null,
     paceZoneSecs:
-      isRunSport(activity.sportType) && streams.paceSPerKm && thresholds.thresholdPaceSPerKm > 0
+      isRunSport(activity.sportType) &&
+      streams.paceSPerKm &&
+      thresholds.thresholdPaceSPerKm !== null &&
+      thresholds.thresholdPaceSPerKm > 0
         ? zoneSeconds(streams.timeS, streams.paceSPerKm, paceZones(thresholds))
         : null,
   };
