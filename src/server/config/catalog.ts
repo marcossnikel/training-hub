@@ -91,6 +91,18 @@ export const CONFIGURATION_CATALOG: readonly ConfigurationVariable[] = [
     example: true,
     consumers: ["insight feedback"],
   },
+  {
+    name: "TRAINING_ANALYST_ENABLED",
+    secret: false,
+    example: true,
+    consumers: ["Training Analyst kill switch"],
+  },
+  {
+    name: "OPENAI_API_KEY",
+    secret: true,
+    example: true,
+    consumers: ["Training Analyst provider"],
+  },
 ];
 
 export function summarizeConfiguration(env: Environment, identity: RuntimeIdentity) {

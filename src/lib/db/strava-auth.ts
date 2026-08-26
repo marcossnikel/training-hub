@@ -506,6 +506,14 @@ export async function deleteOwnerStravaData(owner: OwnerContext): Promise<Delete
       sql: "DELETE FROM athlete_timezones WHERE user_id = ? AND provenance = 'provider'",
       args: [owner.userId],
     });
+    // Analyst evidence can only be classified conservatively at this boundary:
+    // this connection is the sole provider source in v1, so remove generated
+    // artifacts before the connection graph disappears. Consent itself is not
+    // source-derived evidence and remains a durable, revocable choice.
+    await transaction.execute({
+      sql: "DELETE FROM training_analyst_generations WHERE user_id = ?",
+      args: [owner.userId],
+    });
     // A manually entered activity may have been assigned imported gear. Keep
     // the manual activity but clear that now-deleted relationship first.
     await transaction.execute({

@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 33;
+export const OWNER_SCHEMA_VERSION = 35;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -553,6 +553,97 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
       return columns.rows.some((row) => String(row.name) === "issued_by")
         ? [{ sql: "ALTER TABLE beta_invites DROP COLUMN issued_by", args: [] }]
         : [];
+    },
+  },
+  {
+    // R21: analyst records are deliberately separate from deterministic insight
+    // storage. They retain only validated display fields and opaque reference
+    // labels; no provider payload, packet, prompt, or activity text is durable.
+    version: 34,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS training_analyst_consents (
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         version TEXT NOT NULL,
+         disclosure_revision TEXT NOT NULL,
+         accepted_at TEXT NOT NULL,
+         revoked_at TEXT,
+         PRIMARY KEY (user_id, version)
+       )`,
+      `CREATE TABLE IF NOT EXISTS training_analyst_generations (
+         id TEXT PRIMARY KEY,
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         packet_version TEXT NOT NULL,
+         response_schema_version TEXT NOT NULL,
+         prompt_version TEXT NOT NULL,
+         library_version TEXT NOT NULL,
+         packet_digest TEXT NOT NULL CHECK (length(packet_digest) = 64),
+         evidence_ids_json TEXT NOT NULL,
+         theory_ids_json TEXT NOT NULL,
+         provider TEXT NOT NULL,
+         model TEXT NOT NULL,
+         status TEXT NOT NULL CHECK (status IN ('in_flight', 'succeeded', 'failed', 'unknown')),
+         requested_at TEXT NOT NULL,
+         completed_at TEXT,
+         input_tokens INTEGER,
+         output_tokens INTEGER,
+         estimated_cost_micros INTEGER,
+         validation_code TEXT
+       )`,
+      `CREATE TABLE IF NOT EXISTS training_analyst_hypotheses (
+         id TEXT PRIMARY KEY,
+         generation_id TEXT NOT NULL REFERENCES training_analyst_generations(id) ON DELETE CASCADE,
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         ordinal INTEGER NOT NULL CHECK (ordinal >= 0 AND ordinal < 4),
+         observation TEXT NOT NULL,
+         evidence_ids_json TEXT NOT NULL,
+         theory_ids_json TEXT NOT NULL,
+         theory_source_ids_json TEXT NOT NULL DEFAULT '[]',
+         limitation TEXT NOT NULL,
+         confidence TEXT NOT NULL CHECK (confidence IN ('low', 'moderate')),
+         hypothesis TEXT NOT NULL,
+         question TEXT,
+         state TEXT NOT NULL CHECK (state IN ('pending', 'confirmed', 'edited', 'rejected', 'deferred')),
+         UNIQUE(generation_id, ordinal)
+       )`,
+      `CREATE TABLE IF NOT EXISTS training_analyst_feedback (
+         id TEXT PRIMARY KEY,
+         hypothesis_id TEXT NOT NULL REFERENCES training_analyst_hypotheses(id) ON DELETE CASCADE,
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         action TEXT NOT NULL CHECK (action IN ('confirmed', 'edited', 'rejected', 'deferred')),
+         request_id TEXT NOT NULL,
+         edited_hypothesis TEXT,
+         created_at TEXT NOT NULL,
+         UNIQUE(hypothesis_id, request_id)
+       )`,
+      `CREATE TABLE IF NOT EXISTS training_analyst_monthly_usage (
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         month_utc TEXT NOT NULL,
+         successful_count INTEGER NOT NULL DEFAULT 0 CHECK (successful_count >= 0),
+         estimated_cost_micros INTEGER NOT NULL DEFAULT 0 CHECK (estimated_cost_micros >= 0),
+         PRIMARY KEY (user_id, month_utc)
+       )`,
+      "CREATE INDEX IF NOT EXISTS idx_training_analyst_generations_owner_requested ON training_analyst_generations(user_id, requested_at DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_training_analyst_hypotheses_owner_generation ON training_analyst_hypotheses(user_id, generation_id, ordinal)",
+      "CREATE INDEX IF NOT EXISTS idx_training_analyst_feedback_owner_hypothesis ON training_analyst_feedback(user_id, hypothesis_id)",
+    ],
+  },
+  {
+    // Keep the displayable registry citations alongside opaque packet-local T
+    // labels. This is safe provenance, not theory prose or a provider payload.
+    version: 35,
+    statements: [],
+    statementsFor: async (target) => {
+      const columns = await target.execute(
+        "SELECT name FROM pragma_table_info('training_analyst_hypotheses')"
+      );
+      return columns.rows.some((row) => String(row.name) === "theory_source_ids_json")
+        ? []
+        : [
+            {
+              sql: "ALTER TABLE training_analyst_hypotheses ADD COLUMN theory_source_ids_json TEXT NOT NULL DEFAULT '[]'",
+              args: [],
+            },
+          ];
     },
   },
 ];

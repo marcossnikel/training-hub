@@ -44,6 +44,8 @@ this list records their owner rather than their values.
 | `TRAINING_HUB_INVITE_PRODUCTION_ORIGIN`, `TRAINING_HUB_INVITE_PREVIEW_ORIGIN`, `TRAINING_HUB_INVITE_TARGET`, `TRAINING_HUB_DISPOSABLE_DATA` | invite CLI | no |
 | `TRAINING_HUB_OWNER_ID` | one-off owner-scoped scripts | no |
 | `TRAINING_HUB_INSIGHT_FEEDBACK_ENABLED` | insight-feedback beta path | no |
+| `TRAINING_ANALYST_ENABLED` | Training Analyst kill switch | no |
+| `OPENAI_API_KEY` | Training Analyst OpenAI provider | yes |
 
 Test harness controls (`E2E_*`, `TRAINING_HUB_E2E`, and the loopback Strava
 provider origin) are composed only by Playwright and never copied into an

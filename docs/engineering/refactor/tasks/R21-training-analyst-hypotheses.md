@@ -1,6 +1,6 @@
 # R21 — Add evidence-bound Training Analyst hypotheses
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
 **Depends on:** R20 done

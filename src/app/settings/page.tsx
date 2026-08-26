@@ -26,6 +26,8 @@ import { isStravaConnected } from "@/features/strava/server/connection";
 import { fmtDate, fmtDateLong, fmtTime } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { requireCurrentUser } from "@/lib/auth";
+import { trainingAnalystView } from "@/features/analyst/server/service";
+import { TrainingAnalystSettings } from "@/features/analyst/training-analyst-settings";
 import { callbackUrlForOrigin, resolveSettingsByoOrigin, STRAVA_BYO_SCOPE } from "@/lib/strava-byo";
 
 export const metadata = { title: "Settings" };
@@ -55,6 +57,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   );
   const goals = await listGoals(owner);
   const activation = await getConnectionActivation(owner);
+  const analyst = await trainingAnalystView(owner);
 
   const callbackResult = typeof params.strava === "string" ? params.strava : null;
 
@@ -73,6 +76,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           ["#profile", ts.profile],
           ["#connection", ts.connection],
           ["#training-preferences", ts.trainingPreferences],
+          ["#training-analyst", "Training Analyst"],
           ["#gear-and-corrections", ts.gearAndCorrections],
           ["#data-and-privacy", ts.dataTitle],
         ].map(([href, label]) => (
@@ -303,6 +307,18 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </CardHeader>
           <CardContent>
             <PerformanceProfileForm profile={profile} candidates={candidates} />
+          </CardContent>
+        </Card>
+
+        <Card id="training-analyst" className="scroll-mt-6 rounded-2xl">
+          <CardHeader>
+            <CardTitle>Training Analyst</CardTitle>
+            <CardDescription>
+              Evidence-linked hypotheses are optional and never change your profile automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TrainingAnalystSettings consent={analyst.consent} />
           </CardContent>
         </Card>
 

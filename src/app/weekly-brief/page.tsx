@@ -6,6 +6,8 @@ import { requireCurrentUser } from "@/lib/auth";
 import { getInsightFeedback, insightFeedbackEnabled } from "@/lib/db";
 import { resolveWeeklyBriefFeedbackTarget } from "@/lib/insight-feedback-targets";
 import { InsightFeedback } from "@/components/insight-feedback";
+import { trainingAnalystView } from "@/features/analyst/server/service";
+import { TrainingAnalystPanel } from "@/features/analyst/training-analyst-panel";
 
 export const metadata = { title: "Weekly brief" };
 
@@ -27,6 +29,7 @@ export async function WeeklyBriefContent() {
   const { result, reference } = await resolveWeeklyBriefFeedbackTarget(owner);
   const feedback =
     reference && insightFeedbackEnabled() ? await getInsightFeedback(owner, reference) : null;
+  const analyst = await trainingAnalystView(owner);
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-5 lg:py-12">
       <header className="mb-6 max-w-3xl">
@@ -43,6 +46,7 @@ export async function WeeklyBriefContent() {
         </p>
       </header>
       <WeeklyBriefView result={result} />
+      <TrainingAnalystPanel consent={analyst.consent} hypotheses={analyst.hypotheses} />
       {reference && insightFeedbackEnabled() ? (
         <InsightFeedback target={{ kind: "weekly_brief" }} initial={feedback} />
       ) : null}
