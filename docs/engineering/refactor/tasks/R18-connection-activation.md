@@ -1,6 +1,6 @@
 # R18 — Deliver post-Strava connection activation
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** high — Terra high
 **Depends on:** R9, R14, R15, and R16 done

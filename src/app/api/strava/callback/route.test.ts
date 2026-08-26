@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
   consumeOAuthState: vi.fn(),
+  ensureConnectionActivation: vi.fn(),
   completeByoAuthorization: vi.fn(),
   advanceInitialStravaImport: vi.fn(),
 }));
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/auth", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
 vi.mock("@/lib/db", () => ({
   consumeOAuthState: mocks.consumeOAuthState,
+  ensureConnectionActivation: mocks.ensureConnectionActivation,
 }));
 vi.mock("@/features/strava/server/connection", () => ({
   completeByoAuthorization: mocks.completeByoAuthorization,
@@ -40,6 +42,7 @@ beforeEach(() => {
   mocks.requireCurrentUser.mockResolvedValue(OWNER);
   mocks.consumeOAuthState.mockResolvedValue({ intent: "connect", redirectKey: "settings" });
   mocks.completeByoAuthorization.mockResolvedValue("connected");
+  mocks.ensureConnectionActivation.mockResolvedValue({ connectionId: "connection-a" });
   mocks.advanceInitialStravaImport.mockResolvedValue({ advanced: true, status: null });
 });
 
@@ -53,9 +56,10 @@ describe("owner-bound Strava callback", () => {
     const response = await GET(request({ state: STATE, code: "provider-code" }));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/?strava=connected`);
+    expect(response.headers.get("location")).toBe(`${ORIGIN}/onboarding/connection`);
     expect(mocks.consumeOAuthState).toHaveBeenCalledWith(OWNER, STATE);
     expect(mocks.completeByoAuthorization).toHaveBeenCalledWith(OWNER, "provider-code");
+    expect(mocks.ensureConnectionActivation).toHaveBeenCalledWith(OWNER);
     expect(mocks.advanceInitialStravaImport).toHaveBeenCalledWith(OWNER);
     const artifact = JSON.stringify({
       location: response.headers.get("location"),
@@ -70,6 +74,18 @@ describe("owner-bound Strava callback", () => {
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/settings?strava=recovery`);
     expect(mocks.completeByoAuthorization).not.toHaveBeenCalled();
+  });
+
+  it("renews a retained connection without replaying its completed activation", async () => {
+    mocks.ensureConnectionActivation.mockResolvedValue({
+      connectionId: "connection-a",
+      state: "completed",
+    });
+
+    const response = await GET(request({ state: STATE, code: "provider-code" }));
+
+    expect(response.headers.get("location")).toBe(`${ORIGIN}/`);
+    expect(mocks.advanceInitialStravaImport).toHaveBeenCalledWith(OWNER);
   });
 
   it("consumes a provider denial but makes no exchange or sync", async () => {

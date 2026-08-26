@@ -58,6 +58,7 @@ export default defineConfig({
         /auth\.setup\.ts/,
         /auth\.refresh\.setup\.ts/,
         /auth\.spec\.ts/,
+        /connection-activation\.spec\.ts/,
         /byo-connection\.spec\.ts/,
         /comparable-activity\.spec\.ts/,
         /gear\.spec\.ts/,
@@ -81,6 +82,15 @@ export default defineConfig({
       workers: 1,
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["setup"],
+    },
+    // R18 owns a brand-new disposable account and does not need the shared
+    // fixture owner. Keeping it independent makes its callback-to-summary
+    // proof executable even if an unrelated shared-read project is unhealthy.
+    {
+      name: "connection-activation",
+      testMatch: /connection-activation\.spec\.ts/,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "creator-invites",

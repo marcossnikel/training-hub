@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireCurrentUser } from "@/lib/auth";
-import { consumeOAuthState } from "@/lib/db";
+import { consumeOAuthState, ensureConnectionActivation } from "@/lib/db";
 import { resolveAuthorizationByoOrigin } from "@/lib/strava-byo";
 import { completeByoAuthorization } from "@/features/strava/server/connection";
 import { advanceInitialStravaImport } from "@/features/strava/server/sync";
@@ -27,11 +27,15 @@ function settingsRedirect(origin: string, result: CallbackResult): NextResponse 
   return NextResponse.redirect(url);
 }
 
-/** The callback starts one bounded page; later requests safely resume the job. */
-function recentTrainingRedirect(origin: string): NextResponse {
-  const url = new URL("/", origin);
-  url.searchParams.set("strava", "connected");
+/** The activation route derives all lifecycle state from the server session. */
+function activationRedirect(origin: string): NextResponse {
+  const url = new URL("/onboarding/connection", origin);
   return NextResponse.redirect(url);
+}
+
+/** A retained connection can renew credentials without replaying its completed activation. */
+function appRedirect(origin: string): NextResponse {
+  return NextResponse.redirect(new URL("/", origin));
 }
 
 /**
@@ -50,7 +54,7 @@ export async function GET(request: NextRequest) {
   if (!state || !OPAQUE_STATE.test(state)) return settingsRedirect(origin, "recovery");
 
   const consumed = await consumeOAuthState(owner, state);
-  if (!consumed || consumed.intent !== "connect" || consumed.redirectKey !== "settings") {
+  if (consumed?.intent !== "connect" || consumed.redirectKey !== "settings") {
     return settingsRedirect(origin, "recovery");
   }
 
@@ -64,11 +68,13 @@ export async function GET(request: NextRequest) {
   const result = await completeByoAuthorization(owner, code);
   if (result !== "connected") return settingsRedirect(origin, result);
   try {
+    const activation = await ensureConnectionActivation(owner);
     await advanceInitialStravaImport(owner);
+    if (activation?.state === "completed") return appRedirect(origin);
   } catch {
     // A valid connection remains connected after a start failure. The next
     // owner-scoped advance can create or resume the persisted job.
     return settingsRedirect(origin, "recovery");
   }
-  return recentTrainingRedirect(origin);
+  return activationRedirect(origin);
 }

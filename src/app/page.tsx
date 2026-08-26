@@ -7,7 +7,6 @@ import {
   SearchXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
 import { FilterPill } from "@/components/filter-pill";
 import { ReviewBanner } from "@/components/review-banner";
@@ -238,17 +237,6 @@ async function TrainingLogPage({
           {t.log.description}
         </p>
       </header>
-
-      {params.strava === "connected" ? (
-        <Alert className="mt-5 border-emerald-500/30 text-emerald-800 dark:text-emerald-200">
-          <CableIcon aria-hidden />
-          <AlertTitle>Strava is connected</AlertTitle>
-          <AlertDescription>
-            Your existing history was added to Recent training. New activities will appear in Review
-            when they need your confirmation.
-          </AlertDescription>
-        </Alert>
-      ) : null}
 
       {pending > 0 ? (
         <div className="mt-5">

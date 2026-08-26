@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 30;
+export const OWNER_SCHEMA_VERSION = 31;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -437,6 +437,26 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
       }
       return statements;
     },
+  },
+  {
+    // R18: presentation is deliberately separate from the durable import job.
+    // One row belongs to one retained connection lifecycle; deleting that
+    // connection cascades the presentation record so a genuinely new connection
+    // receives a new eligible activation without replaying a reauthorization.
+    version: 31,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS strava_connection_activations (
+         connection_id TEXT PRIMARY KEY REFERENCES strava_connections(id) ON DELETE CASCADE,
+         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         presentation_state TEXT NOT NULL CHECK (presentation_state IN ('pending', 'dismissed', 'summary_ready', 'completed')),
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL,
+         dismissed_at TEXT,
+         summary_ready_at TEXT,
+         completed_at TEXT
+       )`,
+      "CREATE INDEX IF NOT EXISTS idx_strava_connection_activations_owner_updated ON strava_connection_activations(user_id, updated_at DESC)",
+    ],
   },
 ];
 

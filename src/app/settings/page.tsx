@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CableIcon, CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,11 +10,12 @@ import { ByoConnectionForm } from "@/components/byo-connection-form";
 import { StravaConnectionControls } from "@/components/strava-connection-controls";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { GoalsManager } from "@/components/goals-manager";
+import { Button } from "@/components/ui/button";
 import {
   getAthleteThresholds,
+  getConnectionActivation,
   getMeta,
   getStravaConnectionStatus,
-  listBikes,
   listGoals,
   listShoes,
 } from "@/lib/db";
@@ -41,9 +43,9 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const lastSync = await getMeta(owner, "last_sync_at");
   const baselineDate = await getMeta(owner, "baseline_date");
   const shoes = await listShoes(owner);
-  const bikes = await listBikes(owner);
   const thresholds = await getAthleteThresholds(owner);
   const goals = await listGoals(owner);
+  const activation = await getConnectionActivation(owner);
 
   const callbackResult = typeof params.strava === "string" ? params.strava : null;
 
@@ -190,6 +192,23 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
                   </div>
                 </div>
                 <StravaConnectionControls />
+                {activation ? (
+                  <div className="rounded-xl border bg-background/70 p-4">
+                    <p className="text-sm font-medium">
+                      {activation.state === "completed"
+                        ? "Review your activation summary"
+                        : "Resume your connection import"}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {activation.state === "completed"
+                        ? "Reopen the evidence-linked summary created from your imported records."
+                        : "Progress belongs to this connection lifecycle and can be resumed safely after leaving."}
+                    </p>
+                    <Button asChild variant="outline" className="mt-3">
+                      <Link href="/onboarding/connection">Open connection progress</Link>
+                    </Button>
+                  </div>
+                ) : null}
               </>
             ) : (
               <div className="space-y-5">

@@ -171,13 +171,10 @@ test("the authenticated callback reaches a real owner-bound mock exchange and in
     `/api/strava/callback?state=${encodeURIComponent(state!)}&code=e2e-authorized-code`,
     { maxRedirects: 0 }
   );
-  expect(callback.headers().location).toBe("http://localhost:3100/?strava=connected");
+  expect(callback.headers().location).toBe("http://localhost:3100/onboarding/connection");
   await page.goto(callback.headers().location!);
-  await expect(page.getByRole("alert").filter({ hasText: "Strava is connected" })).toBeVisible();
   await expect(
-    page.getByText(
-      "Your existing history was added to Recent training. New activities will appear in Review when they need your confirmation."
-    )
+    page.getByRole("heading", { name: "Your imported training has a starting point." })
   ).toBeVisible();
   await captureEvidence(page, "32-recent-training-first-value-1440.png");
 
