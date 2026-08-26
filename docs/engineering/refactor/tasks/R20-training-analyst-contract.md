@@ -1,6 +1,6 @@
 # R20 — Define the Training Analyst contract
 
-**Status:** blocked
+**Status:** done
 **Delivery class:** documentation/plan
 **Risk/model:** high — Sol high
 **Depends on:** R19 done and Marcos's curated theory library available
@@ -20,8 +20,9 @@ schema, evaluation criteria, or fallback UX.
   persistence, cost limit, or analyst UI contract.
 - Initial imported summaries lack complete streams/details, so the analyst must
   distinguish summary evidence from enriched evidence.
-- Marcos will provide a curated theory library later. It is not available now
-  and cannot be invented or replaced by ad hoc web content.
+- The curated, versioned theory library is vendored at
+  `docs/training-theory/`, with source IDs such as `[SRC-001]` and review
+  metadata dated 2026-08-25.
 
 ## Locked decisions
 
@@ -52,24 +53,34 @@ schema, evaluation criteria, or fallback UX.
     adversarial missing/contradictory data, prompt injection in activity names,
     unsupported theory, overconfidence, prescription, and cross-owner canaries.
 
+## Marcos-approved product defaults
+
+- Provider: OpenAI API; model: Terra with high reasoning; no automatic fallback.
+- Send only the minimum redacted evidence packet. Do not send names, email
+  addresses, tokens, or raw free-text activity names.
+- Consent is explicit and versioned as `training-analyst-v1`; it is revocable,
+  and generation is unavailable without current consent.
+- Training Hub stores structured output, safe evidence references, and a packet
+  digest; revocation or account deletion removes those records.
+- The provider API is treated as not used for model training by default; the
+  product does not assume zero-data-retention approval and must disclose the
+  provider's applicable monitoring/retention terms.
+- Initial limits are one generation per athlete per day, ten concurrent
+  generations, and a US$20 monthly budget with a Marcos-owned kill switch.
+
 ## Required planning outputs
 
-1. Curated library ingestion/version/citation format and allowed documents.
-2. Exact evidence-packet schema with field minimization and units.
-3. Exact structured output schema and confidence/limitation rubric.
-4. System prompt and prompt-injection boundary.
-5. Provider/model selection, regional/privacy terms, explicit athlete consent,
-   retention/deletion, redaction, cost/rate/concurrency budgets, and kill switch.
-6. Generation/feedback persistence and owner/deletion lifecycle.
-7. Deterministic fallback and all UI states/copy.
-8. Golden/adversarial evaluation fixtures, scoring thresholds, regression command,
-   and release stop conditions.
-9. R21 file/interface map, delivery-class proof, rollout, and rollback.
+The accepted [Training Analyst v1 contract](../../../product/training-analyst-contract.md)
+locks all nine required planning outputs: the exact library/citation contract,
+field-minimized packet, strict response schema and rubric, static prompt
+boundary, OpenAI/consent/retention policy, persistence/deletion lifecycle, UI
+fallback, zero-tolerance fixtures and regression command, plus R21's exact
+implementation/rollback contract.
 
 ## Acceptance
 
 - No unresolved theory, privacy, provider, data, output, UI, or evaluation choice
-  remains for R21.
+  remains for R21; the accepted product contract is its single source of truth.
 - Every allowed claim can point to athlete and theory evidence.
 - Prescription/medical/readiness/generic-chat outputs are mechanically rejected
   or withheld.

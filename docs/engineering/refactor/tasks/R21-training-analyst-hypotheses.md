@@ -14,10 +14,10 @@ defer each one without any autonomous training prescription or profile mutation.
 
 ## Current truth
 
-R20 must replace this section with exact accepted evidence/output schemas,
-provider/model boundary, persistence, consent, UI states, evaluation fixtures,
-and target files. R20 must be done before invocation; no second readiness state
-exists after that dependency.
+The accepted [Training Analyst v1 contract](../../../product/training-analyst-contract.md)
+defines the exact evidence/output schemas, theory cards, OpenAI/consent/privacy
+boundary, persistence, UI states, fixtures, and release gate. R21 implements
+that contract exactly; it does not reopen its decisions.
 
 ## Locked decisions
 
@@ -59,10 +59,31 @@ and exact evaluation/integration/browser tests named by R20.
 
 ## Implementation map
 
-R20 must replace this section with exact steps and observable completion for:
-consent, packet construction, generation boundary, schema/prohibition validation,
-persistence/audit, hypothesis UI/feedback, deterministic fallback, deletion, and
-cost/evaluation observability.
+1. Add R21-owned additive migrations and repositories for the five analyst
+   tables specified by the contract. Completion: owner-scoped consent,
+   generation, hypothesis, feedback, and usage records have the required
+   cascades and no raw packet/provider response is durable.
+2. Build the checked-in typed theory-card catalog from exactly the accepted
+   `training-theory-2026-08-25` documents and source registry. Completion: each
+   selected card has validated source IDs, evidence weight, population, and
+   limitation; arbitrary Markdown is never model input.
+3. Build the owner-scoped packet constructor and redaction/digest boundary.
+   Completion: canary names, tokens, activity titles, free text, raw IDs, and
+   owner-B rows do not enter packet or logs; missing evidence bypasses provider.
+4. Implement the allowlisted foreground OpenAI adapter, consent/limit
+   reservation, strict response parsing, prohibition validator, and ambiguous
+   retry reconciliation. Completion: no tools/history/fallback provider are
+   possible, and only fully valid bounded output persists.
+5. Add request/history/feedback UI to the named deterministic insight surfaces.
+   Completion: consent, success, evidence disclosure, all four feedback actions,
+   unavailable/fallback, opt-out, keyboard/focus, 1440px/390px, and reduced
+   motion match the contract; feedback never applies a parameter.
+6. Wire revocation, Strava disconnect, and account deletion cleanup. Completion:
+   analyst records have the contract's deletion semantics and deterministic
+   value remains after every removal/failure state.
+7. Add the contract's deterministic-double golden/adversarial integration suite
+   and run its exact command, then perform browser iteration at 1440px and
+   390px. Completion: every zero-tolerance prohibition and owner canary passes.
 
 ## Acceptance
 

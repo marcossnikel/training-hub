@@ -11,7 +11,7 @@ The state vocabulary is `queued | done | blocked`. `blocked` is reserved
 for a genuinely external dependency; a local implementation or test failure is
 owned by the builder.
 
-**Next task:** R20 (blocked: curated theory library required)
+**Next task:** R21
 
 ## Task index
 
@@ -38,7 +38,7 @@ owned by the builder.
 | R17 | done | full stack | medium, Terra medium | One-time, skippable first-login platform onboarding. | [R17](tasks/R17-welcome-onboarding.md) |
 | R18 | done | full stack | high, Terra high | One-time, skippable post-connection progress and Activation Summary. | [R18](tasks/R18-connection-activation.md) |
 | R19 | done | full stack | high, Terra high | Athlete performance profile stores nullable values with provenance. | [R19](tasks/R19-athlete-performance-profile.md) |
-| R20 | blocked | documentation/plan | high, Sol high | Training Analyst evidence, theory, privacy, and output contract. | [R20](tasks/R20-training-analyst-contract.md) |
+| R20 | done | documentation/plan | high, Sol high | Training Analyst evidence, theory, privacy, and output contract. | [R20](tasks/R20-training-analyst-contract.md) |
 | R21 | queued | full stack | high, Terra high | Bounded Training Analyst hypotheses with confirm/edit/reject feedback. | [R21](tasks/R21-training-analyst-hypotheses.md) |
 
 Current packet files are under `tasks/`. Invocation authorizes the builder to
@@ -82,8 +82,8 @@ Among dependency-satisfied queued tasks, choose the first item in this order:
 4. Training Analyst: R20, R21; and
 5. structural convergence after product behavior exists: R10, R11, R12, R13.
 
-R20 still stops if Marcos's curated theory library is unavailable when invoked;
-that is a genuine external input, not a readiness ceremony.
+R20 is complete against the checked-in curated theory library. R21 is the next
+dependency-satisfied queued task.
 
 ## Organization direction
 
