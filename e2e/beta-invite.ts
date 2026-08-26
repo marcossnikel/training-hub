@@ -11,9 +11,9 @@ export async function betaSignUpPath(email: string): Promise<string> {
   const database = createClient({ url: DATABASE_URL, intMode: "number" });
   try {
     await database.execute({
-      sql: `INSERT INTO beta_invites (id, token_hash, intended_email, issued_by, created_at, expires_at)
-            VALUES (?, ?, ?, ?, datetime('now'), datetime('now', '+1 hour'))`,
-      args: [crypto.randomUUID(), tokenHash, email.toLowerCase(), "e2e-fixture"],
+      sql: `INSERT INTO beta_invites (id, token_hash, intended_email, created_at, expires_at)
+            VALUES (?, ?, ?, datetime('now'), datetime('now', '+1 hour'))`,
+      args: [crypto.randomUUID(), tokenHash, email.toLowerCase()],
     });
   } finally {
     database.close();

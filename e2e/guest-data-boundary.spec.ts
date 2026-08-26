@@ -89,9 +89,10 @@ async function signUpAndCreateOwnerOnlyActivity(
     await dialog.getByLabel("Name").fill(shoeName);
     await dialog.getByRole("button", { name: "Add shoe" }).click();
     await expect(dialog).toBeHidden();
+    await expect(page.getByText(shoeName, { exact: true })).toBeVisible();
 
     await page.goto("/settings");
-    await page.getByLabel("Date", { exact: true }).fill("2026-08-15");
+    await page.locator("#manual-date").fill("2026-08-15");
     await page.locator("#manual-km").fill("12.58");
     await page.locator("#manual-shoe").press("Enter");
     await page.getByRole("option", { name: shoeName }).click();
@@ -104,7 +105,7 @@ async function signUpAndCreateOwnerOnlyActivity(
     // The subsequent cookie-free probes prove that neither the HTML nor RSC
     // request can reuse it from an intermediary or route cache.
     await page.goto("/");
-    await expect(page.getByText(shoeName, { exact: true })).toBeVisible();
+    await expect(page.getByText("Manual adjustment", { exact: true })).toBeVisible();
     const activityPath = await page.locator('a[href^="/activity/"]').first().getAttribute("href");
     expect(activityPath).toMatch(/^\/activity\/\d+$/);
     return activityPath!;

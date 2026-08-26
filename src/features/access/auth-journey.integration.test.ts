@@ -88,9 +88,9 @@ describe("auth journey", () => {
   it("redeems an invite once, ignores signup next input, and leaves generic failures retry-safe", async () => {
     configureDisposableEnvironment("signup");
     const { client } = await import("@/lib/db/client");
-    const { issueBetaInvite } = await import("@/lib/beta-invites");
+    const { createInviteFixture } = await import("@/lib/test-invite");
     const { auth } = await import("@/lib/auth");
-    const invite = await issueBetaInvite({ email: "athlete@example.test", issuedBy: "r8-test" });
+    const invite = await createInviteFixture("athlete@example.test");
 
     const [first, replay] = await Promise.all([
       redeemInvite(auth, invite.token, invite.email),
@@ -113,9 +113,9 @@ describe("auth journey", () => {
   it("redirects authenticated auth-entry requests, preserves guest recovery, and observes revocation", async () => {
     configureDisposableEnvironment("session");
     const { client } = await import("@/lib/db/client");
-    const { issueBetaInvite } = await import("@/lib/beta-invites");
+    const { createInviteFixture } = await import("@/lib/test-invite");
     const { auth, requireCurrentUser } = await import("@/lib/auth");
-    const invite = await issueBetaInvite({ email: "session@example.test", issuedBy: "r8-test" });
+    const invite = await createInviteFixture("session@example.test");
     const response = await redeemInvite(auth, invite.token, invite.email);
     expect(response.status).toBe(200);
     requestState.headers = new Headers({ cookie: sessionCookie(response) });

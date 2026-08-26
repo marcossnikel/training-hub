@@ -5,15 +5,12 @@
  * function's stdout/stderr, so `console.*` is all that is needed to get these
  * structured logs in production. Swapping in Sentry / Datadog / PostHog later is
  * a one-file change confined to this module: callers keep importing `logger` and
- * `track` and never learn where the data actually goes.
+ * never learn where the data actually goes.
  *
- * Two responsibilities live behind this seam:
+ * The logger responsibility lives behind this seam:
  *  - `logger`: structured error/warn/info/debug lines tagged with a call-site
  *    context (e.g. "strava.tryFetchGear"), used to make silent, best-effort
  *    failures observable without changing how a caller degrades.
- *  - `track`: usage analytics. Deliberately a documented no-op for now — product
- *    analytics are deferred behind this single future plug point, so no vendor
- *    (`@vercel/analytics`, PostHog, etc.) is wired yet.
  */
 
 /** Arbitrary structured fields attached to a log line. `error` is serialized. */
@@ -65,13 +62,3 @@ export const logger: Logger = {
     emit("debug", context, fields);
   },
 };
-
-/**
- * Usage-analytics seam. Intentionally a no-op today: product analytics are
- * deferred, and this is the single point where a vendor (`@vercel/analytics`,
- * PostHog, Segment, …) would be wired in without touching any caller.
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- documented no-op seam; params define the vendor-ready signature but are intentionally unused today
-export function track(event: string, props?: Record<string, unknown>): void {
-  // No-op by design. See the module header.
-}

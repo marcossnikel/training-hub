@@ -26,9 +26,9 @@ function configureDisposableEnvironment(): void {
 }
 
 async function signUp(email: string) {
-  const { issueBetaInvite } = await import("@/lib/beta-invites");
+  const { createInviteFixture } = await import("@/lib/test-invite");
   const { auth } = await import("@/lib/auth");
-  const invite = await issueBetaInvite({ email, issuedBy: "r17-test" });
+  const invite = await createInviteFixture(email);
   const response = await auth.handler(
     new Request("http://localhost:3100/api/auth/sign-up/email", {
       method: "POST",

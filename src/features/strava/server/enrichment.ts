@@ -20,7 +20,7 @@ import {
 } from "@/lib/stream-metrics";
 import { FULL_RESOLUTION, normalizeStreams, type ActivityStreams } from "@/lib/streams";
 import { logger } from "@/lib/telemetry";
-import type { Activity, StravaGear } from "@/lib/types";
+import type { Activity } from "@/lib/types";
 import type { OwnerContext } from "@/lib/owner-context";
 import { getStravaAccessToken, isStravaConnected } from "./connection";
 import {
@@ -126,27 +126,4 @@ export async function loadActivityStreams(
     logger.error("strava.enrichment.streams", { error, activityId: activity.id });
     return null;
   }
-}
-
-export async function loadStravaGear(
-  owner: OwnerContext,
-  provider: StravaProvider = stravaProvider
-): Promise<{ shoes: StravaGear[]; bikes: StravaGear[] } | null> {
-  if (!(await isStravaConnected(owner))) return null;
-  try {
-    return await provider.getAthleteGear({
-      accessToken: await getStravaAccessToken(owner, provider),
-    });
-  } catch (error) {
-    logger.error("strava.enrichment.gear", { error });
-    return null;
-  }
-}
-
-export async function loadStravaShoes(owner: OwnerContext): Promise<StravaGear[] | null> {
-  return (await loadStravaGear(owner))?.shoes ?? null;
-}
-
-export async function loadStravaBikes(owner: OwnerContext): Promise<StravaGear[] | null> {
-  return (await loadStravaGear(owner))?.bikes ?? null;
 }

@@ -43,6 +43,13 @@ setup("create and authenticate the E2E athlete", async ({ page }) => {
   try {
     await database.batch(
       [
+        {
+          sql: `INSERT INTO user_meta (user_id, key, value)
+                SELECT ?, key, value FROM user_meta
+                WHERE user_id = (SELECT id FROM users WHERE auth_subject = ?)
+                ON CONFLICT(user_id, key) DO NOTHING`,
+          args: [FIXTURE_OWNER, authSubject],
+        },
         { sql: "DELETE FROM users WHERE auth_subject = ?", args: [authSubject] },
         {
           sql: "UPDATE users SET auth_subject = ? WHERE id = ?",
@@ -58,12 +65,11 @@ setup("create and authenticate the E2E athlete", async ({ page }) => {
   } finally {
     database.close();
   }
-  await page.reload();
+  await page.goto("/", { waitUntil: "commit" });
   await expect(page.locator('[data-environment-indicator="E2E"]')).toHaveCount(2);
   await captureEnvironmentIndicator(page, "R5-root-creator-e2e-1440.png");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
-  await page.reload();
   await expect(
     page.locator('[data-app-shell="compact"] [data-environment-indicator="E2E"]')
   ).toHaveCount(1);

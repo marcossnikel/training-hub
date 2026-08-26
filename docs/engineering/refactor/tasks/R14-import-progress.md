@@ -1,5 +1,8 @@
 # R14 — Persist truthful initial-import progress
 
+> Historical task context: this packet records the pre-R11 import seam;
+> current Strava ownership is recorded in the architecture document.
+
 **Status:** done
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high

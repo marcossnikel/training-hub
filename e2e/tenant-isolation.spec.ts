@@ -75,9 +75,11 @@ async function signUp(
   context: BrowserContext,
   suffix: string
 ): Promise<{ page: Page; owner: BrowserOwner }> {
+  await context.clearCookies();
   const page = await context.newPage();
   const email = `isolation-${suffix}@example.test`;
   await page.goto(await betaSignUpPath(email));
+  await expect(page.getByLabel("Name")).toBeVisible();
   await page.getByLabel("Name").fill(`Isolation ${suffix}`);
   await page.getByLabel("Name").press("Tab");
   await expect(page.getByLabel("Email")).toBeFocused();
@@ -118,23 +120,27 @@ async function createBRecords(page: Page, owner: BrowserOwner, suffix: string): 
   await expect(page.locator("html")).toHaveJSProperty("scrollWidth", 390);
 
   await page.goto("/settings");
-  const manualDate = page.getByLabel("Date", { exact: true });
+  const manualDate = page.locator("#manual-date");
   const manualKm = page.locator("#manual-km");
   const manualShoe = page.locator("#manual-shoe");
   const addEntry = page.getByRole("button", { name: "Add entry" });
   await manualDate.fill("2026-08-15");
+  await expect(manualDate).toHaveValue("2026-08-15");
   // Native date inputs can tab through browser-managed day/month/year segments;
   // stay on the real keyboard path until the next actual form control is focused.
   await tabTo(page, manualKm);
   await expect(manualKm).toBeFocused();
+  await expect(manualDate).toHaveValue("2026-08-15");
   await manualKm.fill("12.34");
   await tabTo(page, manualShoe);
   await expect(manualShoe).toBeFocused();
   await manualShoe.press("Enter");
   await page.getByRole("option", { name: shoeName }).click();
+  await expect(manualShoe).toContainText(shoeName);
   await tabTo(page, addEntry);
   await expect(addEntry).toBeFocused();
-  await addEntry.press("Enter");
+  await expect(manualDate).toHaveValue("2026-08-15");
+  await addEntry.click();
   await expect(manualKm).toHaveValue("");
 
   const database = createClient({

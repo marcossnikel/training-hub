@@ -55,10 +55,10 @@ async function signUp(email: string, token: string): Promise<string> {
   return cookie.split(";")[0];
 }
 
-async function legacySession(email: string): Promise<string> {
-  const { issueBetaInvite } = await import("@/lib/beta-invites");
-  const legacy = await issueBetaInvite({ email, issuedBy: "r6-compatibility-cli" });
-  return signUp(email, legacy.token);
+async function fixtureSession(email: string): Promise<string> {
+  const { createInviteFixture } = await import("@/lib/test-invite");
+  const fixture = await createInviteFixture(email);
+  return signUp(email, fixture.token);
 }
 
 afterEach(() => {
@@ -73,7 +73,7 @@ afterEach(() => {
 });
 
 describe("invite migration compatibility", () => {
-  it("upgrades a pre-R6 invitation table without losing the legacy operator provenance", async () => {
+  it("upgrades a pre-R6 invitation table and removes only the expired operator field", async () => {
     const file = disposableFile("legacy");
     const database = createClient({ url: `file:${file}`, intMode: "number" });
     try {
@@ -116,13 +116,16 @@ describe("invite migration compatibility", () => {
       expect((await database.execute("SELECT version FROM schema_version")).rows).toEqual([
         { version: OWNER_SCHEMA_VERSION },
       ]);
+      const columns = await database.execute("SELECT name FROM pragma_table_info('beta_invites')");
+      expect(columns.rows.map((row) => row.name)).not.toContain("issued_by");
+      expect(columns.rows.map((row) => row.name)).toContain("issued_by_user_id");
       expect(
         (
           await database.execute(
-            "SELECT issued_by, issued_by_user_id FROM beta_invites WHERE id = 'legacy-id'"
+            "SELECT issued_by_user_id FROM beta_invites WHERE id = 'legacy-id'"
           )
         ).rows
-      ).toEqual([{ issued_by: "legacy-operator", issued_by_user_id: null }]);
+      ).toEqual([{ issued_by_user_id: null }]);
     } finally {
       database.close();
     }
@@ -139,12 +142,12 @@ describe("creator invitation module", () => {
       await import("./server");
     await ensureMigrated();
 
-    const creatorCookie = await legacySession("creator@example.test");
+    const creatorCookie = await fixtureSession("creator@example.test");
     requestState.headers = new Headers({ cookie: creatorCookie });
     const { requireAccess } = await import("@/features/access/server");
     await requireAccess();
     await bootstrapCreator(client, { email: "creator@example.test", apply: true });
-    const memberCookie = await legacySession("member@example.test");
+    const memberCookie = await fixtureSession("member@example.test");
 
     requestState.headers = new Headers({ cookie: memberCookie });
     vi.stubEnv("TRAINING_HUB_INVITE_TARGET", "");
@@ -195,7 +198,7 @@ describe("creator invitation module", () => {
     await revokeInvitation(revokedRow.id);
     await signUp("redeemed@example.test", new URL(redeemed.inviteUrl).searchParams.get("invite")!);
 
-    const secondCreatorCookie = await legacySession("second-creator@example.test");
+    const secondCreatorCookie = await fixtureSession("second-creator@example.test");
     requestState.headers = new Headers({ cookie: secondCreatorCookie });
     await requireAccess();
     await bootstrapCreator(client, { email: "second-creator@example.test", apply: true });

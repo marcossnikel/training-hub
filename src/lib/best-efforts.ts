@@ -4,10 +4,9 @@
 // backfill script (`scripts/backfill-best-efforts.ts`) agree on exactly what a
 // storable effort row is.
 //
-// The payload interface lives here, next to the transform that consumes it, and
-// src/lib/strava.ts re-exports it so every existing import site is unchanged.
-// That keeps the dependency one-way (strava.ts -> best-efforts.ts, the same shape
-// as streams.ts/normalizeStreams): this module never imports the fetch layer.
+// The payload interface lives here, next to the transform that consumes it. The
+// feature-owned Strava enrichment and backfill seams import this module directly;
+// it never imports the provider fetch layer.
 
 /**
  * A fastest sub-segment Strava found inside a run ("5K", "1 mile", …), with the

@@ -1,18 +1,15 @@
 import crypto from "node:crypto";
 import { client } from "./db/client";
-import { resolveDatabaseUrl, resolveTursoAuthToken, resolveTursoDatabaseUrl } from "./db/config";
 import { ensureMigrated } from "./db/migrations";
-import { persistInvitation, revokePersistedInvitation } from "@/features/invites/persistence";
+import {
+  resolveDatabaseUrl,
+  resolveTursoAuthToken,
+  resolveTursoDatabaseUrl,
+} from "@/server/config/runtime";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GENERIC_REGISTRATION_ERROR = "Registration is unavailable.";
-
-export type BetaInvite = {
-  email: string;
-  token: string;
-  expiresAt: string;
-};
 
 type InviteEnvironment = Record<string, string | undefined>;
 
@@ -131,9 +128,6 @@ export function assertBetaInviteSchemaTarget(env: InviteEnvironment = process.en
  * redeemable.
  */
 export async function ensureBetaInviteSchema(): Promise<void> {
-  // Kept as a compatibility export for the auth hook and temporary CLI.
-  // Schema ownership is now the ordered additive migration registry, whether
-  // registration is enabled or not.
   assertBetaInviteSchemaTarget();
   await ensureMigrated();
 }
@@ -158,55 +152,6 @@ export async function validateBetaInviteForRegistration(input: {
     args: [tokenHash, email],
   });
   return result.rows.length === 1 ? tokenHash : null;
-}
-
-export async function issueBetaInvite(input: {
-  email: unknown;
-  issuedBy: unknown;
-  expiresAt?: Date;
-}): Promise<BetaInvite> {
-  const email = normalizeInviteEmail(input.email);
-  const issuedBy = typeof input.issuedBy === "string" ? input.issuedBy.trim() : "";
-  if (!email || !issuedBy || issuedBy.length > 120) {
-    throw new Error("A valid email and concise operator identifier are required.");
-  }
-  await ensureBetaInviteSchema();
-  const token = crypto.randomBytes(32).toString("base64url");
-  const expiresAt = input.expiresAt ?? new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
-  if (
-    !(expiresAt instanceof Date) ||
-    Number.isNaN(expiresAt.getTime()) ||
-    expiresAt <= new Date()
-  ) {
-    throw new Error("Invitation expiry must be a future date.");
-  }
-  await persistInvitation({
-    tokenHash: digestInviteToken(token),
-    intendedEmail: email,
-    issuedBy,
-    expiresAt: expiresAt.toISOString(),
-  });
-  return { email, token, expiresAt: expiresAt.toISOString() };
-}
-
-/** Operator lifecycle action; it never reveals whether a token existed. */
-export async function revokeBetaInvite(token: unknown): Promise<void> {
-  if (!isOpaqueInviteToken(token)) throw new Error("A valid opaque invitation token is required.");
-  await ensureBetaInviteSchema();
-  await client.execute({
-    sql: `UPDATE beta_invites
-          SET revoked_at = datetime('now')
-          WHERE token_hash = ? AND redeemed_at IS NULL AND revoked_at IS NULL`,
-    args: [digestInviteToken(token)],
-  });
-}
-
-/** Temporary CLI adapter until R13 removes legacy operator support. */
-export async function revokeBetaInviteById(id: unknown): Promise<void> {
-  if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id))
-    throw new Error("A valid invitation identifier is required.");
-  await ensureBetaInviteSchema();
-  await revokePersistedInvitation(id);
 }
 
 function parseCanonicalInviteOrigin(value: string | undefined, name: string): URL {

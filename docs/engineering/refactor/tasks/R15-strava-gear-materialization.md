@@ -1,5 +1,8 @@
 # R15 — Materialize Strava gear with explicit lifecycle
 
+> Historical task context: this packet records the pre-R11 gear seam; current
+> Strava ownership is recorded in the architecture document.
+
 **Status:** done
 **Delivery class:** full stack
 **Risk/model:** high — Terra high

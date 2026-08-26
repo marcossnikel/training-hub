@@ -10,7 +10,7 @@ setup("refresh the disposable E2E athlete session", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill("e2e@example.test");
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();

@@ -1,5 +1,8 @@
 # R0 — Restore a trustworthy tooling baseline
 
+> Historical task context: the former `src/lib/strava.ts` path was removed by
+> the completed Strava refactor; current ownership is recorded in R11.
+
 **Status:** done
 **Risk:** medium
 **Recommended builder:** Terra medium

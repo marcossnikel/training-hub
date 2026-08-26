@@ -69,6 +69,7 @@ export default defineConfig({
         /mobile\.spec\.ts/,
         /private-beta-landing\.spec\.ts/,
         /tenant-isolation\.spec\.ts/,
+        /production-smoke\.spec\.ts/,
       ],
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
       dependencies: ["refresh-owner-session"],
@@ -91,6 +92,10 @@ export default defineConfig({
       testMatch: /connection-activation\.spec\.ts/,
       workers: 1,
       use: { ...devices["Desktop Chrome"] },
+      // It owns a separate account but still writes the shared disposable
+      // SQLite file; keep it in the serialized mutation lane so account
+      // creation cannot race any fixture writes.
+      dependencies: ["insight-feedback"],
     },
     {
       name: "creator-invites",
@@ -125,7 +130,7 @@ export default defineConfig({
       testMatch: [/byo-connection\.spec\.ts/, /gear\.spec\.ts/, /tenant-isolation\.spec\.ts/],
       workers: 1,
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
-      dependencies: ["insight-feedback"],
+      dependencies: ["connection-activation"],
     },
     // The login/logout flow itself must run UNAUTHENTICATED (no storageState).
     {

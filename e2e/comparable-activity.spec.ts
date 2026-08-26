@@ -245,25 +245,35 @@ test("the final route streams its real loading skeleton during a slow client nav
   page,
 }) => {
   await addLoadingVolume();
+  await page.route("**/activity/*/compare**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.continue();
+  });
 
-  for (const [width, height] of [
-    [1440, 1000],
-    [390, 844],
-  ] as const) {
-    const fixture = await addFixture();
-    await page.setViewportSize({ width, height });
-    await page.goto(`/activity/${fixture.sourceId}`);
-    const entry = page.getByRole("link", { name: "Compare with a prior activity" });
-    await expect(entry).toBeVisible();
-    const navigation = entry.click({ noWaitAfter: true });
-    const loading = page.getByLabel("Loading comparable prior activity");
-    await expect(loading).toHaveAttribute("aria-busy", "true");
-    await expect(loading.locator('[data-slot="skeleton"]')).toHaveCount(7);
-    await capture(page, `37-comparable-prior-activity-loading-${width}.png`);
-    await navigation;
-    await expect(
-      page.getByRole("heading", { level: 1, name: "A prior session with a similar shape." })
-    ).toBeVisible();
+  try {
+    for (const [width, height] of [
+      [1440, 1000],
+      [390, 844],
+    ] as const) {
+      const fixture = await addFixture();
+      await page.setViewportSize({ width, height });
+      await page.goto(`/activity/${fixture.sourceId}`);
+      const entry = page.getByRole("link", { name: "Compare with a prior activity" });
+      await expect(entry).toBeVisible();
+      const navigation = entry.click({ noWaitAfter: true });
+      const loading = page.getByLabel("Loading comparable prior activity");
+      await expect(loading).toHaveAttribute("aria-busy", "true");
+      // The shared route fallback has three heading lines, two activity cards,
+      // one summary strip, and three sidebar controls.
+      await expect(loading.locator('[data-slot="skeleton"]')).toHaveCount(9);
+      await capture(page, `37-comparable-prior-activity-loading-${width}.png`);
+      await navigation;
+      await expect(
+        page.getByRole("heading", { level: 1, name: "A prior session with a similar shape." })
+      ).toBeVisible();
+    }
+  } finally {
+    await page.unroute("**/activity/*/compare**");
   }
 });
 

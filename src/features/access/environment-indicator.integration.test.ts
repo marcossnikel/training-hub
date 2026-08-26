@@ -17,10 +17,10 @@ vi.mock("next/headers", () => ({
 
 async function signUp(
   auth: typeof import("@/lib/auth").auth,
-  issueBetaInvite: typeof import("@/lib/beta-invites").issueBetaInvite,
+  createInviteFixture: typeof import("@/lib/test-invite").createInviteFixture,
   email: string
 ): Promise<string> {
-  const invite = await issueBetaInvite({ email, issuedBy: "r5-test" });
+  const invite = await createInviteFixture(email);
   const response = await auth.handler(
     new Request("http://localhost:3100/api/auth/sign-up/email", {
       method: "POST",
@@ -77,12 +77,12 @@ describe("creator environment indicator boundary", () => {
 
     const { ensureMigrated } = await import("@/lib/db/migrations");
     const { client } = await import("@/lib/db/client");
-    const { issueBetaInvite } = await import("@/lib/beta-invites");
+    const { createInviteFixture } = await import("@/lib/test-invite");
     const { auth } = await import("@/lib/auth");
     const { resolveEnvironmentIndicator } = await import("./server");
     await ensureMigrated();
 
-    const creatorCookie = await signUp(auth, issueBetaInvite, "creator@example.test");
+    const creatorCookie = await signUp(auth, createInviteFixture, "creator@example.test");
     requestState.headers = new Headers({ cookie: creatorCookie, "x-role": "creator" });
     expect(await resolveEnvironmentIndicator()).toBeNull();
 
@@ -119,7 +119,7 @@ describe("creator environment indicator boundary", () => {
       expect(markup).not.toContain(forbidden);
     }
 
-    const memberCookie = await signUp(auth, issueBetaInvite, "member@example.test");
+    const memberCookie = await signUp(auth, createInviteFixture, "member@example.test");
     requestState.headers = new Headers({ cookie: memberCookie, "x-role": "creator" });
     expect(await resolveEnvironmentIndicator()).toBeNull();
 

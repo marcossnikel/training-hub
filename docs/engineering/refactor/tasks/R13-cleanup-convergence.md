@@ -1,9 +1,9 @@
 # R13 — Converge dead code, tooling, and documentation
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** medium — Luna high after the inventory is frozen
-**Depends on:** R0 through R12 and R14 through R21 done
+**Depends on:** R0 through R12 and R14 through R19 done; R20/R21 are outside this cleanup
 **Unlocks:** Milestone M4 completion
 
 ## Outcome
@@ -15,7 +15,7 @@ implemented feature ownership without relying on stale AI-generated guidance.
 
 ## Required context
 
-- done packets from R0–R12 and R14–R21, especially every named compatibility
+- done packets from R0–R12 and R14–R19, especially every named compatibility
   expiry;
 - `AGENTS.md`, `package.json`, `biome.json`, `knip.json`, TypeScript/Vitest/
   Playwright configuration, scripts, and import aliases;
@@ -38,6 +38,27 @@ compatibility fields, or docs that must be deliberately expired.
 This task must regenerate its candidate list after every earlier product/
 structural packet is done. The current observations are reasons to investigate,
 not deletion authorization.
+
+## Frozen candidate inventory
+
+Frozen 2026-08-25 from the current checkout. Rows marked `delete` or `move`
+are the only rows this task may change.
+
+| Candidate | Evidence unused/stale | Dynamic/convention checks | Decision | Replacement/expiry | Proof |
+| --- | --- | --- | --- | --- | --- |
+| `src/server/config/server.ts` | It is an intentional server-only boundary fixture, not a general runtime resolver | Explicit Knip entry plus config integration marker test; scripts use `runtime.ts` because `server-only` rejects plain Node composition | keep with reason | Keep as the server-only boundary fixture; no new expiry | config integration marker test + Knip |
+| `src/lib/db/config.ts` + `src/lib/db.config.test.ts` | Thin compatibility wrappers have one production caller and a duplicate test seam | Search finds only `beta-invites.ts` and its test; no framework/script entrypoint | move | Use `src/server/config/runtime.ts`; move precedence assertions to its integration suite | typecheck + config integration |
+| `src/components/ui/badge.tsx` | Knip unused file; `rg` finds no import/JSX use | Not a route or framework-discovered file; no dynamic use | delete | None | Knip + repository search |
+| `src/components/ui/dropdown-menu.tsx` | Knip unused file; `rg` finds no import/use | Not a route or framework-discovered file; no dynamic use | delete | None | Knip + repository search |
+| `src/components/ui/progress.tsx` | Knip unused file; `rg` finds no import/use | Not a route or framework-discovered file; no dynamic use | delete | None | Knip + repository search |
+| `AlertAction`, `CardAction`, `CardFooter`, `DialogClose` | Knip unused exports; exact symbol search finds no caller | Definitions are not framework entrypoints and are not used internally | delete | Keep only used UI primitive exports | Knip + typecheck |
+| `loadStravaGear`, `loadStravaShoes`, `loadStravaBikes` | Knip reports the leaf exports; callers use provider/materialization directly | No dynamic import; enrichment remains used for detail/streams | delete | None | Knip + Strava tests |
+| `track()` from `src/lib/telemetry.ts` | Knip unused export; exact search finds no caller; documented as a no-op future seam | Logger remains imported by live server modules; no analytics package depends on it | delete | Keep structured `logger` only | Knip + fast gates |
+| `scripts/issue-beta-invite.ts`, `beta:invite` package script | R7 UI proof is complete; BETA_INVITES still calls the CLI temporary adapter | No script, e2e fixture, or docs needs it after fixture migration | delete | Creator UI `/admin/invites` is the current adapter | invite integration + negative search |
+| `issueBetaInvite`, token-based `revokeBetaInvite`, `revokeBetaInviteById`, `BetaInvite` | R7 moved creator operations to `features/invites/server`; current callers are tests/CLI compatibility | Auth still needs validation policy; feature server owns issue/list/revoke | delete | Test-only fixture creates digest-only rows; auth keeps validation | invite/auth integration |
+| `beta_invites.issued_by` | R6 explicitly expires it in R13; product persistence already supplies `issued_by_user_id` | Historical migration 26/27 remains; current schema can drop the column forward | move | Migration 33 drops only the expired column and preserves rows/provenance | migration integration + PRAGMA assertion |
+| `docs/engineering/BETA_INVITES.md` CLI instructions | Current UI contradicts the “temporary CLI expires in R13” text | Product/decision history remains in R6/R7 packets; this is the current operator guide | move | Document creator UI and no-CLI boundary | link/search inspection |
+| references to removed `src/lib/strava.ts` in completed packets | Historical context, not a current import; exact search finds no live path | Packets are retained history and R11 records the replacement | keep with reason | Mark as historical baseline; do not rewrite decision history | explicit historical note + search |
 
 ## Locked decisions
 
@@ -175,3 +196,10 @@ No deployment is authorized.
 - One current agent/development workflow is authoritative and links are valid.
 - Dependencies/config/lockfile agree and the full Milestone M4 gate passes.
 - Final smoke shows no lost product capability or environment/security guardrail.
+
+## Completion evidence
+
+- `npm run verify` passed: environment and retired-path checks, typecheck, lint,
+  formatting, 766 unit tests, Knip, cycle detection, and 61 E2E tests.
+- `npm run test:e2e:production` passed its disposable build/start smoke.
+- `git diff --check` passed after the final documentation and source review.

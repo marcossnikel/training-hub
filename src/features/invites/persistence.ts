@@ -5,22 +5,14 @@ export async function persistInvitation(input: {
   tokenHash: string;
   intendedEmail: string;
   expiresAt: string;
-  issuedBy?: string;
   issuedByUserId?: string;
 }): Promise<string> {
   const id = crypto.randomUUID();
   await client.execute({
     sql: `INSERT INTO beta_invites
-            (id, token_hash, intended_email, issued_by, issued_by_user_id, created_at, expires_at)
-          VALUES (?, ?, ?, ?, ?, datetime('now'), ?)`,
-    args: [
-      id,
-      input.tokenHash,
-      input.intendedEmail,
-      input.issuedBy ?? null,
-      input.issuedByUserId ?? null,
-      input.expiresAt,
-    ],
+            (id, token_hash, intended_email, issued_by_user_id, created_at, expires_at)
+          VALUES (?, ?, ?, ?, datetime('now'), ?)`,
+    args: [id, input.tokenHash, input.intendedEmail, input.issuedByUserId ?? null, input.expiresAt],
   });
   return id;
 }

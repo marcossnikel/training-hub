@@ -81,10 +81,11 @@ repository); no public helper accepts a caller-provided `userId`. In particular:
   first four become per-user storage; the password gate is removed only as part
   of #22 after the new session boundary exists. Environment-wide Strava
   credentials must not be silently reused in BYO mode.
-- Strava seams: `src/lib/strava.ts` gets/saves the singleton auth, writes global
-  metadata, deduplicates on global `strava_id`, and is called by connect/callback,
-  sync, pages, scripts, and lazy detail/stream reads. It must receive the server
-  owner context and a connection record, and dedupe by `(user_id,strava_id)`.
+- Strava seams: `src/features/strava/server/connection.ts` owns connection
+  lifecycle, `provider.ts` owns transport, `sync.ts` owns import orchestration,
+  and `enrichment.ts` owns lazy detail/stream reads. They are called by the
+  connect/callback routes, pages, and scripts; each receives server identity and
+  a connection record, and deduplicates by `(user_id,strava_id)`.
 - Route seams: `/api/strava/connect`, `/api/strava/callback`, and
   `/api/uploads/[name]`; only callback may be unauthenticated at entry, and it
   must bind to a valid, unconsumed stored OAuth state. `/api/uploads/[name]`

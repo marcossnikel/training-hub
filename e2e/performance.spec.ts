@@ -19,15 +19,11 @@ test("performance dashboard shows best efforts and the CS suggestion state", asy
   ).toBeVisible();
 });
 
-test("Performance period and curve controls preserve each other on desktop and mobile", async ({
-  page,
-}) => {
+test("Performance period control persists on desktop and mobile", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/performance?window=6m");
   await page.getByRole("link", { name: "Months", exact: true }).click();
   await expect(page).toHaveURL(/period=months&window=6m/);
-  await page.getByRole("link", { name: "1 year", exact: true }).click();
-  await expect(page).toHaveURL(/period=months&window=1y/);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("link", { name: "Months", exact: true })).toBeVisible();

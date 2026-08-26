@@ -17,6 +17,7 @@ const destinationHrefs = [
   "/races",
   "/gear",
   "/settings",
+  "/admin/invites",
 ];
 
 async function tabTo(page: Page, target: ReturnType<Page["locator"]>, maxTabs = 10) {

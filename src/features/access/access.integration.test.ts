@@ -44,10 +44,10 @@ async function addAuthUser(
 
 async function signUp(
   auth: typeof import("@/lib/auth").auth,
-  issueBetaInvite: typeof import("@/lib/beta-invites").issueBetaInvite,
+  createInviteFixture: typeof import("@/lib/test-invite").createInviteFixture,
   email: string
 ): Promise<{ cookie: string }> {
-  const invite = await issueBetaInvite({ email, issuedBy: "r3-test" });
+  const invite = await createInviteFixture(email);
   const response = await auth.handler(
     new Request("http://localhost:3100/api/auth/sign-up/email", {
       method: "POST",
@@ -188,14 +188,14 @@ describe("real session-derived access", () => {
 
     const { ensureMigrated } = await import("@/lib/db/migrations");
     const { client } = await import("@/lib/db/client");
-    const { issueBetaInvite } = await import("@/lib/beta-invites");
+    const { createInviteFixture } = await import("@/lib/test-invite");
     const { auth } = await import("@/lib/auth");
     const { hasCapability, requireAccess, requireCreator } = await import("./server");
     const { createManualActivity, createShoe, getActivity, getShoe, getStravaConnectionStatus } =
       await import("@/lib/db");
     await ensureMigrated();
 
-    const creatorSession = await signUp(auth, issueBetaInvite, "creator@example.test");
+    const creatorSession = await signUp(auth, createInviteFixture, "creator@example.test");
     requestState.headers = new Headers({
       cookie: creatorSession.cookie,
       "x-owner-id": "forged-owner",
@@ -212,7 +212,7 @@ describe("real session-derived access", () => {
     expect(creator && hasCapability(creator, "viewOperationalEnvironment")).toBe(true);
     expect(creator && hasCapability(creator, "manageBetaInvites")).toBe(true);
 
-    const memberSession = await signUp(auth, issueBetaInvite, "member@example.test");
+    const memberSession = await signUp(auth, createInviteFixture, "member@example.test");
     requestState.headers = new Headers({
       cookie: memberSession.cookie,
       "x-owner-id": creator?.userId ?? "forged-owner",

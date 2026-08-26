@@ -136,6 +136,7 @@ export function ManualActivityForm({ shoes }: { shoes: GearOption[] }) {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          onInput={(e) => setDate(e.currentTarget.value)}
           required
           className="w-38 font-mono tabular-nums"
         />

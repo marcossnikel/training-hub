@@ -30,11 +30,11 @@ describe("requireCurrentUser", () => {
 
     const { ensureMigrated } = await import("./db/migrations");
     await ensureMigrated();
-    const { issueBetaInvite } = await import("./beta-invites");
+    const { createInviteFixture } = await import("./test-invite");
     const { auth, requireCurrentUser } = await import("./auth");
 
     const signUp = async (email: string) => {
-      const invite = await issueBetaInvite({ email, issuedBy: "owner-context-test" });
+      const invite = await createInviteFixture(email);
       const response = await auth.handler(
         new Request("http://localhost:3100/api/auth/sign-up/email", {
           method: "POST",

@@ -231,8 +231,7 @@ export async function createManualActivityAction(input: {
   const owner = await requireCurrentUser();
   if (!owner) return { ok: false, error: t.errors.unauthorized };
   try {
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(input.date))
-      return { ok: false, error: t.errors.invalidDate };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { ok: false, error: t.errors.invalidDate };
     const km = Math.round((Number(input.km) || 0) * 100) / 100;
     if (km === 0) return { ok: false, error: t.errors.zeroDistance };
     if (!(await getShoe(owner, input.shoeId))) return { ok: false, error: t.errors.pickShoe };

@@ -133,8 +133,8 @@ npm run check:env
 
 - Do not run a migration, seed override, backfill, or reset against a remote,
   shared, preview, or production database unless the operation is explicitly
-  approved. The guarded `beta:invite` command is the sole exception for issuing
-  or revoking one production invitation after its production target checks pass.
+  approved. Production invitation work is performed through the authenticated
+  creator UI only after the relevant deployment and data-boundary approvals.
 - Local and E2E data are disposable. Keep `.env.local`, `data/`, `.vercel/`,
   and Playwright auth state uncommitted.
 - Do not run `vercel env pull` for production or deploy/promote production from

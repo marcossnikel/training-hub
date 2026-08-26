@@ -1,5 +1,8 @@
 # R11 — Deepen the Strava integration module
 
+> Historical task context: references to `src/lib/strava.ts` describe the
+> pre-R11 baseline and are retained to explain the refactor's starting point.
+
 **Status:** done
 **Delivery class:** API/backend
 **Risk/model:** high — Terra high

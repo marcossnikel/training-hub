@@ -1,6 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const DB_PATH = "data/beta-invites-test.db";
@@ -33,11 +31,6 @@ async function signUp(input: { email: string; token?: string; password?: string 
   );
 }
 
-async function countInvites() {
-  const { client } = await import("./db/client");
-  return Number((await client.execute("SELECT COUNT(*) AS count FROM beta_invites")).rows[0].count);
-}
-
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
@@ -64,39 +57,13 @@ describe("beta invitation server boundary", () => {
     expect(columns.rows.map((column) => column.name)).toContain("betaInviteClaim");
   });
 
-  it("refuses unlabelled targets and only the local CLI prints one private registration URL", async () => {
+  it("refuses unlabelled invite targets before any issuance path can run", async () => {
     configureIsolatedBetaEnv();
     vi.stubEnv("TRAINING_HUB_INVITE_TARGET", "");
     const { assertBetaInviteIssuanceTarget } = await import("./beta-invites");
     expect(() => assertBetaInviteIssuanceTarget()).toThrow(
       "must explicitly be local, preview, or production"
     );
-
-    const environment = {
-      ...process.env,
-      TRAINING_HUB_INVITE_TARGET: "local",
-      TRAINING_HUB_PUBLIC_ORIGIN: "http://localhost:3100",
-    };
-    const output = execFileSync(
-      path.join(process.cwd(), "node_modules", ".bin", "tsx"),
-      [
-        "scripts/issue-beta-invite.ts",
-        "--email",
-        "cli@example.test",
-        "--operator",
-        "test-operator",
-      ],
-      { cwd: process.cwd(), env: environment, encoding: "utf8" }
-    );
-    const url = new URL(output.trim().replace("Private registration URL (share once): ", ""));
-    expect(url.pathname).toBe("/sign-up");
-    expect(url.searchParams.get("invite")).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(output.match(/http:\/\/localhost:3100\/sign-up\?invite=/g)).toHaveLength(1);
-    // The CLI is a separate process; reconnect after it exits rather than
-    // retaining SQLite's handle to a file the previous test removed.
-    globalThis.__trainingHubClient = undefined;
-    vi.resetModules();
-    expect(await countInvites()).toBe(1);
   });
 
   it("permits only approved local, preview, and production invite targets", async () => {
@@ -201,11 +168,8 @@ describe("beta invitation server boundary", () => {
   it("requires a matching opaque invitation at the Better Auth endpoint without leaking failure state", async () => {
     configureIsolatedBetaEnv();
     vi.resetModules();
-    const { issueBetaInvite } = await import("./beta-invites");
-    const invite = await issueBetaInvite({
-      email: "athlete@example.test",
-      issuedBy: "test-operator",
-    });
+    const { createInviteFixture } = await import("./test-invite");
+    const invite = await createInviteFixture("athlete@example.test");
 
     const missing = await signUp({ email: "athlete@example.test" });
     const malformed = await signUp({ email: "athlete@example.test", token: "not-an-opaque-token" });
@@ -226,11 +190,8 @@ describe("beta invitation server boundary", () => {
     configureIsolatedBetaEnv();
     vi.resetModules();
     const { client } = await import("./db/client");
-    const { issueBetaInvite } = await import("./beta-invites");
-    const invite = await issueBetaInvite({
-      email: "retry@example.test",
-      issuedBy: "test-operator",
-    });
+    const { createInviteFixture } = await import("./test-invite");
+    const invite = await createInviteFixture("retry@example.test");
 
     const failed = await signUp({ email: invite.email, token: invite.token, password: "" });
     expect(failed.status).toBe(400);
@@ -270,11 +231,9 @@ describe("beta invitation server boundary", () => {
     configureIsolatedBetaEnv();
     vi.resetModules();
     const { client } = await import("./db/client");
-    const { digestInviteToken, issueBetaInvite, revokeBetaInvite } = await import("./beta-invites");
-    const invite = await issueBetaInvite({
-      email: "first@example.test",
-      issuedBy: "test-operator",
-    });
+    const { digestInviteToken } = await import("./beta-invites");
+    const { createInviteFixture } = await import("./test-invite");
+    const invite = await createInviteFixture("first@example.test");
     const [first, duplicate] = await Promise.all([
       signUp({ email: invite.email, token: invite.token }),
       signUp({ email: invite.email, token: invite.token }),
@@ -291,29 +250,22 @@ describe("beta invitation server boundary", () => {
       )
     ).toBe(1);
 
-    const revoked = await issueBetaInvite({
-      email: "revoked@example.test",
-      issuedBy: "test-operator",
+    const revoked = await createInviteFixture("revoked@example.test");
+    await client.execute({
+      sql: "UPDATE beta_invites SET revoked_at = datetime('now') WHERE token_hash = ?",
+      args: [digestInviteToken(revoked.token)],
     });
-    await revokeBetaInvite(revoked.token);
     const revokedResponse = await signUp({ email: revoked.email, token: revoked.token });
     expect(revokedResponse.status).toBe(401);
 
     const actualNow = Date.now();
     vi.setSystemTime(new Date(actualNow - 60_000));
-    const expired = await issueBetaInvite({
-      email: "expired@example.test",
-      issuedBy: "test-operator",
-      expiresAt: new Date(actualNow - 1_000),
-    });
+    const expired = await createInviteFixture("expired@example.test", new Date(actualNow - 1_000));
     vi.useRealTimers();
     const expiredResponse = await signUp({ email: expired.email, token: expired.token });
     expect(expiredResponse.status).toBe(401);
 
-    const second = await issueBetaInvite({
-      email: "second@example.test",
-      issuedBy: "test-operator",
-    });
+    const second = await createInviteFixture("second@example.test");
     const crossUser = await signUp({ email: "third@example.test", token: second.token });
     expect(crossUser.status).toBe(401);
     const unredeemed = await client.execute({

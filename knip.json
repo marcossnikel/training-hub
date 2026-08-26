@@ -2,15 +2,9 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "next": true,
   "vitest": true,
-  "entry": ["scripts/*.ts", "e2e/**/*.ts"],
+  "entry": ["scripts/*.ts", "e2e/**/*.ts", "src/server/config/server.ts"],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "e2e/**/*.ts"],
   "ignoreExportsUsedInFile": true,
-  "ignore": [
-    "src/components/ui/**",
-    "src/lib/sports.ts",
-    "src/lib/db/**",
-    "src/lib/telemetry.ts",
-    "src/features/activities/server/persistence.ts"
-  ],
+  "ignore": [],
   "ignoreDependencies": ["shadcn", "tw-animate-css", "tailwindcss"]
 }

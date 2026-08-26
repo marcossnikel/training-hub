@@ -79,7 +79,7 @@ test("the compact shell preserves destination order, current location and accoun
   await expect(page.locator('[data-app-shell="wide"]')).toBeHidden();
 
   const links = shell.getByRole("navigation", { name: "Main" }).getByRole("link");
-  await expect(links).toHaveCount(7);
+  await expect(links).toHaveCount(8);
   await expect(links).toHaveText([
     "Training log",
     /Review/,
@@ -88,6 +88,7 @@ test("the compact shell preserves destination order, current location and accoun
     "Races",
     "Gear",
     "Settings",
+    "Creator tools",
   ]);
   await expect(links.nth(0)).toHaveAttribute("href", "/");
   await expect(links.nth(0)).toHaveAttribute("aria-current", "page");

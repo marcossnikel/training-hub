@@ -1,5 +1,8 @@
 # R9 — Keep initial Strava history out of Review
 
+> Historical task context: this packet records the pre-R11 Strava module path;
+> current ownership is recorded in R11 and the architecture document.
+
 **Status:** done
 **Delivery class:** full stack
 **Risk/model:** high — Terra high

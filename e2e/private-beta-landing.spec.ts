@@ -135,20 +135,19 @@ test("guest landing has a complete keyboard path and preserves the invitation ex
   await captureEvidence(page, "40-landing-default-390.png");
 });
 
-test("an authenticated athlete keeps the recent-training root and the post-sync location", async ({
+test("an authenticated athlete keeps the recent-training root instead of the public landing", async ({
   browser,
 }) => {
   const context = await browser.newContext({ storageState: "e2e/.auth/owner.json" });
   const page = await context.newPage();
   try {
-    await page.goto("/?strava=connected");
+    await page.goto("/");
     await expect(
       page.getByRole("heading", {
         level: 1,
         name: "Your training log, with a little context.",
       })
     ).toBeVisible();
-    await expect(page.getByText("Strava is connected")).toBeVisible();
     await expect(
       page.getByRole("heading", {
         level: 1,

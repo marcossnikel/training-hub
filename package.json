@@ -30,8 +30,7 @@
     "backfill:best-efforts": "tsx scripts/backfill-best-efforts.ts",
     "backfill:curve-points": "tsx scripts/backfill-curve-points.ts",
     "backfill:metrics": "tsx scripts/backfill-metrics.ts",
-    "fetch:history": "tsx scripts/fetch-history.ts",
-    "beta:invite": "tsx scripts/issue-beta-invite.ts"
+    "fetch:history": "tsx scripts/fetch-history.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

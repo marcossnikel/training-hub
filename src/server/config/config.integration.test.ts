@@ -46,6 +46,31 @@ afterEach(async () => {
 });
 
 describe("runtime configuration integration", () => {
+  it("prefers the explicit Training Hub Turso target over Marketplace overrides", () => {
+    const env = {
+      TRAINING_HUB_TURSO_DATABASE_URL: "libsql://stable-production.example",
+      TRAINING_HUB_TURSO_AUTH_TOKEN: "stable-token",
+      TURSO_DATABASE_URL: "libsql://dpl-preview.example",
+      TURSO_AUTH_TOKEN: "deployment-token",
+      DATABASE_URL: "file:data/ignored.db",
+    };
+
+    expect(resolveRuntimeConfiguration(env).database.url).toBe(
+      "libsql://stable-production.example"
+    );
+    expect(resolveRuntimeConfiguration(env).database.authToken).toBe("stable-token");
+  });
+
+  it("keeps the existing Turso, local override, and default fallbacks", () => {
+    expect(
+      resolveRuntimeConfiguration({ TURSO_DATABASE_URL: "libsql://existing.example" }).database.url
+    ).toBe("libsql://existing.example");
+    expect(resolveRuntimeConfiguration({ DATABASE_URL: "file:data/e2e.db" }).database.url).toBe(
+      "file:data/e2e.db"
+    );
+    expect(resolveRuntimeConfiguration({}).database.url).toBe("file:data/app.db");
+  });
+
   it("resolves every runtime identity without shared process mutation", () => {
     const cases = [
       [{ TRAINING_HUB_ENV: "local" }, "local", []],

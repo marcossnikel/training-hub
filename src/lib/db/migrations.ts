@@ -5,7 +5,7 @@ import { client, IS_LOCAL_FILE } from "./client";
 // migration for an existing database: callers must explicitly reset disposable
 // local/E2E data before bootstrapping this schema.
 export const OWNER_SCHEMA_FLOOR = 23;
-export const OWNER_SCHEMA_VERSION = 32;
+export const OWNER_SCHEMA_VERSION = 33;
 
 export const OWNER_SCHEMA_V23: readonly string[] = [
   // Better Auth tables are retained exactly as established by #22.
@@ -541,6 +541,19 @@ export const ADDITIVE_MIGRATIONS: readonly AdditiveMigration[] = [
        FROM athlete_parameter_observations
        WHERE id LIKE 'legacy:%'`,
     ],
+  },
+  {
+    // R13: creator UI provenance supersedes the temporary free-form operator
+    // field. Historical migrations retain their execution history, while
+    // current databases stop carrying the expired compatibility column.
+    version: 33,
+    statements: [],
+    statementsFor: async (target) => {
+      const columns = await target.execute("SELECT name FROM pragma_table_info('beta_invites')");
+      return columns.rows.some((row) => String(row.name) === "issued_by")
+        ? [{ sql: "ALTER TABLE beta_invites DROP COLUMN issued_by", args: [] }]
+        : [];
+    },
   },
 ];
 
