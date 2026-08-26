@@ -67,7 +67,8 @@ describe("BYO authorization handoff route", () => {
     expect(response.headers.get("location")).not.toContain("attacker.example");
     expect(mocks.startByoAuthorization).toHaveBeenCalledWith(
       { userId: "owner-a" },
-      "https://preview.training-hub.example"
+      "https://preview.training-hub.example",
+      "settings"
     );
   });
 
@@ -84,7 +85,8 @@ describe("BYO authorization handoff route", () => {
     expect(response.headers.get("location")).toBe("https://preview.training-hub.example/settings");
     expect(mocks.startByoAuthorization).toHaveBeenCalledWith(
       { userId: "owner-a" },
-      "https://preview.training-hub.example"
+      "https://preview.training-hub.example",
+      "settings"
     );
   });
 });

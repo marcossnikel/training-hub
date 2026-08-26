@@ -2,19 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCurrentUser } from "./auth";
-import { STRAVA_BYO_HANDOFF_PATH, validateByoCredentials } from "./strava-byo";
+import { byoHandoffPath, validateByoCredentials } from "./strava-byo";
 import { connectionStatus, saveByoCredentials } from "@/features/strava/server/connection";
 
 export type BeginByoConnectionResult =
   | { status: "invalid"; clientId: string; errors: { clientId?: string; clientSecret?: string } }
-  | { status: "ready"; handoffPath: typeof STRAVA_BYO_HANDOFF_PATH }
-  | { status: "pending"; handoffPath: typeof STRAVA_BYO_HANDOFF_PATH }
+  | { status: "ready"; handoffPath: string }
+  | { status: "pending"; handoffPath: string }
   | { status: "unauthorized" }
   | { status: "unavailable" };
 
 function formValue(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function returnKey(formData: FormData): "settings" | "onboarding" {
+  return formValue(formData, "returnKey") === "onboarding" ? "onboarding" : "settings";
 }
 
 /**
@@ -44,9 +48,8 @@ export async function beginByoConnectionAction(
       clientSecret: validated.clientSecret,
     });
     revalidatePath("/settings");
-    return saved
-      ? { status: "ready", handoffPath: STRAVA_BYO_HANDOFF_PATH }
-      : { status: "pending", handoffPath: STRAVA_BYO_HANDOFF_PATH };
+    const handoffPath = byoHandoffPath(returnKey(formData));
+    return saved ? { status: "ready", handoffPath } : { status: "pending", handoffPath };
   } catch {
     // Storage/key failures never reflect submitted material or database details.
     return { status: "unavailable" };

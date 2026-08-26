@@ -13,8 +13,10 @@ export async function startByoAuthorization(request: NextRequest) {
 
   const origin = resolveAuthorizationByoOrigin(request.nextUrl);
   if (!origin) return new NextResponse(null, { status: 400 });
+  const returnKey =
+    request.nextUrl.searchParams.get("return") === "onboarding" ? "onboarding" : "settings";
   try {
-    const authorization = await beginAuthorization(owner, origin);
+    const authorization = await beginAuthorization(owner, origin, returnKey);
     return NextResponse.redirect(authorization ? authorization : new URL("/settings", origin));
   } catch {
     return NextResponse.redirect(new URL("/settings", origin));

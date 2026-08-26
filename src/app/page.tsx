@@ -15,6 +15,7 @@ import { countPending, listConfirmedActivities } from "@/lib/db";
 import { getDict } from "@/lib/lang";
 import { isStravaConnected } from "@/features/strava/server/connection";
 import { requireCurrentUser } from "@/lib/auth";
+import { needsWelcomeOnboarding } from "@/features/onboarding/welcome";
 import { PrivateBetaLanding } from "@/components/private-beta-landing";
 import {
   fmtDate,
@@ -32,6 +33,7 @@ import { SPORT_CATEGORIES, sportCategory, type SportCategory } from "@/lib/sport
 import { fmtPower, fmtSpeed, isRideSport, rideMetrics } from "@/lib/cycling";
 import { isRunSport } from "@/lib/validate";
 import type { ActivityWithSplits } from "@/lib/types";
+import { redirect } from "next/navigation";
 
 // The root log is per-owner data. Keep this explicit even though the parent
 // proxy handles the ordinary HTTP request, so a future proxy matcher change
@@ -150,6 +152,7 @@ export default async function RootPage({ searchParams }: PageProps<"/">) {
   // proxy adds private/no-store before this page starts rendering.
   const owner = await requireCurrentUser();
   if (!owner) return <PrivateBetaLanding />;
+  if (await needsWelcomeOnboarding(owner)) redirect("/onboarding/welcome");
   return <TrainingLogPage owner={owner} searchParams={searchParams} />;
 }
 

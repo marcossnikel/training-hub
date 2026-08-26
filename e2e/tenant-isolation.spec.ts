@@ -84,6 +84,8 @@ async function signUp(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByLabel("Password").press("Enter");
+  await expect(page).toHaveURL(/\/onboarding\/welcome$/);
+  await page.getByRole("button", { name: "Skip" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
   return { page, owner: await currentOwner(page) };

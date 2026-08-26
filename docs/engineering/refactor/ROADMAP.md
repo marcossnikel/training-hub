@@ -11,7 +11,7 @@ The state vocabulary is `queued | done | blocked`. `blocked` is reserved
 for a genuinely external dependency; a local implementation or test failure is
 owned by the builder.
 
-**Next task:** R17
+**Next task:** R18
 
 ## Task index
 
@@ -35,7 +35,7 @@ owned by the builder.
 | R14 | done | API/backend | high, Terra high | Persisted initial-import job state exposes real stages and counts. | [R14](tasks/R14-import-progress.md) |
 | R15 | done | full stack | high, Terra high | Strava gear materializes locally with explicit origin/lifecycle rules. | [R15](tasks/R15-strava-gear-materialization.md) |
 | R16 | done | full stack | medium, Terra medium | Performance summary data and week/month controls work from imported summaries. | [R16](tasks/R16-performance-first-value.md) |
-| R17 | queued | full stack | medium, Terra medium | One-time, skippable first-login platform onboarding. | [R17](tasks/R17-welcome-onboarding.md) |
+| R17 | done | full stack | medium, Terra medium | One-time, skippable first-login platform onboarding. | [R17](tasks/R17-welcome-onboarding.md) |
 | R18 | queued | full stack | high, Terra high | One-time, skippable post-connection progress and Activation Summary. | [R18](tasks/R18-connection-activation.md) |
 | R19 | queued | full stack | high, Terra high | Athlete performance profile stores nullable values with provenance. | [R19](tasks/R19-athlete-performance-profile.md) |
 | R20 | queued | documentation/plan | high, Sol high | Training Analyst evidence, theory, privacy, and output contract. | [R20](tasks/R20-training-analyst-contract.md) |

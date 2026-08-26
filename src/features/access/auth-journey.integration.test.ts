@@ -82,7 +82,7 @@ describe("auth journey", () => {
     ]) {
       expect(signInContinuation(hostileDestination)).toBe("/");
     }
-    expect(firstAuthContinuation()).toBe("/");
+    expect(firstAuthContinuation()).toBe("/onboarding/welcome");
   });
 
   it("redeems an invite once, ignores signup next input, and leaves generic failures retry-safe", async () => {
@@ -97,7 +97,7 @@ describe("auth journey", () => {
       redeemInvite(auth, invite.token, invite.email),
     ]);
     expect([first.status, replay.status].sort()).toEqual([200, 401]);
-    expect(firstAuthContinuation()).toBe("/");
+    expect(firstAuthContinuation()).toBe("/onboarding/welcome");
     const redeemed = await client.execute({
       sql: "SELECT redeemed_at FROM beta_invites WHERE intended_email = ?",
       args: [invite.email],

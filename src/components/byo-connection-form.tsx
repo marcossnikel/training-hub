@@ -10,7 +10,7 @@ import {
   beginByoConnectionAction,
   type BeginByoConnectionResult,
 } from "@/lib/byo-connection-actions";
-import { STRAVA_BYO_HANDOFF_PATH } from "@/lib/strava-byo";
+import { byoHandoffPath } from "@/lib/strava-byo";
 
 type DisplayState = Extract<
   BeginByoConnectionResult,
@@ -25,14 +25,16 @@ type DisplayState = Extract<
 export function ByoConnectionForm({
   callbackUrl,
   pendingAuthorization = false,
+  returnKey = "settings",
 }: {
   callbackUrl: string | null;
   pendingAuthorization?: boolean;
+  returnKey?: "settings" | "onboarding";
 }) {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [result, setResult] = useState<DisplayState | null>(() =>
-    pendingAuthorization ? { status: "pending", handoffPath: STRAVA_BYO_HANDOFF_PATH } : null
+    pendingAuthorization ? { status: "pending", handoffPath: byoHandoffPath(returnKey) } : null
   );
   const [pending, startTransition] = useTransition();
   const errorSummary = useRef<HTMLDivElement>(null);
@@ -108,6 +110,7 @@ export function ByoConnectionForm({
 
   return (
     <form className="space-y-4" onSubmit={submit} noValidate>
+      <input type="hidden" name="returnKey" value={returnKey} />
       <div className="space-y-1.5">
         <Label htmlFor="strava-client-id">Strava Client ID</Label>
         <Input

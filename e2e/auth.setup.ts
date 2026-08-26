@@ -22,6 +22,8 @@ setup("create and authenticate the E2E athlete", async ({ page }) => {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
 
+  await expect(page).toHaveURL(/\/onboarding\/welcome$/);
+  await page.getByRole("button", { name: "Skip" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
 

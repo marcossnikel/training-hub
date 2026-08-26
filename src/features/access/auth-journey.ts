@@ -6,8 +6,8 @@ const INTERNAL_ORIGIN = "https://training-hub.invalid";
  * R17 replaces this one server-owned seam when first-login onboarding ships.
  * It is deliberately separate from a returning user's protected-route recovery.
  */
-export function firstAuthContinuation(): "/" {
-  return "/";
+export function firstAuthContinuation(): "/onboarding/welcome" {
+  return "/onboarding/welcome";
 }
 
 /**

@@ -245,6 +245,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
                 <ByoConnectionForm
                   callbackUrl={callbackUrl}
                   pendingAuthorization={connectionStatus === "pending_authorization"}
+                  returnKey={params.onboarding === "welcome" ? "onboarding" : "settings"}
                 />
               </div>
             )}

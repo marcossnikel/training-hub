@@ -67,6 +67,36 @@ export const pt: Dict = {
     alreadyHaveAccount: "Já tem uma conta?",
     signInInstead: "Entre por aqui",
   },
+  onboarding: {
+    eyebrow: "Boas-vindas",
+    skip: "Pular",
+    back: "Voltar",
+    next: "Continuar",
+    explore: "Explorar primeiro",
+    connect: "Conectar Strava",
+    boundaryNote:
+      "A conexão é opcional. O Training Hub usa um aplicativo de desenvolvedor do Strava criado e controlado por você; as credenciais ficam nos Ajustes.",
+    evidence: {
+      label: "O registro antes da conclusão",
+      title: "Mantenha próximos os treinos que explicam seu histórico.",
+      body: "O Training Hub é um caderno privado de treino. Os resumos apontam para atividades, datas e a janela de comparação que sustenta cada observação.",
+    },
+    surfaces: {
+      label: "Suas superfícies de trabalho",
+      title: "Comece pelo diário e abra a pergunta que vale revisar.",
+      body: "Treinos recentes, Revisão, desempenho e resumos semanais mantêm o registro, as evidências e o próximo detalhe em um lugar tranquilo.",
+    },
+    boundary: {
+      label: "Seu limite com o Strava",
+      title: "Use seu próprio aplicativo de desenvolvedor do Strava quando estiver pronto.",
+      body: "O Training Hub não usa credenciais do fundador. Você controla o aplicativo e o acesso de leitura autorizado; conectar é separado destas boas-vindas.",
+    },
+    choice: {
+      label: "Escolha o primeiro passo",
+      title: "Explore seu espaço privado ou configure o Strava agora.",
+      body: "Você pode conectar depois pelos Ajustes. Pular ou explorar não implica conexão com o Strava nem análise dos seus dados.",
+    },
+  },
   sports: {
     run: "Corrida",
     bike: "Bike",

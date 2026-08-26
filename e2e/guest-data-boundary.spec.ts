@@ -79,6 +79,8 @@ async function signUpAndCreateOwnerOnlyActivity(
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill("e2e-test-password");
     await page.getByRole("button", { name: "Create account" }).click();
+    await expect(page).toHaveURL(/\/onboarding\/welcome$/);
+    await page.getByRole("button", { name: "Skip" }).click();
     await expect(page).toHaveURL(/\/$/);
 
     await page.goto("/gear");

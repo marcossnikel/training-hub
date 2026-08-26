@@ -69,6 +69,36 @@ export const en = {
     alreadyHaveAccount: "Already have an account?",
     signInInstead: "Sign in instead",
   },
+  onboarding: {
+    eyebrow: "Welcome",
+    skip: "Skip",
+    back: "Back",
+    next: "Continue",
+    explore: "Explore first",
+    connect: "Connect Strava",
+    boundaryNote:
+      "Connection is optional. Training Hub uses a Strava developer app that you create and control; credentials stay in Settings.",
+    evidence: {
+      label: "A record before a conclusion",
+      title: "Keep the sessions that explain your training close together.",
+      body: "Training Hub is a private training notebook. Its summaries point back to activities, dates, and the comparison window behind an observation.",
+    },
+    surfaces: {
+      label: "Your working surfaces",
+      title: "Start with the log, then open the question worth reviewing.",
+      body: "Recent training, Review, performance, and weekly briefs keep the record, its evidence, and the next detail in one calm place.",
+    },
+    boundary: {
+      label: "Your Strava boundary",
+      title: "Bring your own Strava developer app when you are ready.",
+      body: "Training Hub does not use founder credentials. You control the app and the authorized read access; connecting is separate from this welcome.",
+    },
+    choice: {
+      label: "Choose your first move",
+      title: "Explore your private workspace, or set up Strava now.",
+      body: "You can connect later from Settings. Skipping or exploring does not imply a Strava connection or any analysis of your data.",
+    },
+  },
   sports: {
     run: "Run",
     bike: "Bike",

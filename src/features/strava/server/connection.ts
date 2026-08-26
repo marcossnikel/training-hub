@@ -56,11 +56,12 @@ export async function getStravaAccessToken(
 
 export async function startByoAuthorization(
   owner: OwnerContext,
-  origin: string
+  origin: string,
+  redirectKey: "settings" | "onboarding" = "settings"
 ): Promise<string | null> {
   const pending = await getPendingStravaAuthorization(owner);
   if (!pending) return null;
-  const state = await createOAuthState(owner, { intent: "connect", redirectKey: "settings" });
+  const state = await createOAuthState(owner, { intent: "connect", redirectKey });
   return buildByoAuthorizeUrl({ clientId: pending.client_id, origin, state });
 }
 

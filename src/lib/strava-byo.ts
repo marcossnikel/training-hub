@@ -9,6 +9,13 @@ export const STRAVA_BYO_HANDOFF_PATH = "/api/strava/byo-connect";
 export const STRAVA_CALLBACK_PATH = "/api/strava/callback";
 export const TRAINING_HUB_PUBLIC_ORIGIN_ENV = "TRAINING_HUB_PUBLIC_ORIGIN";
 
+/** The browser may name only a fixed internal continuation, never a URL. */
+export function byoHandoffPath(returnKey: "settings" | "onboarding"): string {
+  return returnKey === "settings"
+    ? STRAVA_BYO_HANDOFF_PATH
+    : `${STRAVA_BYO_HANDOFF_PATH}?return=onboarding`;
+}
+
 const STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
 const CLIENT_ID_MAX_LENGTH = 128;
 const CLIENT_SECRET_MAX_LENGTH = 512;
