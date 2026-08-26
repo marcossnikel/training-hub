@@ -16,7 +16,8 @@
 // load bar can drift from this table by a period boundary. Migrating those
 // rewrites PMC history and is its own task.
 
-import { localDateInputValue, localStartedAt, mondayOf, parseLocalDate } from "./format";
+import { activityDay } from "./activity-day";
+import { localDateInputValue, mondayOf, parseLocalDate } from "./format";
 import { sportCategory } from "./sports";
 
 /** Which calendar period the totals table groups by. */
@@ -83,10 +84,6 @@ export interface PeriodTotals {
  * the Z-suffixed stamp is the UTC-getter read localStartedAt's contract asks for,
  * so the key never moves with the process timezone.
  */
-function activityDay(activity: TotalsActivity): string {
-  return (localStartedAt(activity) ?? activity.started_at).slice(0, 10);
-}
-
 /**
  * The rows an active sport filter keeps.
  * on what counts as that sport instead of only roughly matching.

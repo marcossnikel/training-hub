@@ -300,20 +300,19 @@ export async function listWeeklyBriefActivities(
 /**
  * Every confirmed session's start from `fromDay` onwards, for the consistency
  * heatmap's per-day session counts. Ungrouped on purpose: the counts must land on
- * exactly the day key `dailyLoadSeries` gives the same cell's load (the UTC
- * instant read in the process timezone — see the header of src/lib/consistency.ts),
- * and no SQL grouping produces that key. `heatmapFrom` hands over a day of slack
- * ahead of the grid so no process timezone can miss its first day; the JS
- * bucketing drops whatever falls outside the grid.
+ * exactly the day key its minutes use: `started_at_local` first and UTC only as
+ * fallback. SQL does not group these rows because the canonical day stays a
+ * pure shared rule.
  */
 export async function listSessionStarts(
   owner: OwnerContext,
   fromDay: string
 ): Promise<SessionStart[]> {
   return many<SessionStart>(
-    `SELECT started_at, sport_type
+    `SELECT started_at, started_at_local, sport_type
      FROM activities
-     WHERE user_id = ? AND status = 'confirmed' AND started_at IS NOT NULL AND started_at >= ?
+     WHERE user_id = ? AND status = 'confirmed' AND started_at IS NOT NULL
+       AND COALESCE(started_at_local, started_at) >= ?
      ORDER BY started_at ASC`,
     [owner.userId, `${fromDay}T00:00:00Z`]
   );

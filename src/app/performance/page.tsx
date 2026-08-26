@@ -20,6 +20,7 @@ import {
   listRunEfforts,
   listSessionStarts,
   listTotalsActivities,
+  getInitialStravaImportStatus,
 } from "@/lib/db";
 import { getDict } from "@/lib/lang";
 import {
@@ -46,6 +47,7 @@ import { fmtDate, fmtDuration, fmtKm, fmtPace } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";
 import { timeWindows } from "@/lib/windows";
 import { requireCurrentUser } from "@/lib/auth";
+import { performanceHref, performanceQueryState } from "@/lib/performance-query-state";
 
 export const metadata = { title: "Performance" };
 
@@ -107,7 +109,8 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   // load: this app deliberately does not compute TSS (TrainingPeaks owns that
   // number), and every recorded session has a duration, so a gym day counts as a
   // trained day where a distance-keyed grid would read it as rest.
-  const period: TotalsPeriod = params.period === "months" ? "months" : "weeks";
+  const queryState = performanceQueryState(params);
+  const period: TotalsPeriod = queryState.period;
   const heatFrom = heatmapFrom();
   const [sessionStarts, totalsActivities] = await Promise.all([
     listSessionStarts(owner, heatFrom),
@@ -128,7 +131,7 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   // six Turso round trips end to end for no ordering anyone needs. The power
   // reads go out with them rather than behind the ride-count check — one extra
   // read of an empty table beats a serial round trip.
-  const rawWindow = typeof params.window === "string" ? params.window : DEFAULT_CURVE_WINDOW.key;
+  const rawWindow = queryState.window ?? DEFAULT_CURVE_WINDOW.key;
   const curveWindow = CURVE_WINDOWS.find((w) => w.key === rawWindow) ?? DEFAULT_CURVE_WINDOW;
   const now = new Date();
   const since = curveWindowStart(curveWindow.days, now);
@@ -155,7 +158,13 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
     : [];
   const curveWindowLabel = tp.windows[curveWindow.key];
   const curveHref = (key: string) =>
-    key === DEFAULT_CURVE_WINDOW.key ? "/performance" : `/performance?window=${key}`;
+    performanceHref({ period, window: key === DEFAULT_CURVE_WINDOW.key ? null : key });
+  const totalsHref = (key: TotalsPeriod) =>
+    performanceHref({
+      period: key,
+      window: curveWindow.key === DEFAULT_CURVE_WINDOW.key ? null : curveWindow.key,
+    });
+  const importStatus = await getInitialStravaImportStatus(owner);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:py-10">
@@ -418,6 +427,17 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
 
       <ConsistencyHeatmapCard heatmap={heatmap} lang={lang} t={t} />
 
+      {importStatus &&
+      importStatus.job.status !== "completed" &&
+      importStatus.snapshot.coverage.oldest &&
+      importStatus.snapshot.coverage.newest ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Imported history currently covers {fmtDate(importStatus.snapshot.coverage.oldest, lang)}{" "}
+          through {fmtDate(importStatus.snapshot.coverage.newest, lang)}. More pages may still be
+          importing.
+        </p>
+      ) : null}
+
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>{t.fitness.totals.title}</CardTitle>
@@ -428,7 +448,7 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
             {TOTALS_PERIODS.map((key) => (
               <FilterPill
                 key={key}
-                href={key === "weeks" ? "/performance" : `/performance?period=${key}`}
+                href={totalsHref(key)}
                 active={period === key}
                 label={t.fitness.totals[key]}
               />

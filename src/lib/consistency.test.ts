@@ -21,7 +21,7 @@ function series(from: string, to: string, loads: Record<string, number> = {}) {
 }
 
 function session(startedAt: string, sport: string | null = "Run"): SessionStart {
-  return { started_at: startedAt, sport_type: sport };
+  return { started_at: startedAt, started_at_local: null, sport_type: sport };
 }
 
 describe("heatmapFrom", () => {
@@ -346,13 +346,9 @@ describe("sessionCountsByDay", () => {
   });
 });
 
-// The landmine this task was corrected for: a heatmap cell paints a load that
-// `` bucketed and a count that `sessionCountsByDay` bucketed, so
-// the two MUST key days identically.  reads the stored UTC instant
-// in the process timezone, so these fixtures are literal ISO instants and the
-// block is re-run pinned to three zones: switching the counts to the athlete's
-// local stamp (localStartedAt), to UTC getters, or to a SQL substr of started_at
-// fails at least one of them.
+// Summary surfaces use the same persisted athlete-local day in every process
+// timezone. The fixture crosses UTC midnight for a UTC-3 athlete, so a server
+// timezone must not move either its minutes or its session count.
 for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo"]) {
   describe(`session counts share ' day key under TZ=${tz}`, () => {
     const originalTz = process.env.TZ;
@@ -363,19 +359,16 @@ for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo"]) {
       process.env.TZ = originalTz;
     });
 
-    // 23:30Z on Saturday 25 July 2026: still the 25th in UTC and in Sao Paulo
-    // (20:30), already the 26th in Tokyo (08:30 the next morning).
-    const lateNight = "2026-07-25T23:30:00Z";
-    const expected: Record<string, string> = {
-      UTC: "2026-07-25",
-      "America/Sao_Paulo": "2026-07-25",
-      "Asia/Tokyo": "2026-07-26",
-    };
+    const lateNight = "2026-07-27T00:30:00Z";
+    const lateNightLocal = "2026-07-26T21:30:00Z";
+    const expected = "2026-07-26";
 
     it("keys a late-night session on the same day its minutes land on", () => {
-      const counts = sessionCountsByDay([session(lateNight)]);
-      expect(counts.get(expected[tz])).toBe(1);
-      expect([...counts.keys()]).toEqual([expected[tz]]);
+      const counts = sessionCountsByDay([
+        { ...session(lateNight), started_at_local: lateNightLocal },
+      ]);
+      expect(counts.get(expected)).toBe(1);
+      expect([...counts.keys()]).toEqual([expected]);
     });
 
     it("paints minutes and count in the very same cell", () => {
@@ -385,10 +378,18 @@ for (const tz of ["UTC", "America/Sao_Paulo", "Asia/Tokyo"]) {
       ];
       const heatmap = consistencyHeatmap(
         rows.map((r) => ({
-          date: localDateInputValue(new Date(r.started_at)),
+          date:
+            r.started_at === lateNight
+              ? lateNightLocal.slice(0, 10)
+              : localDateInputValue(new Date(r.started_at)),
           minutes: r.minutes,
         })),
-        sessionCountsByDay(rows.map((row) => session(row.started_at))),
+        sessionCountsByDay(
+          rows.map((row) => ({
+            ...session(row.started_at),
+            started_at_local: row.started_at === lateNight ? lateNightLocal : null,
+          }))
+        ),
         new Date(2026, 6, 26, 9)
       );
       for (const cell of heatmap.cells) {

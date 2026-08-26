@@ -3,22 +3,14 @@
 // active days per week). Pure — grid layout, quartile bucketing and the counters
 // only, so the component just fills rects and formats labels.
 //
-// DAY-KEY CONVENTION, the one landmine here. Every key below is
-// `localDateInputValue(new Date(started_at))`: the stored UTC instant read in the
-// PROCESS timezone. Both series this grid paints — the minutes and the session
-// counts — are bucketed by that identical key (`minutesByDay` and
-// `sessionCountsByDay` below), because a count landing on a different day than
-// its minutes is exactly the bug this convention exists to prevent.
-//
-// The app's other convention — `localStartedAt`, the athlete's own local day,
-// which the training log and src/lib/totals.ts read days by — is intentionally
-// NOT used here. An evening session whose UTC instant has already rolled over
-// would be counted one day later than the time it belongs to. Both series are
-// therefore grouped in JS from raw `started_at` stamps rather than with a SQL
-// GROUP BY: strftime groups by UTC (and `substr(started_at, 1, 10)` only matches
-// this convention while the server itself runs in UTC), so neither can key the
-// same cell.
+// DAY-KEY CONVENTION. Every key below uses the same canonical athlete day:
+// persisted `started_at_local` first, then the stored UTC instant for legacy
+// rows. The ISO date prefix is read directly, so server and browser process
+// timezones cannot move a session into a neighbouring cell. Both series are
+// grouped in JS through `activityDay`, rather than SQL `strftime`, because SQL
+// would read the UTC instant and split local-day minutes from session counts.
 
+import { activityDay } from "./activity-day";
 import { eachDay, localDateInputValue, mondayOf, parseLocalDate } from "./format";
 
 /** Grid width in weeks: 53 columns cover a full year plus the partial current week. */
@@ -34,8 +26,10 @@ export const ACTIVE_WEEKS = 4;
 
 /** One confirmed session's start, as the heatmap's session query hands it back. */
 export interface SessionStart {
-  /** Stored UTC instant, bucketed by the convention documented above. */
+  /** Stored UTC instant; only used when no persisted athlete-local stamp exists. */
   started_at: string;
+  /** Strava's persisted local wall-clock start, preferred for the day key. */
+  started_at_local: string | null;
   /** Raw Strava sport, so an active sport filter narrows these rows too. */
   sport_type: string | null;
 }
@@ -108,7 +102,7 @@ export function heatmapFrom(now = new Date()): string {
 export function sessionCountsByDay(sessions: SessionStart[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const session of sessions) {
-    const key = localDateInputValue(new Date(session.started_at));
+    const key = activityDay(session);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
@@ -124,13 +118,13 @@ export function sessionCountsByDay(sessions: SessionStart[]): Map<string, number
  * ACTIVE day would silently shorten both windows.
  */
 export function minutesByDay(
-  rows: { started_at: string; moving_time_s: number | null }[],
+  rows: { started_at: string; started_at_local: string | null; moving_time_s: number | null }[],
   fromDay: string,
   now = new Date()
 ): { date: string; minutes: number }[] {
   const totals = new Map<string, number>();
   for (const row of rows) {
-    const key = localDateInputValue(new Date(row.started_at));
+    const key = activityDay(row);
     totals.set(key, (totals.get(key) ?? 0) + (row.moving_time_s ?? 0) / SECONDS_PER_MINUTE);
   }
   return eachDay(fromDay, localDateInputValue(now)).map((date) => ({
