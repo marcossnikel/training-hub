@@ -4,7 +4,7 @@ import { GitCompareIcon, MedalIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { FeelingBadge } from "@/components/feeling-badge";
-import { listRaces } from "@/lib/db";
+import { listRaces } from "@/features/activities/server/evidence-store";
 import { getDict } from "@/lib/lang";
 import { fmtDate, fmtDuration, fmtKm, fmtPace, fmtPaceShort, localStartedAt } from "@/lib/format";
 import { fillStr } from "@/lib/i18n";

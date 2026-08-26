@@ -1,6 +1,6 @@
 # R12 — Refactor activity and chart hotspots by reason to change
 
-**Status:** queued
+**Status:** done
 **Delivery class:** full stack
 **Risk/model:** medium — Terra medium; use high reasoning for data-query changes
 **Depends on:** R10, R11, R16, and R19 done

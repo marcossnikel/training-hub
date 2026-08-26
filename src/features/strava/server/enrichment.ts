@@ -1,14 +1,16 @@
 import {
-  getActivityStreamsJson,
   getAthleteThresholds,
   getMetricsActivity,
-  listBestEffortCounts,
   saveActivityCurvePoints,
+  upsertActivityMetrics,
+} from "@/lib/db";
+import {
+  getActivityStreamsJson,
+  listBestEffortCounts,
   saveActivityDetail,
   saveActivityStreams,
   upsertActivityBestEfforts,
-  upsertActivityMetrics,
-} from "@/lib/db";
+} from "@/features/activities/server/enrichment-store";
 import { bestEffortRows, type StravaBestEffort } from "@/lib/best-efforts";
 import {
   computeStreamMetrics,

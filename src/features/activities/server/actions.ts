@@ -4,17 +4,19 @@ import { fail, type ActionResult } from "@/lib/action-result";
 import { dict, inRange, normalizeJournal, normalizeSplits, refreshAll } from "@/lib/action-helpers";
 import { requireCurrentUser } from "@/lib/auth";
 import {
-  confirmActivity,
-  createManualActivity,
   getActivity,
   getBike,
   getShoe,
-  replaceActivitySplits,
   saveAthleteEnteredParameter,
   setActivityBike,
   setActivityRace,
-  updateActivityJournal,
 } from "@/lib/db";
+import {
+  confirmActivity,
+  createManualActivity,
+  replaceActivitySplits,
+  updateActivityJournal,
+} from "./review-store";
 import { FTP_RANGE, THRESHOLD_PACE_RANGE } from "@/lib/fitness";
 import { splitErrorText } from "@/lib/i18n";
 import { loadActivityStreams } from "@/features/strava/server/enrichment";

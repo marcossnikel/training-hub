@@ -16,12 +16,14 @@ import {
   getTrainingZones,
   listBestEffortsForVdot,
   listCurveBests,
-  listFastestBestEfforts,
   listRunEfforts,
-  listSessionStarts,
-  listTotalsActivities,
   getInitialStravaImportStatus,
 } from "@/lib/db";
+import {
+  listFastestBestEfforts,
+  listSessionStarts,
+  listTotalsActivities,
+} from "@/features/activities/server/evidence-store";
 import { getDict } from "@/lib/lang";
 import {
   consistencyHeatmap,

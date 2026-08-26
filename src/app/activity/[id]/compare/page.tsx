@@ -3,12 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { ComparableActivitySkeleton } from "./comparable-activity-skeleton";
 import { ComparableActivityView } from "./comparable-activity-view";
 import { requireCurrentUser } from "@/lib/auth";
+import { getInsightFeedback, insightFeedbackEnabled } from "@/lib/db";
 import {
   getConfirmedComparableActivity,
-  getInsightFeedback,
-  insightFeedbackEnabled,
   listConfirmedComparableActivities,
-} from "@/lib/db";
+} from "@/features/activities/server/evidence-store";
 import {
   isComparablePriorActivitySource,
   matchComparablePriorActivity,

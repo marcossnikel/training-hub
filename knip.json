@@ -5,6 +5,12 @@
   "entry": ["scripts/*.ts", "e2e/**/*.ts"],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "e2e/**/*.ts"],
   "ignoreExportsUsedInFile": true,
-  "ignore": ["src/components/ui/**", "src/lib/sports.ts", "src/lib/db/**", "src/lib/telemetry.ts"],
+  "ignore": [
+    "src/components/ui/**",
+    "src/lib/sports.ts",
+    "src/lib/db/**",
+    "src/lib/telemetry.ts",
+    "src/features/activities/server/persistence.ts"
+  ],
   "ignoreDependencies": ["shadcn", "tw-animate-css", "tailwindcss"]
 }

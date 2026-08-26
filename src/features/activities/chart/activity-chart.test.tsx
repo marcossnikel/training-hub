@@ -4,16 +4,8 @@
 // `src/**/*.test.ts` suites keep the node environment from vitest.config.ts.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { ActivityChart } from "@/components/activity-chart";
-import {
-  LAP_STRIP_GAP,
-  LAP_STRIP_H,
-  PAD_L,
-  PANEL_H,
-  PLOT_W,
-  TOP,
-  VBW,
-} from "@/components/activity-chart-series";
+import { ActivityChart } from "./activity-chart";
+import { LAP_STRIP_GAP, LAP_STRIP_H, PAD_L, PANEL_H, PLOT_W, TOP, VBW } from "./model";
 import type { LapWindow } from "@/lib/laps";
 import { paceZones, zoneSeconds, type AthleteThresholds } from "@/lib/fitness";
 import type { ActivityStreams } from "@/lib/streams";

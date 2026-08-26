@@ -29,7 +29,7 @@ import {
   type SeriesDef,
   type SeriesKey,
   type XMode,
-} from "@/components/activity-chart-series";
+} from "./model";
 
 /** Faint enough to read a zone at a glance without competing with the trace. */
 const ZONE_BAND_OPACITY = 0.06;

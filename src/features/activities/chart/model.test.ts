@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildSeries,
-  paceExtent,
-  panelExtent,
-  zoneBands,
-  type SeriesDef,
-} from "@/components/activity-chart-series";
+import { buildSeries, paceExtent, panelExtent, zoneBands, type SeriesDef } from "./model";
 import { en } from "@/lib/i18n/en";
 import { hrZones, paceZones, zoneBoundsOf, type AthleteThresholds } from "@/lib/fitness";
 import type { ActivityStreams } from "@/lib/streams";

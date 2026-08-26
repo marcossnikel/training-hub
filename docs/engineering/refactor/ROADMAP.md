@@ -30,7 +30,7 @@ owned by the builder.
 | R9 | done | full stack | high, Terra high | Initial Strava history is confirmed; only later activities enter Review. | [R9](tasks/R9-initial-strava-import.md) |
 | R10 | done | full stack | medium, Terra medium | Server actions grouped by owning feature. | [R10](tasks/R10-server-action-organization.md) |
 | R11 | done | API/backend | high, Terra high | Deep Strava connection, transport, sync, and cache interfaces. | [R11](tasks/R11-strava-module-deepening.md) |
-| R12 | queued | full stack | medium, Terra medium | Activity and performance hotspots split by reason to change. | [R12](tasks/R12-activity-ui-hotspots.md) |
+| R12 | done | full stack | medium, Terra medium | Activity and performance hotspots split by reason to change. | [R12](tasks/R12-activity-ui-hotspots.md) |
 | R13 | queued | full stack | medium, Luna high | Proven dead code/files removed and documentation converged. | [R13](tasks/R13-cleanup-convergence.md) |
 | R14 | done | API/backend | high, Terra high | Persisted initial-import job state exposes real stages and counts. | [R14](tasks/R14-import-progress.md) |
 | R15 | done | full stack | high, Terra high | Strava gear materializes locally with explicit origin/lifecycle rules. | [R15](tasks/R15-strava-gear-materialization.md) |

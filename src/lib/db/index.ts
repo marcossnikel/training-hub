@@ -4,7 +4,7 @@ export { sqliteBool } from "./helpers";
 export * from "./meta";
 export * from "./shoes";
 export * from "./bikes";
-export * from "./activities";
+export * from "../../features/activities/server/persistence";
 export * from "./strava-auth";
 export * from "./athlete-parameters";
 export * from "./strava-import-jobs";

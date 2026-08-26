@@ -1,16 +1,16 @@
 import { cache } from "react";
-import { batchWrite, exec, many, one, sqliteBool } from "./helpers";
-import { client } from "./client";
-import { ensureMigrated } from "./migrations";
-import type { VdotEffort } from "../benchmarks";
-import type { BestEffortRow, StoredBestEffort } from "../best-efforts";
-import type { BlockActivity } from "../blocks";
-import type { SessionStart } from "../consistency";
-import { parseZoneSecs } from "../stream-metrics";
-import type { TotalsActivity } from "../totals";
-import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "../types";
-import type { OwnerContext } from "../owner-context";
-import type { ComparableActivitySummary } from "../comparable-activity";
+import { batchWrite, exec, many, one, sqliteBool } from "@/lib/db/helpers";
+import { client } from "@/lib/db/client";
+import { ensureMigrated } from "@/lib/db/migrations";
+import type { VdotEffort } from "@/lib/benchmarks";
+import type { BestEffortRow, StoredBestEffort } from "@/lib/best-efforts";
+import type { BlockActivity } from "@/lib/blocks";
+import type { SessionStart } from "@/lib/consistency";
+import { parseZoneSecs } from "@/lib/stream-metrics";
+import type { TotalsActivity } from "@/lib/totals";
+import type { Activity, ActivityWithSplits, Feeling, SplitInput, SplitWithShoe } from "@/lib/types";
+import type { OwnerContext } from "@/lib/owner-context";
+import type { ComparableActivitySummary } from "@/lib/comparable-activity";
 
 /**
  * Deliberately small evidence projection for the weekly brief. It is not an
