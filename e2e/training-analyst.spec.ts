@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { createClient } from "@libsql/client";
 import path from "node:path";
 
+test.describe.configure({ mode: "serial" });
+
 test.beforeEach(async () => {
   const database = createClient({
     url: `file:${path.join(process.cwd(), "data", "e2e.db")}`,

@@ -67,6 +67,7 @@ export default defineConfig({
         /beta-invite\.spec\.ts/,
         /admin-invites\.spec\.ts/,
         /mobile\.spec\.ts/,
+        /onboarding\.spec\.ts/,
         /private-beta-landing\.spec\.ts/,
         /tenant-isolation\.spec\.ts/,
         /production-smoke\.spec\.ts/,
@@ -127,7 +128,12 @@ export default defineConfig({
     // completes; this is not a suite-wide serialization or a retry policy.
     {
       name: "owner-mutations",
-      testMatch: [/byo-connection\.spec\.ts/, /gear\.spec\.ts/, /tenant-isolation\.spec\.ts/],
+      testMatch: [
+        /byo-connection\.spec\.ts/,
+        /gear\.spec\.ts/,
+        /onboarding\.spec\.ts/,
+        /tenant-isolation\.spec\.ts/,
+      ],
       workers: 1,
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
       dependencies: ["connection-activation"],
