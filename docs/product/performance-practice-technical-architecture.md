@@ -962,7 +962,7 @@ still call `ref.close()` unconditionally from `sharedObjectDidRelease()`, so a
 later runtime can fail to reopen the same database and leave the local outbox
 unavailable.
 
-At the 2026-08-31 11:22 -03 final deadline source check, the issue remained
+At the 2026-08-31 11:48 -03 final deadline source check, the issue remained
 open and labelled `needs review`; it is assigned to maintainer Kudo. The
 maintainer fix in `#49152` remains open, unmerged, Draft, and without a review,
 with only a proposed E2E test in its test plan. Maintainer ownership and passing
@@ -3469,23 +3469,27 @@ collapsed into the latest result.
   acknowledgement, with the documented out-of-order risk. Keep the typed
   command/change feed as default and PowerSync behind Gate 1. Changed section:
   `Sync proof gate` and this evidence note; no stack decision changed.
-- **2026-08-31 11:22 -03 — Expo SQLite lifecycle handoff heartbeat:**
-  Question: has the unresolved SDK 57 Android teardown defect reached a merged,
-  released state that permits freezing `expo-sqlite`/SQLCipher? Primary sources:
-  [issue #48999](https://github.com/expo/expo/issues/48999), [PR
-  #49152](https://github.com/expo/expo/pull/49152), [current `main`
+- **2026-08-31 11:48 -03 — Expo SQLite lifecycle deadline heartbeat:**
+  Question: has the SDK 57 Android teardown defect reached a merged, released
+  state that permits freezing `expo-sqlite`/SQLCipher? Primary sources: [issue
+  #48999](https://github.com/expo/expo/issues/48999), [PR
+  #49152](https://github.com/expo/expo/pull/49152), [SDK 57 native
+  source](https://raw.githubusercontent.com/expo/expo/sdk-57/packages/expo-sqlite/android/src/main/java/expo/modules/sqlite/NativeDatabase.kt),
+  [current `main`
   source](https://raw.githubusercontent.com/expo/expo/main/packages/expo-sqlite/android/src/main/java/expo/modules/sqlite/NativeDatabase.kt),
-  [current changelog](https://raw.githubusercontent.com/expo/expo/main/packages/expo-sqlite/CHANGELOG.md),
-  and [SDK 57 changelog](https://raw.githubusercontent.com/expo/expo/sdk-57/packages/expo-sqlite/CHANGELOG.md).
-  Challenge: maintainer ownership, passing bot checks, a proposed fix, the
-  reporter's 12-of-12 `useNewConnection` recovery, and published 57.0.2 can look
-  implementation-ready. Conclusion: no—the issue remains open, the patch
-  remains Draft and unreviewed, SDK 57's 57.0.2 entry fixes only an unrelated
-  migration race, `main` still closes the shared binding unconditionally, and
-  neither changelog records the lifecycle fix. Keep the adapter provisional,
-  the full release-shaped teardown/reopen/WAL/outbox proof mandatory, and the
-  adapter exit intact. Changed section: `Device store` checked-at evidence and
-  this log; no stack decision changed.
+  [SDK 57 package
+  manifest](https://raw.githubusercontent.com/expo/expo/sdk-57/packages/expo-sqlite/package.json),
+  and [SDK 57
+  changelog](https://raw.githubusercontent.com/expo/expo/sdk-57/packages/expo-sqlite/CHANGELOG.md),
+  plus the [current `main`
+  changelog](https://raw.githubusercontent.com/expo/expo/main/packages/expo-sqlite/CHANGELOG.md).
+  Challenge: maintainer ownership and the newly published 57.0.2 package can
+  look freeze-ready. Conclusion: no—the issue is open, the PR remains Draft
+  with no review, both released and current `main` source still close the shared
+  binding unconditionally, and neither changelog records the fix;
+  keep the adapter provisional and require the release-shaped
+  teardown/reopen/WAL/outbox proof plus adapter exit. Changed section: `Device
+  store` checked-at evidence and this log; no stack decision changed.
 
 ## Primary-source register
 
