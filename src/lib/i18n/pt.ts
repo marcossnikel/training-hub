@@ -74,6 +74,10 @@ export const pt: Dict = {
     next: "Continuar",
     explore: "Explorar primeiro",
     connect: "Conectar Strava",
+    notRequired: "Nenhuma configuração necessária ainda",
+    takeoverTitle: "Um caminho mais tranquilo para o seu histórico de treino.",
+    takeoverBody: "Quatro passos curtos. Você escolhe o que conectar e quando.",
+    workspaceLabel: "Seu espaço",
     boundaryNote:
       "A conexão é opcional. O Training Hub usa um aplicativo de desenvolvedor do Strava criado e controlado por você; as credenciais ficam nos Ajustes.",
     evidence: {

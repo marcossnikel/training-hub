@@ -76,6 +76,10 @@ export const en = {
     next: "Continue",
     explore: "Explore first",
     connect: "Connect Strava",
+    notRequired: "No setup required yet",
+    takeoverTitle: "A calmer way into your training record.",
+    takeoverBody: "Four short steps. You choose what to connect and when.",
+    workspaceLabel: "Your workspace",
     boundaryNote:
       "Connection is optional. Training Hub uses a Strava developer app that you create and control; credentials stay in Settings.",
     evidence: {

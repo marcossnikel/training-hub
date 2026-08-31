@@ -6,6 +6,7 @@ import { completeByoAuthorization } from "@/features/strava/server/connection";
 import { advanceInitialStravaImport } from "@/features/strava/server/sync";
 
 type CallbackResult = "connected" | "scope" | "recovery";
+type RedirectKey = "settings" | "onboarding";
 
 const OPAQUE_STATE = /^[A-Za-z0-9_-]{43}$/;
 
@@ -21,8 +22,13 @@ function isSafeCode(value: string | null): value is string {
 }
 
 /** Redirect only to the state-owned Settings route on the canonical origin. */
-function settingsRedirect(origin: string, result: CallbackResult): NextResponse {
+function settingsRedirect(
+  origin: string,
+  result: CallbackResult,
+  redirectKey: RedirectKey = "settings"
+): NextResponse {
   const url = new URL("/settings", origin);
+  if (redirectKey === "onboarding") url.searchParams.set("onboarding", "welcome");
   url.searchParams.set("strava", result);
   return NextResponse.redirect(url);
 }
@@ -54,19 +60,25 @@ export async function GET(request: NextRequest) {
   if (!state || !OPAQUE_STATE.test(state)) return settingsRedirect(origin, "recovery");
 
   const consumed = await consumeOAuthState(owner, state);
-  if (consumed?.intent !== "connect" || consumed.redirectKey !== "settings") {
+  const redirectKey = consumed?.redirectKey === "onboarding" ? "onboarding" : "settings";
+  if (
+    consumed?.intent !== "connect" ||
+    (consumed.redirectKey !== "settings" && consumed.redirectKey !== "onboarding")
+  ) {
     return settingsRedirect(origin, "recovery");
   }
 
   // A provider denial is still a terminal use of the opaque state. It never
   // attempts an exchange or discloses whether any other owner's state exists.
-  if (request.nextUrl.searchParams.has("error")) return settingsRedirect(origin, "scope");
+  if (request.nextUrl.searchParams.has("error")) {
+    return settingsRedirect(origin, "scope", redirectKey);
+  }
 
   const code = request.nextUrl.searchParams.get("code");
-  if (!isSafeCode(code)) return settingsRedirect(origin, "recovery");
+  if (!isSafeCode(code)) return settingsRedirect(origin, "recovery", redirectKey);
 
   const result = await completeByoAuthorization(owner, code);
-  if (result !== "connected") return settingsRedirect(origin, result);
+  if (result !== "connected") return settingsRedirect(origin, result, redirectKey);
   try {
     const activation = await ensureConnectionActivation(owner);
     await advanceInitialStravaImport(owner);
@@ -74,7 +86,7 @@ export async function GET(request: NextRequest) {
   } catch {
     // A valid connection remains connected after a start failure. The next
     // owner-scoped advance can create or resume the persisted job.
-    return settingsRedirect(origin, "recovery");
+    return settingsRedirect(origin, "recovery", redirectKey);
   }
   return activationRedirect(origin);
 }

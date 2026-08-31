@@ -115,4 +115,16 @@ describe("owner-bound Strava callback", () => {
     expect(mocks.advanceInitialStravaImport).not.toHaveBeenCalled();
     expect(await response.text()).not.toContain("provider body");
   });
+
+  it("preserves the onboarding continuation when its first exchange needs recovery", async () => {
+    mocks.consumeOAuthState.mockResolvedValue({ intent: "connect", redirectKey: "onboarding" });
+    mocks.completeByoAuthorization.mockResolvedValue("recovery");
+
+    const response = await GET(request({ state: STATE, code: "provider-code" }));
+
+    expect(response.headers.get("location")).toBe(
+      `${ORIGIN}/settings?onboarding=welcome&strava=recovery`
+    );
+    expect(mocks.completeByoAuthorization).toHaveBeenCalledWith(OWNER, "provider-code");
+  });
 });

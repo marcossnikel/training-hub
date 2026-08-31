@@ -1,8 +1,9 @@
 # Official provider access for a paid Training Hub product
 
-**Research date:** 2026-08-25; provider-reply review updated 2026-08-26
+**Research date:** 2026-08-25; provider-reply review updated 2026-08-30
 **Status:** access and policy discovery complete; Polar has confirmed the exact
-commercial use in writing; other provider and aggregator decisions are pending.
+direct commercial use in writing, and Intervals.icu has confirmed the hosted
+commercial bridge and issued an OAuth client; other decisions are pending.
 **Scope:** Strava, Garmin, COROS, Polar, Suunto, Wahoo, TrainingPeaks, Oura,
 WHOOP, the Google Health API/Fitbit transition, Apple HealthKit, Android Health
 Connect, Hammerhead, Withings, Samsung, Huawei, Intervals.icu, Nolio, and
@@ -20,7 +21,7 @@ screening result, not legal advice. Final production use must follow the agreeme
 actually presented to Training Hub during approval; several providers do not
 publish that agreement or pricing before review.
 
-## Actions taken on 2026-08-25 and 2026-08-26
+## Actions taken from 2026-08-25 through 2026-08-28
 
 Marcos explicitly authorized provider outreach on behalf of Training Hub. The
 messages described the product truthfully as a Brazil-based, sole-founder,
@@ -32,20 +33,20 @@ retention, evidence-linked analysis, and a paid differentiated service.
 | Provider | Official channel contacted | Request | Gmail thread ID | Status |
 | --- | --- | --- | --- | --- |
 | COROS | `api@coros.com` | OAuth2 onboarding, sole-founder eligibility, retention/analysis/subscription rights, and prerequisites for the formal form | `1a03b9f2cca02717` | Sent; no delivery failure or reply |
-| Garmin | `connect-support@developer.garmin.com` | Activity API evaluation, FIT/history access, no-fee applicability, and next application step; follow-up reported the dedicated form's current “stay tuned” closure and asked for a waitlist or email intake | `1a03b9f31a4655e5` | Two messages sent; no delivery failure or reply |
+| Garmin | `connect-support@developer.garmin.com` | Activity API evaluation, FIT/history access, no-fee applicability, and next application step; follow-up reported the dedicated form's current “stay tuned” closure and asked for a waitlist or email intake | Original thread `1a03b9f31a4655e5`; tickets `221615` and `221617` | Garmin's system replies `1a03e238c0ef7593` and `1a03e238cc8d98bb` rejected the Gmail/Vercel identity. Intake requires a personalized non-generic email on a company-owned domain shared by the product site and privacy-policy URL, with a three-business-day ticket deadline. **Blocked on Marcos's domain/company-email decision; no fabricated reply sent** |
 | Suunto | `partners@suunto.com` | Cloud API partnership, commercial free-production path, workout/FIT ingestion, and sole-founder eligibility | `1a03b9f35cf0c5e0` | Sent; no delivery failure or reply |
 | Polar | `b2bhelpdesk@polar.com` | AccessLink commercial-use confirmation and any prerequisite beyond self-service client registration | `1a03b9f9403954fc` | **Confirmed in writing on 2026-08-26:** the described paid multi-user use is allowed and there are no additional prerequisites beyond the published agreement/client fields. Human reply `1a03d03c12a88eea`; acknowledgment sent `1a03d6edcdc81443` |
 | Wahoo | `wahooapi@wahoofitness.com`, copied to `partnerships@wahoofitness.com` | Cloud API approval and written confirmation for paid, non-duplicative analysis | `1a03b9f9a8b29c23` | Sent; no delivery failure or reply |
 | TrainingPeaks | `support@trainingpeaks.com`, then `api@trainingpeaks.com` | Routing to the commercial API team; written exception/terms for retention beyond the default seven-day cache and a paid differentiated product while partner intake is paused | `1a03b9f98f7905f2`, `1a03bac6148417ef` | Two messages sent; no delivery failure or reply |
-| Strava | `developers@strava.com` | Written policy determination for persistent historical evidence, analytics, any future AI context, BYO credentials, and a roughly US$5 paid beta; follow-up asked that ticket `#17712` remain open and be routed to the policy/commercial owner | `1a03ba00c9087d63` | Automated resource/rate-limit reply did not answer the policy questions; escalation sent in the ticket; human answer pending |
+| Strava | `developers@strava.com` | Written policy determination for persistent historical evidence, analytics, any future AI context, BYO credentials, and a roughly US$5 paid beta; follow-up asked that ticket `#17712` remain open and be routed to the policy/commercial owner | `1a03ba00c9087d63` | Human/API-team answer `1a03f280be4605fc` refused individual feedback and directed Training Hub back to the same Agreement/Policy before application review. No further repetition sent; **definitive commercial-policy hold** |
 | Validic | `hello@validic.com` | Free developer sandbox limits, real-user eligibility, activity-detail fidelity, and future Business production pricing | `1a03ba011aa90229` | Automated receipt says non-COVID requests receive a response within one business day; human answer pending |
-| Terra | `vanessa@tryterra.co` | Startup Accelerator fit and application route for a working pre-revenue product | `1a03ba0126d082c2` | Sent; no delivery failure or reply |
+| Terra | `vanessa@tryterra.co`, handoff to `piragash@tryterra.co` | Startup Accelerator fit and application route for a working pre-revenue product | `1a03ba0126d082c2` | Piragash confirmed in `1a0449543d9d31b3` that Training Hub is a plausible accelerator candidate and must apply through the formal form. There is no standing tier below US$399/month billed annually; any lower later price is usage-based negotiation. Training Hub chose the accelerator route, not Quick Start, in `1a045d8212d50243`; Piragash's courtesy acknowledgment `1a047a0f7addb804` added no new requirement and received no further reply. **Application review/submission requires Marcos** |
 | Open Wearables / Momentum | `inquiries@themomentum.ai` | Whether self-hosted/enterprise supplies provider credentials or downstream rights; detailed activity fidelity; provider-specific AI disabling; bootstrapped support cost; deletion and provider-loss paths | `1a03bbcbc6a8b9a8` | Sent after the first contact wave; no delivery failure or reply reported |
-| Intervals.icu | `david@intervals.icu`, copied to `support@intervals.icu` | Whether the commercial API license covers retained original provider files and paid derived evidence; reliable upstream provenance; flow-down restrictions; Strava/Oura exclusion; revocation/deletion; production limits or fees | `1a03bcd482c9a5ee` | Sent; no delivery failure or reply reported |
+| Intervals.icu | `david@intervals.icu`, copied to `support@intervals.icu` | Whether the commercial API license covers retained original provider files and paid derived evidence; reliable upstream provenance; flow-down restrictions; Strava/Oura exclusion; revocation/deletion; production limits or fees | `1a03bcd482c9a5ee` | David's human answer `1a03e2890a33b567` confirmed paid retention and deterministic derived analysis, a `source` field, no caps/fees, no Strava API data, and Garmin attribution as the current flow-down term; Oura is unstable and must be excluded. He created OAuth client `790`. Acknowledgment and stricter deletion commitment sent in `1a040b12174f6627`; client not accessed or used with real users |
 | Hammerhead / SRAM | `hammerhead.integrations@sram.com` | Paid differentiated-product rights, original Karoo FIT retention, deterministic/AI analysis, production limits/fees, Brazil eligibility, and revocation/deletion obligations | `1a03bcd4c999fd85` | Sent; no delivery failure or reply reported |
-| Nolio | `contact@nolio.io` | Production/API price and Premium-account dependency; provider-by-provider downstream authority; retained history/files and derived evidence; original-file provenance; AI flow-down restrictions; DPA/deletion/provider-loss terms; Brazil eligibility | `1a03bcdfebefbcfd` | Sent; no delivery failure or reply reported |
+| Nolio | `contact@nolio.io` | Production/API price and Premium-account dependency; provider-by-provider downstream authority; retained history/files and derived evidence; original-file provenance; AI flow-down restrictions; DPA/deletion/provider-loss terms; Brazil eligibility | `1a03bcdfebefbcfd` | Human reply `1a042d60f340f4e0` confirmed that only the API-owner account needs a paid subscription, connected athletes can use free accounts, raw FIT/TCX availability varies by source, and production access requires business review. Training Hub asked for the review questions, exact price, downstream rights, provenance/restrictions and privacy terms in `1a04344c35525518`; answer pending |
 | Huawei Health Service Kit | `hihealth@huawei.com` | Brazil sole-founder and enterprise eligibility; entity requirements and fees; paid differentiated use; retained history, trajectory and samples; deterministic/AI rights; cross-border, deletion and termination terms; whether 100-user test scopes permit real consenting testers | `1a03bd1f836fd5bd` | Sent after the 23:04 inbox check; reply pending |
-| FitnessSyncer | `hi@fitnesssyncer.com`, copied to `support@fitnesssyncer.com` | Commercial agreement, minimum and per-managed-user price; free versus sponsored accounts; provider-by-provider downstream authority; OAuth versus username/password sources; normalized/original-file fidelity and provenance; retention, paid derived use, AI exclusions, DPA/security/provider-loss, Brazil eligibility and caps | `1a03bd4b68e677fa`, case thread `1a03bd6cb2fba3e8` | Human reply `1a03bee0c8239c07` confirmed API use, original FIT passthrough when received and no AI/MCP support, but requested a specific flow before pricing/approval. Exact deterministic, non-AI flow and 10/100/1,000-user pricing questions sent in `1a03d6f410deb196`; answer pending |
+| FitnessSyncer | `hi@fitnesssyncer.com`, copied to `support@fitnesssyncer.com` | Commercial agreement, minimum and per-managed-user price; free versus sponsored accounts; provider-by-provider downstream authority; OAuth versus username/password sources; normalized/original-file fidelity and provenance; retention, paid derived use, AI exclusions, DPA/security/provider-loss, Brazil eligibility and caps | `1a03bd4b68e677fa`, case thread `1a03bd6cb2fba3e8` | **Conditional six-month pilot offer.** After the bidirectional-free/US$30-per-active-user boundary, Eric offered limited API access free for six months in `1a0504e5ecbcb7d8`. Training Hub expressed interest without accepting or creating credentials and requested the architecture, paid-beta/cap, post-pilot price/no-auto-billing and retained-data boundaries in `1a050b58c3fdbf30`; answer pending |
 | SportTracks | `api@sporttracks.mobi` | Commercial API price, minimum and caps; whether every athlete needs the US$59/year subscription; provider-by-provider downstream authority; retention and paid derived use; original-file/provenance fidelity; AI exclusions, DPA/security/provider-loss and Brazil eligibility | `1a03bd53d6436529` | Sent after the 23:04 inbox check; reply pending |
 | WHOOP | `apisupport@whoop.com` | Paid differentiated functionality, explicit-user-consent retention, current cost, and workout telemetry fidelity | `1a03baedd65b2feb` | Sent; no delivery failure or reply |
 | Oura | `api-support@ouraring.com` | Whether prior written consent can permit a paid historical-analysis product despite the current charging, retention, and AI restrictions | `1a03baeda939cb78` | Sent; no delivery failure or reply |
@@ -54,26 +55,48 @@ retention, evidence-linked analysis, and a paid differentiated service.
 
 Most rows remain inquiries rather than access approvals. Polar's 2026-08-26
 reply is the first direct written commercial confirmation for Training Hub's
-exact use case. The same inbox review found substantive replies from Stridee and
-FitnessSyncer; both received targeted follow-ups in their existing threads.
+exact use case. Intervals.icu is the first hosted bridge to confirm the retained
+paid-analysis use in writing and issue a Training Hub OAuth client. The same
+inbox reviews found substantive replies from Stridee, FitnessSyncer, Nolio and
+Terra; all received targeted follow-ups in their existing threads.
 Stridee's immediate final answer did not identify the requested binding clause,
 so no further email was sent and the route was moved to definitive hold. All
-three 2026-08-26 replies were delivered, and the post-send bounce search found
-no delivery-failure notice.
-Formal web applications and developer
-client registrations were not submitted because they require accepting binding
-terms or creating persistent credentials at the moment of submission, and the
+2026-08-26 through 2026-08-30 follow-ups were delivered, and the final
+post-pilot-offer bounce search found no delivery-failure notice. All handled
+provider messages are read, labeled `Training Hub/Provider Integrations`, and
+archived from the inbox.
+Training Hub did not submit formal web applications or developer client
+registrations because they require accepting binding terms or creating
+persistent credentials at the moment of submission, and the
 stronger reviewed-provider forms require facts or assets the current product
 does not yet have: a final public name/domain, privacy and support pages, a public
 account-deletion path, production callback/webhook/status URLs, and a final logo
 and contact package. Submitting invented answers would weaken the applications.
+The exception is Intervals.icu client `790`, which David created voluntarily in
+response to the due-diligence email; Training Hub has not accessed, configured or
+used it.
 
 **Continuation note:** The Google Health API and Open Wearables findings were
 added after the first contact wave. WHOOP, Oura, ROOK, and Stridee received the
 second wave; the remaining messages shown above were subsequent
-pre-application inquiries. The 2026-08-26 actions were email replies only. No
-form, account registration, checkout, credential creation, payment, or terms
-acceptance was performed for these routes.
+pre-application inquiries. Training Hub's 2026-08-26 actions were email replies
+and evidence-log updates only. No form, account registration, checkout,
+credential access/creation, payment, or terms acceptance was performed.
+
+### Ongoing provider-reply monitor
+
+On 2026-08-26 a recurring Codex thread heartbeat named **Monitor Training Hub
+provider replies** was created with automation ID
+`monitor-training-hub-provider-replies`. Every twelve hours it checks all known
+provider-outreach threads, reads complete replies, distinguishes human decisions
+from automated acknowledgments, sends useful non-binding follow-ups in the
+existing thread, marks handled replies read, checks for delivery failures, and
+updates this note with exact Gmail IDs and next actions.
+
+The monitor must stop before account/credential creation, agreement or binding
+form acceptance, spending/billing, or changes to live/shared services. It must
+also stop pressing a contact after a clear final refusal and record that route as
+on hold instead.
 
 ## Executive decision
 
@@ -90,8 +113,11 @@ with a shared Strava client:
    itself.
 2. **Keep the direct-provider queue active, but respect the live intake state.**
    Suunto, COROS, and Wahoo have live application paths after the public
-   prerequisite package exists. Garmin's dedicated access form currently only
-   says “Stay tuned,” so the email thread is now the waitlist request.
+   prerequisite package exists. Garmin opened tickets `221615` and `221617` but
+   will not process them from Gmail: it requires a personalized address on a
+   company-owned domain shared by the website and privacy-policy URL. Resolve
+   that real identity package before reapplying; do not substitute a generic or
+   unrelated domain.
    TrainingPeaks is not accepting new API partners during maintenance and its
    default terms do not permit Training Hub's persistent history; wait for a
    written exception or changed terms before treating it as viable.
@@ -105,15 +131,16 @@ with a shared Strava client:
    Strava's current API Policy restricts AI use, analytics/customer-insight use,
    cross-customer combination, persistent storage, and charging for
    Strava-provided functionality. Those restrictions collide with core Training
-   Hub behavior. Ask Strava for a written determination or negotiated license
-   before building a hosted Strava connector or selling Strava-backed analysis.
-5. **Use free programs as a hedge, not an assumption of production access.**
-   Terra's standard plan and ROOK are too expensive at this stage, but Terra has
-   a selective accelerator and Validic now has a free developer sandbox. Neither
-   is production authority until its written downstream rights, limits, and
-   post-program pricing are clear. Stridee is cheaper but does not publish
-   provider-by-provider sublicensing proof. Open Wearables reduces engineering
-   work but still requires Training Hub to obtain each provider credential.
+   Hub behavior. Strava API support declined to give individual policy feedback
+   on ticket `#17712` and directed Training Hub back to the same policies.
+   Therefore keep Strava on a definitive commercial hold unless the policies
+   change or Strava offers a separate review/contract path.
+5. **Apply to Terra's accelerator, but do not plan around acceptance.** Terra
+   confirmed Training Hub is a plausible candidate and requires its formal
+   accelerator form. The only standing graduation route below month-to-month is
+   US$399/month billed annually; anything lower is a later usage-based commercial
+   negotiation. Do not buy Quick Start at the present stage. Validic's free
+   sandbox remains useful for testing but is not production authority.
 6. **Add the Google Health API to the first buildable wave.** It is the official
    successor to the legacy Fitbit Web API, has a 100-user testing ceiling before
    production OAuth verification, exposes detailed Fitbit/Pixel workouts and
@@ -133,16 +160,21 @@ with a shared Strava client:
    expressly grant worldwide, royalty-free commercial use; OAuth exposes the
    original activity file, and free athlete accounts can sync Garmin, COROS,
    Polar, Suunto, Wahoo and more. The extra Intervals account is onboarding
-   friction, and Training Hub must preserve provider provenance and exclude
-   Strava/Oura-sourced data where their upstream policies conflict.
+   friction. David Tinker has now confirmed paid retention and deterministic
+   derived analysis, a provider `source` field, and no caps or fees, and created
+   OAuth client `790`. Training Hub must preserve provenance, apply Garmin
+   attribution, exclude Oura, and implement its own deletion-on-request policy;
+   Intervals already excludes Strava data from its API.
 10. **Add Hammerhead's new public API to the direct queue.** It is self-service,
     no-fee, OAuth-based and returns the original Karoo FIT file. The license does
     not expressly decide paid subscriptions, long-term data retention or AI use,
     so confirm those points before public production.
 11. **Keep Nolio as a technical backup, not an approved commercial bridge.** Its
     OAuth API has five-user development access and detailed streams across many
-    connected providers, but no public API price or downstream commercial/data
-    license was found. Production needs a written partnership agreement.
+    connected providers. Nolio confirmed only the API owner needs a paid account
+    and connected athletes may use free accounts, but the exact plan/price and
+    downstream commercial/data rights remain unanswered. Production needs a
+    written partnership agreement.
 12. **Use Withings only for wellness context.** Its free Public API is open to
     individuals and companies and supports server-side OAuth/webhooks, but the
     public workout model does not expose an original activity file, GPS route,
@@ -163,12 +195,13 @@ with a shared Strava client:
     provider-level provenance, and its API price, athlete-account requirement,
     downstream license, retention and AI rights are unpublished. Wait for the
     written commercial answer before implementing it.
-16. **Keep FitnessSyncer as a capable custom-contract backup.** It supports the
-    same five providers and normalized GPS/lap/sample telemetry, but commercial
-    apps and sponsored users require contact, per-managed-account pricing is
-    unpublished, and the public terms do not grant provider-by-provider paid
-    downstream or AI rights. The US$4.99/month Pro plan is personal-only and is
-    not a production license for Training Hub.
+16. **Evaluate FitnessSyncer's new six-month API pilot, but do not count it as
+    durable access yet.** Eric offered limited API access free for six months
+    after the bidirectional-free/US$30-per-active-user boundary. This could fund
+    a bounded read-only beta if it permits paid consenting users and does not
+    require Training Hub to become a synchronization source. Wait for written
+    architecture, caps, post-pilot price, no-auto-billing and retained-data terms
+    before accepting access or building against it.
 17. **Reject Runalyze and tapiriik as access shortcuts.** Runalyze's public app
     API is write-only; its read token is expressly for the athlete's own use.
     tapiriik is a consumer account-to-account sync with no downstream Training
@@ -180,7 +213,7 @@ with a shared Strava client:
 | Route | Data available | Can Training Hub charge its users? | Published cost | Review and prerequisites | Action |
 | --- | --- | --- | --- | --- | --- |
 | **Polar AccessLink** | Exercises, activity, sleep, cardio load, Nightly Recharge, biosensing and user information through OAuth | **Yes, for Training Hub's differentiated service**, subject to the agreement; no selling, sublicensing, or commercializing Polar Licensed Materials/data | **Royalty-free** | Self-service API client; Polar Flow account; user consent; no company or geography gate published | Create a client at [admin.polaraccesslink.com](https://admin.polaraccesslink.com/) |
-| **Garmin Activity API** | Full activity files and details across 30+ activity types; FIT, GPX, and TCX; OAuth user consent | **Yes, after business-use approval** for the approved Training Hub use case | General program says no licensing/maintenance fee; selected Health API metrics may carry fees or device minimums | Enterprise/business use only; normal documentation says a typical integration is 1–4 weeks, but the dedicated request form is currently closed | Keep the email waitlist request open and monitor the [dedicated access form](https://www.garmin.com/en-US/forms/GarminConnectDeveloperAccess/) |
+| **Garmin Activity API** | Full activity files and details across 30+ activity types; FIT, GPX, and TCX; OAuth user consent | **Yes, after business-use approval** for the approved Training Hub use case | General program says no licensing/maintenance fee; selected Health API metrics may carry fees or device minimums | Enterprise/business use; personalized email, website and privacy policy must share a company-owned domain; Gmail/Vercel identity was rejected in tickets `221615`/`221617` | Establish the real company-domain identity package, then reply/reapply from that personalized address |
 | **Suunto Cloud API** | Workout summaries and FIT samples including heart rate, RR, power, altitude, temperature, and GPS; daily steps/calories; no sleep API | **Yes.** Suunto explicitly permits commercial and non-commercial use | **Free** | Company/organization with a public tool, app, or service; no personal-use apps; weekly review, maximum stated wait of two weeks | Submit [Become a Suunto Partner](https://survey.alchemer.eu/s3/90553908/PARTNER-Become-a-Suunto-Partner) |
 | **Wahoo Cloud API** | Athlete profile/zones, routes, workouts and workout plans; upload and download; OAuth | **Conditionally yes.** May charge for differentiated functionality not provided by Wahoo; may not charge specifically for Wahoo API/platform functionality or resell it | **Currently free**; Wahoo reserves future pricing | Wahoo account, app request, purpose/scopes and review; individual 18+ or entity; no geography gate published | Register/login at [Wahoo Applications](https://developers.wahooligan.com/applications) |
 | **COROS OpenAPI** | User-authorized activity sharing from COROS to third-party platforms through OAuth2 | **Plausibly yes, but the public page does not establish charging rights.** Obtain written confirmation in the agreement/review | The live application says there is no integration fee; future/commercial terms are not otherwise published | Company/platform details, privacy/technical contacts, redirect and push/status URLs, terms, security/privacy/rate limits, identity and security verification | Complete the [COROS API application](https://coros-teams.feishu.cn/share/base/form/shrcnLqSduZsaNhbvDJTO2x0Vlf) after the missing public/technical assets exist |
@@ -190,13 +223,13 @@ with a shared Strava client:
 | **Oura API** | Workout summaries, daily activity/sleep/readiness/stress, sessions and heart-rate/HRV/temperature time series | **Not safely without written consent.** Public docs call commercial API access free, but the current agreement restricts charging for API-related functionality, storage and AI use | **Currently free**; Oura reserves differentiated/future business pricing | Self-service OAuth up to 10 users; app review above 10 | Register/test through [Oura Cloud](https://cloud.ouraring.com/docs/), then obtain a written determination from [api-support@ouraring.com](mailto:api-support@ouraring.com) before a paid flow |
 | **Hammerhead Karoo API** | OAuth activity summaries/details, route polyline and the original activity FIT file; routes and planned workouts can also be written | **Plausibly for a differentiated app, but not explicit.** The license covers business applications and end users but does not specifically authorize subscription charging, retained activity data or AI use | **No license fee today**; SRAM reserves future pricing | Self-service developer-account enablement and license acceptance; no published athlete cap or geography/company-size gate; Brazil is not excluded by the US export clause | Follow [Creating a Developer Account](https://support.hammerhead.io/hc/en-us/articles/43558376710683-Creating-a-Developer-Account) and confirm commercial/retention terms before acceptance |
 | **Withings Public API** | OAuth workout summaries, activity, intraday heart rate/distance/steps, sleep, body and cardiovascular data; no public original activity file or GPS route | **Plausibly for a differentiated app, but not explicit.** Terms permit branded applications with added functionality and do not state a charge ban; clarify commercial continuous sync, retention and AI | **Free Standard access**, 120 requests/minute; enterprise limits/SLA unpriced | Self-service developer dashboard for individuals or companies, no contract/prerequisite or user cap published; Brazil not excluded, but availability may vary by country | Use the [Public API setup](https://developer.withings.com/developer-guide/v3/integration-guide/public-health-data-api/developer-account/create-your-accesses-no-medical-cloud/) only as a later wellness connector; first resolve the stale terms/background-webhook conflict |
-| **Intervals.icu OAuth API** | Original FIT/TCX/GPX activity file, summaries, wellness, calendar and webhooks; free accounts can sync Garmin, COROS, Polar, Suunto, Wahoo and many more | **Yes.** API terms grant worldwide, royalty-free commercial use and allow downstream use/sublicensing of derived outputs, subject to Garmin attribution | **Free** platform and royalty-free API; no per-user/API fee published | Request an OAuth app by email with site, privacy policy, logo and callbacks; no published user cap; default rate budget scales through 500 users, then support can raise it | Request an app from [david@intervals.icu](mailto:david@intervals.icu); test direct-provider files and exclude Strava/Oura-derived use until their upstream restrictions are resolved |
+| **Intervals.icu OAuth API** | Original FIT/TCX/GPX activity file, summaries, wellness, calendar and webhooks; free accounts can sync Garmin, COROS, Polar, Suunto, Wahoo and many more | **Yes, confirmed in writing.** Paid retained history/files and deterministic derived analysis are allowed, subject to upstream terms and Garmin attribution | **No caps or fees**, confirmed by David Tinker | OAuth client `790` has been issued; each athlete needs an Intervals account; preserve `source`, exclude Oura, implement deletion, privacy/callback and attribution controls | Review the issued client with Marcos, configure callbacks only after the public privacy/deletion package exists, then test one approved non-Strava/non-Oura source |
 | **Nolio API** | OAuth access to workouts, HR/power/cadence/pace/altitude/distance/time streams, custom laps, metrics, files and webhooks across Nolio's broad connector set | **Undetermined.** The public developer surface promotes partner and AI integrations but publishes no downstream commercial/data license | No API price published; Nolio's athlete page lists API access in its €6.90/month Premium tier, so partner-user cost must be clarified | Self-service developer application for a person or company; production-backed testing only, five-user development cap, production promotion required; no geography gate published | Use the [Nolio developer portal](https://www.nolio.io/developers/) only after the [partnership form](https://www.nolio.io/contact/?subject=Demo) confirms cost and provider-by-provider downstream rights |
 | **Android Health Connect** | On-device user-authorized health/fitness records written by connected apps; provider coverage and fields vary | **Yes for a user-benefiting fitness/wellness product**, subject to Play policy; subscriptions sold in the Android app normally use Play Billing | US$25 one-time Play developer registration | Native Android app; Health Apps declaration, Data Safety disclosure, minimum scopes and justification; organization account/D-U-N-S is the safer health-app path | Build a narrow native companion after reading the [publish guide](https://developer.android.com/health-and-fitness/health-connect/publish) |
 | **Samsung Health Data SDK** | On-device exercise sessions with GPS route, timestamped heart rate/speed/cadence/power logs, swimming intervals and summaries; no original FIT/TCX | **Potentially, only as Samsung-approved functionality.** The partner agreement contemplates a provider service but restricts selling/marketing/data mining; obtain explicit subscription and bounded-analysis approval | No fee published; each party bears its own costs | Android 10+ companion and Samsung Health; developer mode is test-only; public distribution requires partnership plus package/signature registration; a company-backed applicant is safer | Apply through the [Samsung app-creation process](https://developer.samsung.com/health/data/process.html) only after an Android companion and Brazilian legal entity are justified |
 | **Huawei Health Service Kit** | User-authorized cloud/mobile activity records; advanced scopes can include trajectory, timestamped heart rate, speed, running form, power and cycling cadence; no original FIT/TCX found | **Undetermined.** Paid use, retention and AI rights are governed by an in-console agreement not publicly resolved | No usage fee published | Detailed workout and cloud-subscription capabilities are enterprise-only; reviewed test scopes have a 100-user ceiling, six-month verification deadline and two manual review stages | Revisit after forming a Brazilian legal entity; follow the [kit-service application guide](https://developer.huawei.com/consumer/en/doc/HMSCore-Guides/harmonyos-apply-kitservice-0000001194699502) and confirm terms via [hihealth@huawei.com](mailto:hihealth@huawei.com) |
 | **Apple HealthKit** | On-device user-authorized health and fitness records written by connected apps; provider coverage and fields vary | **Yes for a direct user benefit**, under HealthKit/App Store rules; digital subscriptions in the app must follow Apple's purchase rules | US$99/year developer membership | Native iOS app, HealthKit entitlement, purpose strings and per-type consent; individual/sole proprietor allowed, organization enrollment needs D-U-N-S | Start with [HealthKit](https://developer.apple.com/documentation/healthkit) and [membership comparison](https://developer.apple.com/support/compare-memberships/) |
-| **Strava API** | Athlete-authorized activity/profile data through OAuth | **Not safely for Training Hub's current core behavior without written authorization.** Marketing/selling an app is contemplated, but current policy separately restricts AI, analytics/customer insights, persistent data and charging for Strava-provided functionality | API Agreement says access is currently no-charge; Standard-tier subscription requirements may apply; exact current price is not published on the reviewed pages | New apps begin with one athlete, settings upgrade to 10, then formal review; screenshots and a compliant connect flow required; Extended access applies at 10,000+ athletes | First request a written product-use determination from [developers@strava.com](mailto:developers@strava.com); do not submit a generic limit increase until the use case is resolved |
+| **Strava API** | Athlete-authorized activity/profile data through OAuth | **Not safely for Training Hub's current core behavior.** Policy restricts AI, analytics/customer insights, persistent data and charging for Strava-provided functionality; ticket `#17712` produced no individual ruling | API Agreement says access is currently no-charge; Standard-tier subscription requirements may apply; exact current price is not published on the reviewed pages | API support declined individual policy feedback and referred Training Hub back to the Agreement/Policy before application review | **Definitive commercial hold** unless policy changes or Strava exposes a separate contractual review path |
 
 ## Direct-provider findings
 
@@ -260,20 +293,28 @@ states that some commercial use is licensed. Training Hub should request the
 necessary.
 
 **Review.** Garmin's documentation says a typical integration takes one to four
-weeks after intake. No country exclusion or mandatory company identifier is
-published, but it is explicitly a business-use program and approval is
+weeks after intake. It is explicitly a business-use program and approval is
 use-case-specific. The dedicated [Connect Developer Program access
 form](https://www.garmin.com/en-US/forms/GarminConnectDeveloperAccess/) was
 inspected in a real browser on 2026-08-25 and currently has no fields; it only
 says “Stay tuned for more updates on the program.” The broader Garmin Health
 contact form is not a substitute for that API form.
 
-**Next action.** Keep the existing support thread open as a request for the
-waitlist, reopening date, or authorized email intake. When the form reopens,
-request Activity API, FIT access and history synchronization for an
-athlete-authorized, evidence-linked review product. Ask about the Training API
-only if Training Hub later needs to push workouts; it is not needed for the
-current read-and-interpret product.
+**2026-08-26 intake result.** Garmin opened tickets `221615` and `221617`, then
+rejected the request because it came from Gmail. System messages
+`1a03e238c0ef7593` and `1a03e238cc8d98bb` require the point of contact to use a
+personalized, non-generic address—ideally `firstname.lastname@companydomain`—and
+require the personal email, website and privacy policy to share a parent domain
+owned by the requesting company. Generic, unrelated-domain and freemail
+addresses are restricted. The tickets say they close automatically after three
+business days without a compliant response.
+
+**Next action.** Marcos must choose and own the real Training Hub product/company
+domain, put the truthful product and privacy pages on it, and create a
+personalized address on that same domain. Then request Activity API, FIT access
+and history synchronization from that identity. A reply from the current Gmail
+address cannot satisfy the stated gate, so none was sent. Ask about the Training
+API only if Training Hub later needs workout push; it is not needed now.
 
 ### 3. Suunto Cloud API — explicitly commercial and free
 
@@ -429,12 +470,19 @@ future pricing. The Policy describes Standard and Extended access and refers to
 subscription requirements, but the reviewed public pages do not provide a
 reliable current price. Do not budget “free forever” or invent a price.
 
-**Next action.** Send a precise written pre-application question to
-[developers@strava.com](mailto:developers@strava.com), including current data
-retention, evidence analysis, any AI context use, user-facing sources/deletion,
-and the paid subscription boundary. Ask whether Strava will authorize that use
-under the Standard terms, requires a negotiated license, or will not approve it.
-Do not claim that per-user/BYO developer apps avoid these obligations.
+**2026-08-26 support result.** Training Hub asked those exact questions in ticket
+`#17712` and then explicitly requested routing to a policy/commercial owner.
+Strava API Team message `1a03f280be4605fc` said it cannot provide individual
+feedback due to submission volume and directed Training Hub back to the same API
+Agreement and API Policy before application review. It did not answer whether
+the current persisted analysis, paid entitlement or BYO pattern is eligible and
+did not identify a separate-license path.
+
+**Next action.** Do not repeat the same questions or submit a generic capacity
+review for a product whose core behavior conflicts with the published policy.
+Keep Strava-backed persistent analysis on **definitive commercial hold** unless
+the policy changes or Strava exposes a contractual review path. Do not claim that
+per-user/BYO developer apps avoid these obligations.
 
 ### 8. Google Health API — the official Fitbit successor and strongest new route
 
@@ -843,14 +891,38 @@ before applying.
 | --- | --- | --- | --- |
 | [Intervals.icu Open API](https://www.intervals.icu/features/open-api/) | Free athlete platform plus worldwide, royalty-free API license for commercial use | OAuth bridge to original activity files from Garmin, COROS, Polar, Suunto, Wahoo and other user-connected sources | **Best zero-cost hosted experiment**; request an OAuth app and validate direct-source provenance/fidelity, excluding policy-conflicted Strava/Oura data |
 | [SportTracks API](https://sporttracks.mobi/api/doc) | Partner credentials by email; no API fee or production cap published; consumer service is US$59/year after a 45-day trial | Athlete OAuth plus rich normalized laps and sample streams across Garmin, COROS, Polar, Suunto and Wahoo connections | **Strongest conditional sweep lead**; inquiry pending on commercial price, athlete subscription friction, upstream authority, retention/AI rights and missing original-file provenance |
-| [FitnessSyncer API](https://www.fitnesssyncer.com/api/documentation.html) | Personal Pro is US$4.99/month and personal-only; commercial/corporate API access is custom-priced per managed account | Athlete OAuth to FitnessSyncer plus normalized GPS, laps, heart rate, cadence, power and other samples across all five target sources | Strong technical backup, commercial hold; inquiry pending on sponsored accounts, price, provider-by-provider rights, target-source authentication and original-file provenance |
-| [Nolio API](https://www.nolio.io/developers/) | Self-service developer application and five-user development access; API price/production partnership terms not published | Broad official connector set plus detailed workout streams, files, metrics and webhooks | Technical fit, commercial hold; obtain a provider-by-provider downstream license and clarify whether every athlete needs Premium |
+| [FitnessSyncer API](https://www.fitnesssyncer.com/api/documentation.html) | A first-class source-and-destination integration is never charged; otherwise US$30 per active user was quoted, followed by a new six-month free API-access offer whose post-pilot price is pending | Potential direct read-only API pilot; exact architecture, real-user/paid-beta allowance and cap are not yet confirmed | **Conditional pilot lead, not durable access**; proceed only after the written pilot and exit terms fit the product and budget |
+| [Nolio API](https://www.nolio.io/developers/) | One active paid API-owner account required; connected athletes may use free accounts; exact required plan, extra API fee and production terms not published | Broad official connector set plus detailed workout streams, source-dependent raw FIT/TCX, metrics and webhooks | Technical fit, commercial hold; obtain the production-review terms and provider-by-provider downstream license before paying or applying |
 | [Terra pricing](https://tryterra.co/pricing) | US$499/month month-to-month or US$399/month on annual billing, with 100,000 credits on the listed plan | Hosted normalized wearable API and provider relationships | Defer; outside the present budget |
-| [Terra Startup Accelerator](https://tryterra.co/accelerator/) | Up to US$100,000 of API credits for up to six months, no cost or equity; rolling applications and a published roughly 1.8% acceptance rate | Temporary production-capable runway if Training Hub is accepted | Asked by email for fit/routing; pursue, but require a credible post-credit plan |
+| [Terra Startup Accelerator](https://tryterra.co/accelerator/) | Up to US$100,000 of API credits for up to six months, no cost or equity; rolling applications and a published roughly 1.8% acceptance rate | Temporary production-capable runway if Training Hub is accepted | Training Hub is a plausible candidate; formal form is required and selection is competitive. Apply with Marcos present, keep building, and do not assume a post-credit price below US$399/month billed annually |
 | [ROOK pricing](https://www.tryrook.io/pricing) | Core US$399/month for up to 750 active users; granular-data add-on US$249/month on Core/Core+, making detailed data at least US$648/month | Hosted wearable API/SDK, provider connections and normalization | Defer; its free sandbox is time-limited and non-commercial, not a startup production tier |
 | [Validic free developer tier](https://validic.com/news/Validic-launches-free-developer-tier-with-API-driven-agentic-self-signup/) | No-contract, no-credit-card developer sandbox advertising 700+ supported devices; production Business tier is not publicly priced on the reviewed announcement | Fast normalized-device prototyping and fidelity tests | Open a sandbox only after accepting the developer terms; do not treat it as real-user production access |
 | [Stridee pricing](https://platform.stridee.fit/pricing) | Fourteen-day trial; annual-billing tiers are US$9/month for 1 user, US$29/month for up to 5,000, and US$99/month for unlimited users | Live site claims hosted Garmin, COROS, Polar, Wahoo and Zepp connections; activity events include the original device file | Technically attractive at US$29/month, but procurement hold until upstream commercial authority and flow-down rights are proven |
 | [Open Wearables pricing](https://openwearables.io/pricing) | MIT self-hosted software is free; Training Hub pays infrastructure/operations; enterprise deployment/support is custom-priced | Reduces OAuth, ingestion and normalization engineering and gives one internal model | Useful only after direct approvals; it still requires Training Hub's provider credentials and presently lists COROS/Fitbit as coming soon |
+
+### Terra accelerator — eligible to apply, but not a durable low-cost tier
+
+Piragash Selvakumar confirmed in Gmail message `1a0449543d9d31b3` that Training
+Hub's pre-revenue, bootstrapped stage and load-bearing wearable-data use make it
+a plausible Startup Accelerator candidate. The email thread is not an
+application: Terra requires the [formal accelerator form](https://tryterra.co/accelerator/),
+which already asks for the roadmap, funding position and why the data is core;
+no separate deck or walkthrough is needed. Selection remains competitive, so
+the product should keep building without planning around an award.
+
+Piragash also confirmed there is no standing graduation tier below US$399/month
+billed annually. A lower price would be a later commercial discussion based on
+real measured usage. Quick Start's 30-day money-back guarantee does not change
+the current cash constraint and is not the selected route. Training Hub replied
+in `1a045d8212d50243`, choosing the accelerator application path and declining
+to start Quick Start now. No form, account, checkout, payment or agreement was
+submitted or accepted; the reply was marked read and archived under the provider
+label.
+
+**Next action requiring Marcos.** Review the final roadmap, funding and
+provider-volume answers and submit the accelerator form with Marcos present.
+Treat acceptance as upside, not a dependency, and do not start a paid Terra plan
+without separate approval.
 
 ### Intervals.icu — strongest no-cost hosted bridge, with account friction
 
@@ -873,28 +945,44 @@ no storage-duration or AI prohibition, and Intervals' [official integration
 page](https://www.intervals.icu/features/app-integrations/) explicitly describes
 commercial developers and AI coaches. This is much stronger downstream language
 than Stridee publishes. It still cannot erase restrictions attached to the
-upstream source: retain provider provenance, exclude Strava-origin activities
-from Training Hub's current analysis, and exclude Oura data from AI. The
-cookbook also says Strava activities do not emit activity webhooks.
+upstream source: retain provider provenance, apply Garmin attribution and
+exclude Oura-origin records from Training Hub. Intervals.icu does not expose
+Strava data through this API, so it cannot accidentally enter this bridge.
 
 To create an app, the official [OAuth guide](https://forum.intervals.icu/t/intervals-icu-oauth-support/2759)
 asks the developer to email app description, website, privacy policy, logo,
 redirects and an Intervals athlete ID to
 [david@intervals.icu](mailto:david@intervals.icu). The owner can test immediately
-and can send consent links before public directory listing. No athlete cap or
-company/geography gate is published. Default OAuth rate capacity is 100 requests
+and can send consent links before public directory listing. No company/geography
+gate is published. Default OAuth rate capacity is 100 requests
 per user per day through 500 users, with a 5,000-request minimum; the [rate-limit
 guide](https://forum.intervals.icu/t/api-access-to-intervals-icu/609) says to
 contact support above 500. The free platform and royalty-free API have no
 published per-user fee, and the worldwide license fits a Brazil-based sole
 founder.
 
-**Next action.** Once the public privacy/callback assets exist, request an OAuth
-app and test original files from one Garmin/Polar/COROS/Wahoo source. Ask
-[support@intervals.icu](mailto:support@intervals.icu) to confirm that the
-commercial license covers retaining original provider files and user-visible
-derived evidence, and request a definitive provider provenance field/flow-down
-matrix before marketing multi-provider coverage.
+**2026-08-26 written confirmation and issued client.** David Tinker answered in
+Gmail message `1a03e2890a33b567` that a paid Training Hub product may retain the
+authorized history/original files and display deterministic derived metrics. He
+confirmed a `source` field for provenance, Garmin attribution as the only current
+flow-down requirement, no production cap or fee, and that Intervals does not
+give OAuth clients Strava data. Oura's aggregator terms are new and upstream
+access may be withdrawn, so Training Hub will exclude Oura rather than rely on
+it. Intervals has no additional post-revocation retention policy; Training Hub
+will impose deletion on account deletion or explicit user request and stop new
+ingestion at disconnect.
+
+David also created OAuth client `790` before the requested privacy/callback
+package was ready. Training Hub acknowledged the confirmation and the stricter
+deletion/filtering boundary in message `1a040b12174f6627`. No client page,
+credential or secret was accessed, and no real-user data was sent.
+
+**Next action.** With Marcos present, review client `790` and any presented
+terms/credentials, then configure callbacks only after the truthful public
+privacy, support, consent, disconnect and deletion package exists. Test original
+files from one approved Garmin/Polar/COROS/Suunto/Wahoo source and verify actual
+`source` values, attribution, webhooks and deletion before inviting another
+athlete.
 
 ### SportTracks — strongest conditional bridge from the final sweep
 
@@ -992,12 +1080,130 @@ initial 10-user path toward 100 and 1,000. The follow-up asks for the supported
 source-creation flow, price at those volumes, paid downstream authority for
 Garmin/COROS/Polar/Suunto/Wahoo, retention and deletion terms.
 
-**Next action.** Wait for Eric's answer to the concrete flow. Do not create a
-commercial client or send real-user data until the reply establishes
-sponsored/free-user onboarding, minimum/per-user cost,
-target-source authentication, provider-by-provider paid downstream authority,
-original-file/provenance fidelity, retention/deletion, AI exclusions, DPA and
-production caps.
+**2026-08-27 commercial answer.** Eric's second human answer in Gmail message
+`1a041c7c91e9c514` says FitnessSyncer has the rights necessary for the exact
+paid, deterministic, non-AI flow Training Hub described and requires Training
+Hub's privacy policy to explain its FIT-file handling. He offered two possible
+integration shapes: FitnessSyncer can integrate with an API supplied by
+Training Hub while users maintain their own accounts, which he described as
+the likely better experience; or Training Hub can consume FitnessSyncer's API,
+with the first batch of users free and eventual pricing around US$2 per active
+user per month. The latter would consume roughly 40% of the proposed US$5
+subscription before hosting, taxes and support, so it is not a comfortable
+default at the current target price. The exact free threshold, definition of an
+active user, price/minimum for the first integration shape and revocation/
+deletion rule remain unpublished.
+
+Training Hub replied in `1a04344bd7c922b9`, acknowledging the written rights
+confirmation and asking Eric to define the API-supplier/push workflow and its
+documentation/price, the free direct-API batch, active-user billing definition,
+and deletion obligations. No API, commercial client, account or real-user data
+was created or supplied. The incoming answer was marked read, and the subsequent
+delivery-failure search was empty.
+
+**2026-08-27 destination answer.** Eric's third human answer in Gmail message
+`1a0435c9910a7385` confirms that FitnessSyncer will not charge when it integrates
+Training Hub as a standard source/destination; each athlete instead maintains a
+FitnessSyncer account with one or more authenticated sources. FitnessSyncer can
+provide account/source templates, and an athlete configures a destination task
+that sends data to Training Hub. Eric described the receiving interface as List,
+Get and upload APIs. A direct Training-Hub-to-FitnessSyncer implementation shifts
+account creation, authentication, configuration and maintenance to Training Hub
+and is the route where complexity-based fees apply. He is flexible for a startup
+and said roughly 100 non-abusive users are probably supportable while actual
+costs become clear.
+
+Training Hub chose the no-fee, read-only destination shape in reply
+`1a045d827e5c2587` and requested the interface/template, authentication,
+retry/idempotency, provenance, revocation/deletion specifications, plus written
+confirmation of the roughly 100-user no-fee boundary and retained FIT/history
+rights. No API, account, credential or real-user data was created or supplied.
+The incoming answer was marked read and the full thread remains archived under
+`Training Hub/Provider Integrations`.
+
+**2026-08-28 interface answer.** Eric's fourth human answer in Gmail message
+`1a04600fb3317b2f` makes the integration responsibility concrete. Training Hub
+must expose an OAuth2-protected interface that lets FitnessSyncer list existing
+items and retrieve or download an item, with an upload endpoint for delivery.
+He supplied FitnessSyncer's own List, Get and upload endpoints as model contracts
+and specified `https://www.fitnesssyncer.com/th2auth` as FitnessSyncer's OAuth2
+redirect URL. Stable discovery is required so FitnessSyncer can avoid sending
+duplicate information. Eric asked for the definitions in what appears to mean
+OpenAPI format, but did not answer the requested no-fee user boundary or retained
+FIT/history rights.
+
+Training Hub replied in Gmail message `1a04875ce38f8be0`, acknowledging the
+Training-Hub-owned endpoint shape and offering an OpenAPI 3.1 definition when
+the design is ready. The reply repeated only the two outstanding commercial and
+data-use confirmations. No client ID, secret, endpoint, account, production
+configuration or real-user data was created or supplied. Eric's answer was
+marked read; the full thread was labeled and archived. Terra's separate courtesy
+acknowledgment `1a047a0f7addb804` contained no new decision, received no reply,
+and was likewise marked read, labeled and archived.
+
+**2026-08-28 explicit fee and retention answer.** Eric's fifth human answer in
+Gmail message `1a0494ccc945a8bf` states that FitnessSyncer never charges when it
+implements a service as a first-class **source and destination**; its commercial
+hope is that those athletes later subscribe to FitnessSyncer's broader service.
+He also explicitly confirmed that Training Hub has permission to retain and use
+the athlete-authorized data, with Training Hub's privacy statement responsible
+for disclosing the actual handling. This resolves the core retained-history
+permission but not revocation/deletion mechanics or DPA/security terms.
+
+The fee answer introduces one material architecture ambiguity: Training Hub is
+read-only and requested a destination-only integration, whereas Eric's explicit
+no-fee wording requires both first-class source and destination roles. Training
+Hub replied in Gmail message `1a04afe5bb7b88b9`, acknowledged the retention
+permission, and asked only whether the intended OAuth2 List/Get/upload receiving
+interface can be listed as a destination at no charge or whether FitnessSyncer
+must also expose Training Hub data for onward synchronization as a source. No
+account, credential, endpoint or real-user data was created or supplied. The
+incoming answer was marked read and the complete thread was labeled and archived.
+
+**2026-08-29 final architecture and price boundary.** Eric's sixth human answer
+in Gmail message `1a04bec9ffcbb5b6` states that the free route requires exactly
+the first-class source-and-destination implementation he had already described.
+If Training Hub will not implement both roles, he offered the same arrangement
+used with other organizations at US$30 per active user and said Training Hub no
+longer fits the earlier US$2-per-active-user quote. This is a clear final answer,
+not an invitation for another architecture clarification.
+
+Training Hub replied once in Gmail message `1a050293b5ade531`, accurately stating
+that it will not pursue the bidirectional route because the product is
+intentionally read-only and will not pursue the US$30-per-active-user alternative
+because it is incompatible with the low-cost beta. The reply closed the inquiry
+and promised no further clarification requests. No account, credential, endpoint
+or real-user data was created or supplied. The incoming answer was marked read,
+and both messages remain labeled and archived.
+
+That answer placed FitnessSyncer on hold for the current product, with no further
+clarification request planned. Eric then voluntarily supplied a materially
+different offer below.
+
+**2026-08-30 six-month pilot offer.** Eric's seventh human answer in Gmail
+message `1a0504e5ecbcb7d8` offers FitnessSyncer API access free for a limited
+period and asks whether six months is sufficient. The short offer does not state
+whether it is direct read-only API access or the bidirectional integration,
+whether real consenting users and a paid beta are allowed, what caps apply, what
+price follows the pilot, whether billing can start automatically, or whether
+retained-data permission survives the pilot subject to user deletion.
+
+Training Hub replied in Gmail message `1a050b58c3fdbf30` that six months would
+be sufficient for a bounded pilot and expressed non-binding interest. Before any
+account or credentials, the reply requested written confirmation of the exact
+architecture, paid-beta and real-user eligibility, active-user/request cap,
+post-pilot decision and price without automatic billing or commitment, and
+retention rights for imported pilot data. It offered to prepare privacy/deletion
+controls and a bounded pilot plan only if those terms fit. No offer was accepted,
+and no account, credential, endpoint or real-user data was created or supplied.
+The incoming answer was marked read and both messages were labeled and archived.
+
+**Next action.** Wait for Eric's pilot terms. Treat the six-month offer as a
+conditional validation runway, not durable product access. Proceed to credential
+or implementation review only with Marcos present and only if the written answer
+permits the read-only paid beta, has a safe non-automatic exit, and gives a
+credible post-pilot price. Otherwise return FitnessSyncer to hold without another
+negotiation loop.
 
 ### Nolio — broad detailed bridge, but no public downstream commercial license
 
@@ -1029,12 +1235,30 @@ commercial sublicense for provider data, retained copies, paid downstream
 analysis or AI processing. Nolio's own permission from each provider does not
 automatically flow through to Training Hub.
 
-**Next action.** Use the official [partnership contact
-form](https://www.nolio.io/contact/?subject=Demo) before creating an app. Ask for
-API/production price, whether free Nolio athletes can authorize a partner app,
-provider-by-provider original-file and field fidelity, a DPA, and written
-retention, derived-analysis, paid subscription and AI rights. Do not process
-real-user data until those are contractual.
+**2026-08-27 provider reply.** Nolio's human answer in Gmail message
+`1a042d60f340f4e0` confirms that only the account associated with the API
+application must have an active paid subscription; athletes who synchronize to
+the application do not need paid Nolio accounts. It also confirms access to raw
+data and says FIT versus TCX availability depends on the upstream source.
+Production promotion depends on Nolio's understanding of the business and the
+applicant's answers to its review questions. The answer did not state which
+paid plan is required, whether there is an additional API/per-athlete fee, or
+grant the requested downstream retention, paid-analysis or provider-specific
+rights.
+
+Training Hub replied in `1a04344c35525518`, asking Nolio to send the business-
+review questions and confirm exact price, downstream rights for the named
+providers, retained deterministic analysis, original/generated-file provenance,
+Strava/Oura restrictions and deletion/data-processing terms. No account,
+subscription, developer application, credentials or real-user data was created
+or supplied. The incoming answer was marked read, and the subsequent
+delivery-failure search was empty.
+
+**Next action.** Wait for the production-review questions and written rights
+answer. Athlete subscription friction is now resolved favorably, but do not pay
+for the owner account, create an app or process real-user data until Nolio states
+the complete production price and the provider-by-provider retention,
+derived-analysis, provenance, deletion/DPA and AI restrictions contractually.
 
 ### ROOK — polished hosted coverage, but no free production startup path
 
@@ -1312,9 +1536,10 @@ money. They should be done in a short browser session with Marcos present:
 | Garmin | Email waitlist request already sent | No API form can be submitted now; the general Health contact form additionally asks for Marcos's phone number but is not the access form |
 | Health Connect / HealthKit | Costs and publishing requirements mapped | Decide whether to spend US$25 for Play Console and/or US$99/year for Apple Developer; organization enrollment may require D-U-N-S |
 | Hammerhead | Self-service developer-account and original-FIT route mapped | Create/use a Hammerhead account and accept the API license; first obtain written subscription, retention and AI clarification |
-| Intervals.icu | OAuth request packet and source-fidelity test plan mapped | Final public name/site/privacy/logo and callback URLs; decide whether the extra athlete account is acceptable onboarding |
+| Intervals.icu | Commercial retention/analysis confirmed and OAuth client `790` issued by David; client not accessed or used | Review the client and any presented credentials/terms with Marcos; final public privacy/support/deletion pages and callback URLs; decide whether the extra athlete account is acceptable onboarding |
 | Samsung / Huawei | Partner gates and high-fidelity fields mapped; Huawei eligibility/rights inquiry sent | Defer until a native companion/legal entity has enough user demand; accepted console/partner terms require Marcos review; wait for Huawei's answer before assuming a Brazil sole founder can use enterprise scopes |
-| SportTracks / FitnessSyncer | Partner API and fidelity paths mapped; FitnessSyncer human reply received and concrete non-AI flow sent back | Do not request credentials, create a managed account or accept commercial terms until pricing, athlete-account friction and provider-by-provider downstream rights are answered in writing |
+| SportTracks / FitnessSyncer | Partner API and fidelity paths mapped; after the bidirectional-free/US$30 boundary, FitnessSyncer voluntarily offered six months of free API access | Wait for written pilot architecture, real-user/paid-beta allowance, caps, post-pilot price/no-auto-billing and retained-data exit terms; continue waiting for SportTracks independently |
+| Terra accelerator | Piragash confirmed Training Hub is eligible to apply; formal form is required and no separate deck is needed | Review roadmap, funding and expected provider-volume answers with Marcos, then submit the non-paid application; do not start Quick Start or assume acceptance/post-credit discount |
 
 The minimal product assets blocking the reviewed applications are: final public
 name/domain, legal applicant status, privacy/support/deletion pages, a real
@@ -1333,18 +1558,23 @@ guess inside a provider form.
    then register a testing-mode Google Health API OAuth client and a WHOOP
    development app with Marcos present. Validate Fitbit/Pixel, one cross-provider
    health source, and WHOOP workout fidelity before requesting production access.
-3. Request an Intervals.icu OAuth app after the public callback/privacy package
-   exists, and validate original Garmin/COROS/Polar/Suunto/Wahoo files with
-   provider provenance. Separately ask Hammerhead for written subscription,
-   retention and AI clarification before accepting its clickwrap.
+3. Review the issued Intervals.icu OAuth client `790` with Marcos after the
+   public callback/privacy/deletion package exists, and validate original
+   Garmin/COROS/Polar/Suunto/Wahoo files with provider provenance, excluding
+   Oura. Separately ask Hammerhead for written subscription, retention and AI
+   clarification before accepting its clickwrap.
 4. Convert the Suunto, COROS, and Wahoo contact threads into formal applications
-   after the public prerequisite package is live. Monitor Garmin's closed form
-   and do not submit TrainingPeaks while its retention conflict remains.
-5. Wait for Strava's written policy determination before requesting athlete-
-   capacity expansion or selling Strava-backed analysis.
+   after the public prerequisite package is live. Reapply to Garmin only after a
+   personalized company-domain email, site and privacy URL share the owned
+   parent domain. Do not submit TrainingPeaks while its retention conflict remains.
+5. Keep Strava-backed persistent analysis off the commercial roadmap after API
+   support declined individual policy feedback; reconsider only on a policy or
+   contractual-review change.
 6. Create the Play Console organization prerequisites/D-U-N-S workstream only if
    a Health Connect Android companion is the selected near-term aggregation
    route.
+7. Review and submit Terra's accelerator application with Marcos present as a
+   parallel runway hedge; do not make it a dependency or buy Quick Start.
 
 ### While providers review
 
@@ -1358,10 +1588,10 @@ guess inside a provider form.
   compare WHOOP summaries with the member app.
 - Evaluate Open Wearables locally only after the provider-neutral source model is
   defined; it can reduce adapter work but cannot unlock any provider account.
-- Compare the written SportTracks and FitnessSyncer answers when they arrive.
-  Prefer SportTracks on documented telemetry and partner simplicity only if its
-  commercial price, athlete onboarding and provider flow-down rights are viable;
-  neither route should block the free Intervals.icu experiment.
+- If FitnessSyncer's six-month offer is confirmed as a read-only paid-beta pilot
+  with a safe exit, compare it with Intervals.icu and any SportTracks answer on
+  athlete onboarding, original-file/provenance fidelity, deletion and durable
+  post-pilot economics. Otherwise exclude it from the bridge comparison.
 - Design duplicate resolution for the same activity arriving from Strava,
   Health Connect/HealthKit and a later direct provider API.
 - Keep billing entitlement separate from provider consent: cancellation can stop
@@ -1391,11 +1621,11 @@ guess inside a provider form.
 | 5 | Wahoo | [Developer applications](https://developers.wahooligan.com/applications) | [API support](https://wahooapi.zendesk.com/hc/en-us/requests/new), [wahooapi@wahoofitness.com](mailto:wahooapi@wahoofitness.com) | Minimum workout/profile scopes and written confirmation of non-duplicative paid analysis |
 | 6 | WHOOP | [Developer Dashboard](https://developer-dashboard.whoop.com/) | [apisupport@whoop.com](mailto:apisupport@whoop.com) | Written confirmation that athlete consent permits persisted history for a paid non-duplicative evidence product; app approval above 10 members |
 | 7 | Hammerhead | [Developer-account setup](https://support.hammerhead.io/hc/en-us/articles/43558376710683-Creating-a-Developer-Account) | Inquiry sent to [hammerhead.integrations@sram.com](mailto:hammerhead.integrations@sram.com); reply pending | Paid subscription, retained original FIT/history, bounded AI use, production user limit and whether cloud connectors need partner review |
-| Waitlist | Garmin | [Closed dedicated access form](https://www.garmin.com/en-US/forms/GarminConnectDeveloperAccess/) | Existing `connect-support@developer.garmin.com` thread | Reopening/waitlist; Activity API, FIT/history and OAuth; no Health API initially |
+| Identity gate | Garmin | [Closed dedicated access form](https://www.garmin.com/en-US/forms/GarminConnectDeveloperAccess/) | Tickets `221615` and `221617` at `connect-support@developer.garmin.com` | Personalized non-generic email, product site and privacy policy on the same company-owned parent domain; then Activity API, FIT/history and OAuth |
 | Later | Withings | [Public API setup](https://developer.withings.com/developer-guide/v3/integration-guide/public-health-data-api/developer-account/create-your-accesses-no-medical-cloud/) | Developer Dashboard support ticket | Continuous webhook fetches despite the 2018 query clause; paid use, retention/deletion and bounded AI; wellness fields only |
 | Hold | TrainingPeaks | [Paused API access form](https://api.trainingpeaks.com/request-access) | [api@trainingpeaks.com](mailto:api@trainingpeaks.com) | Written exception for persistent user history; future-partner eligibility; minimum completed-workout/metric scopes |
 | Hold | Oura | [Oura Cloud app registration](https://cloud.ouraring.com/docs/) only after policy clearance | [api-support@ouraring.com](mailto:api-support@ouraring.com) | Prior written consent for subscription charging, exact storage/deletion period, deterministic analysis and AI prohibition |
-| Hold | Strava | [Capacity review form](https://share.hsforms.com/1VXSwPUYqSH6IxK0y51FjHwcnkd8) only after policy answer | [developers@strava.com](mailto:developers@strava.com) | Written determination on persistent evidence analysis, AI context, cross-source use and paid entitlement |
+| Hold | Strava | Do not submit the [capacity review form](https://share.hsforms.com/1VXSwPUYqSH6IxK0y51FjHwcnkd8) for the current product | Ticket `#17712`; API support declined individual policy feedback | Definitive commercial-policy hold unless the published policy changes or Strava exposes a contractual review route |
 
 ### Platform partnership queue
 
@@ -1411,10 +1641,10 @@ acceptance was submitted. The vendors with a sent inquiry are recorded below.
 
 | Order | Vendor | Contact status | Ask before any real-user data |
 | --- | --- | --- | --- |
-| 1 | Intervals.icu | Pre-application rights inquiry sent to [david@intervals.icu](mailto:david@intervals.icu) and [support@intervals.icu](mailto:support@intervals.icu); OAuth credentials not requested; reply pending | Confirm original-file provenance for each direct source, upstream flow-down limits, permitted raw-file retention/deletion and Garmin attribution; validate webhook gaps, including Strava-origin activities |
+| 1 | Intervals.icu | Paid retention/analysis, `source`, no caps/fees and current Garmin-attribution flow-down confirmed by David; OAuth client `790` issued; acknowledgment sent; client not accessed or used | With Marcos present, review client/configuration and any terms; add callbacks only after privacy/consent/deletion controls; exclude Oura; validate source values, original-file fidelity, attribution, webhooks and disconnect/deletion |
 | 2 | SportTracks | Pre-application commercial inquiry sent to [api@sporttracks.mobi](mailto:api@sporttracks.mobi); client credentials not requested; reply pending | API price/minimum/caps, athlete subscription requirement, provider-by-provider authority, normalized versus original-file/provenance fidelity, paid retention/analysis, AI exclusions, DPA/security and provider-loss behavior |
-| 3 | FitnessSyncer | Human reply received in case `#23581`; exact deterministic non-AI/MCP flow and 10/100/1,000-user questions sent back; no app/account created; second answer pending | Minimum/per-managed-user price, sponsored/free accounts, target-source authentication, provider-by-provider authority, original-file provenance for all five targets, paid retention/analysis, deletion, DPA/security and provider-loss behavior |
-| 4 | Nolio | Pre-application inquiry sent to [contact@nolio.io](mailto:contact@nolio.io); developer account/partnership form not submitted; reply pending | API/production price, whether each athlete needs Premium, original-file fidelity, provider-by-provider downstream paid/retention/analysis rights, DPA/deletion and AI constraints |
+| 3 | FitnessSyncer | After the bidirectional-free/US$30 boundary, Eric voluntarily offered six months of free API access in `1a0504e5ecbcb7d8`; Training Hub expressed non-binding interest and requested the complete pilot/exit terms in `1a050b58c3fdbf30`; no app, endpoint or account created | Written direct-read-only architecture, paid-beta/real-user permission, caps, post-pilot price with no automatic billing/commitment, retained-data exit rights, revocation/deletion and DPA/security terms |
+| 4 | Nolio | Human reply confirmed one paid API-owner account, free connected-athlete accounts and source-dependent raw FIT/TCX; production review questions/price/rights clarification sent in `1a04344c35525518`; no account/application created | Required owner plan and any extra fee, review questions, original/generated provenance, provider-by-provider downstream paid retention/analysis rights, DPA/deletion and AI constraints |
 | 5 | Stridee | Two human replies received; final answer pointed back to the same site without identifying a provider-rights clause; **definitive procurement hold** and no checkout/account | Do not proceed at the present budget; reconsider only if public terms add the missing warranty or a viable contract supplies it |
 | 6 | Open Wearables / Momentum | Inquiry sent to [inquiries@themomentum.ai](mailto:inquiries@themomentum.ai); reply pending | Provider-adapter maturity/fidelity, provider credentials/downstream rights, security and migration ownership, AI feature isolation, production support/cost, deletion and provider-loss behavior |
 | 7 | ROOK | Inquiry sent to [contact@tryrook.io](mailto:contact@tryrook.io); reply pending | Confirm Core plus granular price, provider-specific fidelity/credentials, commercial production rights and whether any founder program exists; proceed only if the minimum spend becomes viable |
